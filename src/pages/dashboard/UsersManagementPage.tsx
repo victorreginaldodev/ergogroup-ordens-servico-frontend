@@ -10,12 +10,21 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Badge } from '@/components/ui/badge';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useDeleteUser, useUpsertUser, useUsers, TIPO_USUARIO_OPTIONS, CreateUserPayload, UpdateUserPayload, TipoUsuarioKey } from '@/services/users';
-import { MoreVertical, Edit, Trash2, User as UserIcon } from 'lucide-react';
+import { MoreVertical, Edit, Trash2, User as UserIcon, Plus, Search } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { UserProfile } from '@/services/auth';
+import { authService, UserProfile } from '@/services/auth';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationPrevious,
+  PaginationNext,
+  PaginationLink,
+  PaginationEllipsis,
+} from '@/components/ui/pagination';
 
 const schema = z
   .object({
@@ -23,18 +32,8 @@ const schema = z
     username: z.string().min(2, 'Username muito curto'),
     password: z.string().min(6, 'Senha deve ter ao menos 6 caracteres').optional().or(z.literal('')),
     email: z.string().email('E-mail inválido'),
-    first_name: z.string().min(1, 'Nome obrigatório'),
-    last_name: z.string().min(1, 'Sobrenome obrigatório'),
-    tipo_usuario: z.enum([
-      'admin_geral',
-      'financeiro',
-      'comercial',
-      'admin_tecnico',
-      'sub_admin_tecnico',
-      'operacional',
-    ]),
-    ativo: z.boolean().optional(),
-    foto_perfil: z.any().optional(),
+    roleId: z.number().int().min(1).max(5),
+    ativo: z.boolean(),
   })
   .superRefine((val, ctx) => {
     if (!val.id && (!val.password || val.password.length < 6)) {
@@ -54,6 +53,13 @@ const UsersManagementPage = () => {
   const del = useDeleteUser();
   const [editing, setEditing] = useState<UserProfile | null>(null);
   const [open, setOpen] = useState(false);
+  const currentUser = authService.getCurrentUser();
+  const canManageUsers = !!currentUser && currentUser.tipo_usuario !== 'tecnico';
+  
+  // Filtros
+  const [search, setSearch] = useState('');
+  const [filterTipo, setFilterTipo] = useState<string>('all');
+  const [filterNivel, setFilterNivel] = useState<string>('all');
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -61,54 +67,49 @@ const UsersManagementPage = () => {
       username: '',
       password: '',
       email: '',
-      first_name: '',
-      last_name: '',
-      tipo_usuario: 'operacional',
+      roleId: 5,
       ativo: true,
-      foto_perfil: undefined,
     },
   });
 
   useEffect(() => {
     if (editing) {
+      const ROLE_ID_MAP: Record<string, number> = {
+        diretor: 1,
+        administrativo: 2,
+        lider_tecnico: 3,
+        sub_lider_tecnico: 4,
+        tecnico: 5,
+      };
       form.reset({
         id: editing.id,
         username: editing.user.username,
         email: editing.user.email,
-        first_name: editing.user.first_name,
-        last_name: editing.user.last_name,
-        tipo_usuario: (editing.tipo_usuario as TipoUsuarioKey) || 'operacional',
+        roleId: ROLE_ID_MAP[editing.tipo_usuario] ?? 5,
         ativo: editing.ativo ?? true,
         password: '',
-        foto_perfil: undefined,
       });
     } else {
       form.reset({
         username: '',
         password: '',
         email: '',
-        first_name: '',
-        last_name: '',
-        tipo_usuario: 'operacional',
+        roleId: 5,
         ativo: true,
-        foto_perfil: undefined,
       });
     }
   }, [editing]);
 
   const onSubmit = (values: FormValues) => {
-    const fotoFile = (values.foto_perfil as FileList | undefined)?.[0] ?? null;
+    if (!canManageUsers) return;
 
     if (values.id) {
       const payload: UpdateUserPayload & { id: number } = {
         id: values.id,
         username: values.username,
         email: values.email,
-        first_name: values.first_name,
-        last_name: values.last_name,
-        tipo_usuario: values.tipo_usuario as TipoUsuarioKey,
-        ativo: values.ativo ?? true,
-        foto_perfil: fotoFile || undefined,
+        roleId: values.roleId,
+        ativo: values.ativo,
         password: values.password || undefined,
       };
 
@@ -119,11 +120,8 @@ const UsersManagementPage = () => {
             username: '',
             password: '',
             email: '',
-            first_name: '',
-            last_name: '',
-            tipo_usuario: 'operacional',
+            roleId: 5,
             ativo: true,
-            foto_perfil: undefined,
           });
           setOpen(false);
         },
@@ -133,11 +131,8 @@ const UsersManagementPage = () => {
         username: values.username,
         password: values.password || '', // Password is required for creation
         email: values.email,
-        first_name: values.first_name,
-        last_name: values.last_name,
-        tipo_usuario: values.tipo_usuario as TipoUsuarioKey,
-        ativo: values.ativo ?? true,
-        foto_perfil: fotoFile || undefined,
+        roleId: values.roleId,
+        ativo: values.ativo,
       };
 
       upsert.mutate(payload, {
@@ -147,11 +142,8 @@ const UsersManagementPage = () => {
             username: '',
             password: '',
             email: '',
-            first_name: '',
-            last_name: '',
-            tipo_usuario: 'operacional',
+            roleId: 5,
             ativo: true,
-            foto_perfil: undefined,
           });
           setOpen(false);
         },
@@ -159,11 +151,10 @@ const UsersManagementPage = () => {
     }
   };
 
-  const filteredUsers = users;
-
   const tipoLabel = (key: string) => {
-    const found = TIPO_USUARIO_OPTIONS.find(o => o.value === key);
-    return found ? found.label : key;
+    const found = TIPO_USUARIO_OPTIONS.find(o => o.value === key)?.label || key;
+    const base = (found || '').toString();
+    return base ? base[0].toUpperCase() + base.slice(1).toLowerCase() : '';
   };
 
   const fullName = (u: UserProfile) => {
@@ -175,6 +166,34 @@ const UsersManagementPage = () => {
 
   const avatarUrl = (u: UserProfile) => u.foto_perfil || '';
 
+  const filteredUsers = users.filter(u => {
+    const s = search.toLowerCase();
+    const matchesSearch = s === '' || 
+      u.user.username.toLowerCase().includes(s) ||
+      u.user.email.toLowerCase().includes(s) ||
+      fullName(u).toLowerCase().includes(s);
+    
+    const matchesTipo = filterTipo === 'all' || u.tipo_usuario === filterTipo;
+    const matchesNivel = filterNivel === 'all' || u.nivel_usuario === filterNivel;
+    
+    return matchesSearch && matchesTipo && matchesNivel;
+  });
+
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
+  const sortedUsers = [...filteredUsers].sort((a, b) =>
+    fullName(a).localeCompare(fullName(b), 'pt-BR', { sensitivity: 'base' })
+  );
+  const totalPages = Math.max(1, Math.ceil(sortedUsers.length / pageSize));
+  const startIndex = (page - 1) * pageSize;
+  const endIndex = startIndex + pageSize;
+  const pageUsers = sortedUsers.slice(startIndex, endIndex);
+
+  useEffect(() => {
+    const tp = Math.max(1, Math.ceil(sortedUsers.length / pageSize));
+    if (page > tp) setPage(tp);
+    if (page < 1) setPage(1);
+  }, [sortedUsers.length]);
   return (
     <div className="space-y-6">
       <div>
@@ -183,23 +202,35 @@ const UsersManagementPage = () => {
           <p className="text-muted-foreground">Gerencie os usuários do sistema</p>
           <Button
             onClick={() => {
+              if (!canManageUsers) return;
               setEditing(null);
               form.reset({
                 username: '',
                 password: '',
                 email: '',
-                first_name: '',
-                last_name: '',
-                tipo_usuario: 'operacional',
+                roleId: 5,
                 ativo: true,
-                foto_perfil: undefined,
               });
               setOpen(true);
             }}
             variant="hero"
+            disabled={!canManageUsers}
           >
+            <Plus className="w-4 h-4 mr-2" />
             Novo usuário
           </Button>
+        </div>
+      </div>
+
+      <div className="flex flex-col sm:flex-row gap-4">
+        <div className="relative flex-1">
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar por nome de usuário..."
+            className="pl-8"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
         </div>
       </div>
 
@@ -251,45 +282,21 @@ const UsersManagementPage = () => {
               />
               <FormField
                 control={form.control}
-                name="first_name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Nome</FormLabel>
-                    <FormControl>
-                      <Input placeholder="João" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="last_name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Sobrenome</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Silva" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="tipo_usuario"
+                name="roleId"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Tipo de Usuário</FormLabel>
                     <FormControl>
-                      <Select value={field.value} onValueChange={field.onChange}>
+                      <Select value={String(field.value)} onValueChange={(v) => field.onChange(Number(v))}>
                         <SelectTrigger>
                           <SelectValue placeholder="Selecione" />
                         </SelectTrigger>
                         <SelectContent>
-                          {TIPO_USUARIO_OPTIONS.map(opt => (
-                            <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                          ))}
+                          <SelectItem value="1">Diretor</SelectItem>
+                          <SelectItem value="2">Administrativo</SelectItem>
+                          <SelectItem value="3">Líder Técnico</SelectItem>
+                          <SelectItem value="4">Sub-Líder Técnico</SelectItem>
+                          <SelectItem value="5">Técnico</SelectItem>
                         </SelectContent>
                       </Select>
                     </FormControl>
@@ -312,28 +319,11 @@ const UsersManagementPage = () => {
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="foto_perfil"
-                render={({ field }) => (
-                  <FormItem className="sm:col-span-2">
-                    <FormLabel>Foto de Perfil</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => field.onChange(e.target.files)}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
               <DialogFooter className="sm:col-span-2">
                 <Button type="button" variant="outline" onClick={() => setOpen(false)}>
                   Cancelar
                 </Button>
-                <Button type="submit" className="min-w-32">{editing ? 'Salvar' : 'Adicionar'}</Button>
+                <Button type="submit" className="min-w-32" disabled={!canManageUsers}>{editing ? 'Salvar' : 'Adicionar'}</Button>
               </DialogFooter>
             </form>
           </Form>
@@ -345,14 +335,14 @@ const UsersManagementPage = () => {
           <Table>
             <TableHeader>
               <TableRow className="border-border hover:bg-transparent">
-                <TableHead>Usuário</TableHead>
-                <TableHead>Perfil</TableHead>
+                <TableHead>Nome de usuário</TableHead>
+                <TableHead>Tipo de usuário</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="w-12"></TableHead>
+                {canManageUsers && <TableHead className="w-12"></TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredUsers.map(u => (
+              {pageUsers.map(u => (
                 <TableRow key={u.id} className="border-border">
                   <TableCell>
                     <div className="flex items-center gap-3">
@@ -373,8 +363,8 @@ const UsersManagementPage = () => {
                         )}
                       </span>
                       <div>
-                        <p className="font-medium">{fullName(u)}</p>
-                        <p className="text-sm text-muted-foreground hidden sm:block">{u.user.email}</p>
+                        <p className="font-medium">{u.user.username}</p>
+                        <p className="text-sm text-muted-foreground">{u.user.email}</p>
                       </div>
                     </div>
                   </TableCell>
@@ -386,29 +376,92 @@ const UsersManagementPage = () => {
                       {u.ativo ? 'Ativo' : 'Inativo'}
                     </Badge>
                   </TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <MoreVertical className="w-4 h-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => { setEditing(u); setOpen(true); }}>
-                          <Edit className="w-4 h-4 mr-2" />
-                          Editar
-                        </DropdownMenuItem>
-                        <DropdownMenuItem className="text-destructive" onClick={() => del.mutate(u.id)}>
-                          <Trash2 className="w-4 h-4 mr-2" />
-                          Excluir
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
+                  {canManageUsers && (
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <MoreVertical className="w-4 h-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => { setEditing(u); setOpen(true); }}>
+                            <Edit className="w-4 h-4 mr-2" />
+                            Editar
+                          </DropdownMenuItem>
+                          <DropdownMenuItem className="text-destructive" onClick={() => del.mutate(u.id)}>
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            Excluir
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  )}
                 </TableRow>
               ))}
             </TableBody>
           </Table>
+          {totalPages > 1 && (
+            <div className="p-4">
+              <Pagination>
+                <PaginationContent>
+                  <PaginationItem>
+                    <PaginationPrevious
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        if (page > 1) setPage(page - 1);
+                      }}
+                      className={page === 1 ? 'pointer-events-none opacity-50' : ''}
+                    />
+                  </PaginationItem>
+                  {(() => {
+                    const siblingCount = 1;
+                    const items: (number | 'ellipsis')[] = [];
+                    if (totalPages <= 7) {
+                      for (let p = 1; p <= totalPages; p++) items.push(p);
+                    } else {
+                      items.push(1);
+                      const left = Math.max(page - siblingCount, 2);
+                      const right = Math.min(page + siblingCount, totalPages - 1);
+                      if (left > 2) items.push('ellipsis');
+                      for (let p = left; p <= right; p++) items.push(p);
+                      if (right < totalPages - 1) items.push('ellipsis');
+                      items.push(totalPages);
+                    }
+                    return items.map((it, idx) => (
+                      <PaginationItem key={`${it}-${idx}`}>
+                        {it === 'ellipsis' ? (
+                          <PaginationEllipsis />
+                        ) : (
+                          <PaginationLink
+                            href="#"
+                            isActive={it === page}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              setPage(it as number);
+                            }}
+                          >
+                            {it as number}
+                          </PaginationLink>
+                        )}
+                      </PaginationItem>
+                    ));
+                  })()}
+                  <PaginationItem>
+                    <PaginationNext
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        if (page < totalPages) setPage(page + 1);
+                      }}
+                      className={page === totalPages ? 'pointer-events-none opacity-50' : ''}
+                    />
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
+            </div>
+          )}
           {users.length === 0 && (
             <div className="text-center py-12">
               <UserIcon className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
@@ -419,20 +472,20 @@ const UsersManagementPage = () => {
               <Button
                 variant="hero"
                 onClick={() => {
+                  if (!canManageUsers) return;
                   setEditing(null);
-                  form.reset({
-                    username: '',
-                    password: '',
-                    email: '',
-                    first_name: '',
-                    last_name: '',
-                    tipo_usuario: 'operacional',
-                    ativo: true,
-                    foto_perfil: undefined,
-                  });
-                  setOpen(true);
-                }}
+              form.reset({
+                username: '',
+                password: '',
+                email: '',
+                roleId: 5,
+                ativo: true,
+              });
+              setOpen(true);
+            }}
+                disabled={!canManageUsers}
               >
+                <Plus className="w-4 h-4 mr-2" />
                 Novo usuário
               </Button>
             </div>

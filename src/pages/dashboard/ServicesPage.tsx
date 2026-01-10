@@ -12,45 +12,58 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
- 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+
 import { getStatusLabel, getStatusColor } from '@/data/mockData';
 import { ServiceStatus } from '@/types';
  
 import { useServiceList } from '@/services/serviceList';
+import { useServiceOrders } from '@/services/orders';
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious, PaginationEllipsis } from '@/components/ui/pagination';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useUserRole } from '@/hooks/useUserRole';
 
- 
+
 
 const ServicesPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
   const [page, setPage] = useState(1);
 
   const { data: services = [], isLoading, error } = useServiceList();
+  const { canManageServices } = useUserRole();
+  const { data: orders = [] } = useServiceOrders();
+  const ordersMap = useMemo(() => {
+    const m = new Map<string, string>();
+    orders.forEach(o => m.set(String(o.id), o.clientName));
+    return m;
+  }, [orders]);
 
   const allServiceItems = useMemo(() => {
     return services.map(item => {
-      // Map API status to frontend status
       let status: ServiceStatus = 'pending';
-      if (item.status === 'nao_iniciado') status = 'pending';
-      else if (item.status === 'em_andamento') status = 'in_progress';
-      else if (item.status === 'concluido') status = 'completed';
-      
+      const s = (item.status || '').toLowerCase();
+      if (s === 'nao_iniciado' || s === 'em_espera') status = 'pending';
+      else if (s === 'em_andamento') status = 'in_progress';
+      else if (s === 'concluida' || s === 'concluido') status = 'completed';
+      const orderId = String(item.ordem_servico ?? '');
+      const clientName = ordersMap.get(orderId) || '';
       return {
-        id: item.id.toString(),
-        serviceId: String(item.servico_catalogo_nome ?? ''),
+        id: String(item.id),
         serviceName: String(item.servico_catalogo_nome ?? ''),
-        quantity: 1,
-        unitPrice: 0,
-        total: 0,
-        status: status,
-        orderId: item.id.toString(),
-        orderNumber: item.id.toString(),
-        clientName: String(item.cliente_nome ?? ''),
+        status,
+        orderId,
+        clientName,
       };
     });
-  }, [services]);
+  }, [services, ordersMap]);
 
   const statusOrder: Record<ServiceStatus, number> = {
     pending: 0,
@@ -61,8 +74,16 @@ const ServicesPage = () => {
 
   const filteredServiceItems = allServiceItems
     .filter(item => {
-      const name = String(item.serviceName ?? '').toLowerCase();
-      return name.includes(searchTerm.toLowerCase());
+      const term = searchTerm.toLowerCase();
+      const matchesSearch = 
+        String(item.serviceName ?? '').toLowerCase().includes(term) ||
+        String(item.clientName ?? '').toLowerCase().includes(term);
+      
+      const matchesStatus = 
+        statusFilter === 'all' || 
+        item.status === statusFilter;
+
+      return matchesSearch && matchesStatus;
     })
     .sort((a, b) => statusOrder[a.status] - statusOrder[b.status]);
 
@@ -72,7 +93,7 @@ const ServicesPage = () => {
 
   useEffect(() => {
     setPage(1);
-  }, [searchTerm]);
+  }, [searchTerm, statusFilter]);
 
   useEffect(() => {
     if (page > totalPages) {
@@ -102,12 +123,23 @@ const ServicesPage = () => {
                 <div className="relative w-full">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input
-                    placeholder="Buscar por serviço..."
+                    placeholder="Buscar por serviço ou cliente..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="pl-10 bg-secondary border-border uppercase"
                   />
                 </div>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-[180px] bg-secondary border-border">
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os status</SelectItem>
+                    <SelectItem value="pending">Não iniciado</SelectItem>
+                    <SelectItem value="in_progress">Em andamento</SelectItem>
+                    <SelectItem value="completed">Concluído</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               
             </div>
@@ -120,9 +152,9 @@ const ServicesPage = () => {
           <Table>
             <TableHeader>
               <TableRow className="border-border hover:bg-transparent">
-                <TableHead className="uppercase">OS</TableHead>
-                <TableHead className="uppercase">Cliente</TableHead>
-                <TableHead className="uppercase">Serviço</TableHead>
+                <TableHead className="uppercase w-12">OS</TableHead>
+                <TableHead className="uppercase w-72">Cliente</TableHead>
+                <TableHead className="uppercase w-56">Repositório</TableHead>
                 <TableHead className="w-48 uppercase">Status</TableHead>
                 <TableHead className="w-16"></TableHead>
               </TableRow>
@@ -148,11 +180,11 @@ const ServicesPage = () => {
                       </TableCell>
                     </TableRow>
                   ))
-                : paginatedServiceItems.map((item) => (
-                    <TableRow key={item.id} className="border-border">
-                      <TableCell className="font-medium uppercase">{item.orderNumber}</TableCell>
+                : paginatedServiceItems.map((item, index) => (
+                    <TableRow key={`${item.id}-${index}`} className="border-border">
+                      <TableCell className="font-medium uppercase w-12">{item.orderId}</TableCell>
                       <TableCell>
-                        <div className="text-muted-foreground max-w-[12rem] truncate uppercase">
+                        <div className="text-muted-foreground uppercase">
                           {item.clientName}
                         </div>
                       </TableCell>
@@ -162,13 +194,19 @@ const ServicesPage = () => {
                           {getStatusLabel(item.status)}
                         </span>
                       </TableCell>
-                      <TableCell>
-                        <Button asChild variant="ghost" className="h-8 px-2" aria-label="Gerenciar serviço">
-                          <Link to={`/dashboard/services/manage/${item.orderId}/${item.id}`} className="flex items-center">
-                            <Edit className="w-4 h-4" />
-                          </Link>
-                        </Button>
-                      </TableCell>
+                  <TableCell>
+                    {canManageServices ? (
+                      <Button asChild variant="ghost" className="h-8 px-2" aria-label="Gerenciar serviço">
+                        <Link to={`/dashboard/services/manage/${item.orderId || ''}/${item.id}`} className="flex items-center">
+                          <Edit className="w-4 h-4" />
+                        </Link>
+                      </Button>
+                    ) : (
+                      <Button variant="ghost" className="h-8 px-2" disabled aria-label="Gerenciar serviço">
+                        <Edit className="w-4 h-4 text-muted-foreground" />
+                      </Button>
+                    )}
+                  </TableCell>
                     </TableRow>
                   ))}
               {!isLoading && filteredServiceItems.length === 0 && (
@@ -247,6 +285,7 @@ const ServicesPage = () => {
         </CardContent>
       </Card>
 
+ 
       
     </div>
   );

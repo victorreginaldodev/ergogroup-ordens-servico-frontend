@@ -19,7 +19,7 @@ import { useToast } from '@/hooks/use-toast';
 import { ServiceItem } from '@/types';
 import { Switch } from '@/components/ui/switch';
 import { useClients } from '@/services/clients';
-import { useServicesCatalog } from '@/services/catalog';
+import { useRepositories } from '@/services/repositories';
 import { useUpsertServiceOrder, useServiceOrder } from '@/services/orders';
 import AddServiceDialog from '@/components/order/AddServiceDialog';
 import { useUserRole } from '@/hooks/useUserRole';
@@ -46,8 +46,15 @@ const NewOrderPage = () => {
   if (isRestricted) return null;
 
   const { data: fetchedClients = [] } = useClients();
-  const { data: fetchedServices = [], isLoading: servicesLoading, isError: servicesError } = useServicesCatalog();
+  const { data: fetchedServices = [], isLoading: servicesLoading, isError: servicesError } = useRepositories();
   const { data: orderData } = useServiceOrder(id);
+
+  useEffect(() => {
+    if (id && orderData) {
+      console.log('Dados do detalhe recebidos:', orderData);
+    }
+  }, [id, orderData]);
+
   const upsert = useUpsertServiceOrder();
 
   const clientsData = useMemo(() => {
@@ -55,22 +62,27 @@ const NewOrderPage = () => {
     const exists = fetchedClients.some(c => String(c.id) === String(orderData.cliente.id));
     if (!exists) {
       // @ts-ignore
-      return [...fetchedClients, { id: orderData.cliente.id, name: orderData.cliente.nome }];
+      return [...fetchedClients, { id: String(orderData.cliente.id), name: orderData.cliente.nome }];
     }
     return fetchedClients;
   }, [fetchedClients, orderData]);
 
   const servicesData = useMemo(() => {
-     let current = [...fetchedServices];
+     const base = (fetchedServices || []).map((r: any) => ({
+       id: r.id,
+       name: r.name,
+       description: r.description,
+       price: 0,
+       nao_faturavel: false,
+     }));
      if (orderData?.servicos) {
         orderData.servicos.forEach(s => {
-           if (s.catalogo && !current.some(x => String(x.id) === String(s.catalogo.id))) {
-               // @ts-ignore
-               current.push({ id: s.catalogo.id, name: s.catalogo.nome, price: 0 });
+           if (s.catalogo && !base.some(x => String(x.id) === String(s.catalogo.id))) {
+               base.push({ id: s.catalogo.id, name: s.catalogo.nome, description: '', price: 0, nao_faturavel: false });
            }
         });
      }
-     return current;
+     return base;
   }, [fetchedServices, orderData]);
 
 
@@ -90,18 +102,15 @@ const NewOrderPage = () => {
 
   const [formData, setFormData] = useState({
     clientId: '',
-    saleDate: '',
-    paymentMethod: '',
-    installments: 1,
-    releaseBilling: false,
+    createdAt: new Date().toISOString().slice(0, 10),
+    amount: 0,
+    paymentMethod: '' as '' | 'pix' | 'credito' | 'debto' | 'boleto' | 'transferencia' | 'dinheiro' | 'check' | 'outro',
+    installments: 1 as 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12,
+    immediateCharge: '' as '' | 'sim' | 'nao',
+    billingDate1: '',
     invoiceContactName: '',
     invoiceContactEmail: '',
-    billingNotes: '',
-    type: 'avulso' as 'avulso' | 'contrato',
-    contractStart: '',
-    contractEnd: '',
-    autoRenew: false,
-    nonBillable: false,
+    observation: '',
   });
 
   const [orderServices, setOrderServices] = useState<ServiceItem[]>([]);
@@ -117,40 +126,47 @@ const NewOrderPage = () => {
     if (!sourceData || !sourceData.cliente) return;
 
     // Tentar encontrar o cliente pelo ID ou nome
-    const client = clientsData.find(c => String(c.id) === String(sourceData.cliente?.id)) || 
-                   clientsData.find(c => c.name === sourceData.cliente?.nome);
-    const clientId = client ? String(client.id) : String(sourceData.cliente?.id || '');
+    const clientData = typeof sourceData.cliente === 'object' ? sourceData.cliente : { id: sourceData.cliente, nome: '' };
+    const client = clientsData.find(c => String(c.id) === String(clientData.id)) || 
+                   clientsData.find(c => c.name === clientData.nome);
+    const clientId = client ? String(client.id) : String(clientData.id || '');
+
+    const faturamento = sourceData.faturamento || {};
+    
+    // DEBUG: Verificar o que está vindo do backend
+    console.log('DEBUG sourceData:', sourceData);
+    if (faturamento) {
+      console.log('DEBUG faturamento keys:', Object.keys(faturamento));
+      console.log('DEBUG faturamento full:', faturamento);
+    }
 
     setFormData({
       clientId: clientId,
-      saleDate: sourceData.data_venda || '',
-      paymentMethod: (sourceData.forma_pagamento || '').toLowerCase(),
-      installments: sourceData.qtde_parcelas ?? 1,
-      releaseBilling: !!sourceData.liberar_faturamento,
+      createdAt: sourceData.data_criacao || new Date().toISOString().slice(0, 10),
+      amount: Number(sourceData.valor ?? 0),
+      paymentMethod: (sourceData.forma_pagamento || '').toLowerCase() as any,
+      installments: (sourceData.quantidade_parcelas as any) ?? 1,
+      immediateCharge: (sourceData.cobranca_imediata || '').toLowerCase() as any,
+      billingDate1: sourceData.faturamento_1 || '',
       invoiceContactName: sourceData.nome_contato_envio_nf || '',
-      invoiceContactEmail: sourceData.email_envio_nf || '',
-      billingNotes: sourceData.observacao_faturamento || '',
-      type: sourceData.tipo === 'contrato' ? 'contrato' : 'avulso',
-      contractStart: sourceData.inicio_vigencia ?? '',
-      contractEnd: sourceData.fim_vigencia ?? '',
-      autoRenew: !!sourceData.renovacao_automatica,
-      nonBillable: !!sourceData.nao_faturavel,
+      invoiceContactEmail: sourceData.contato_envio_nf || '',
+      observation: sourceData.observacao || '',
     });
 
     const items = (sourceData.servicos || []).map((s, idx) => {
-      // Tentar encontrar o serviço pelo ID ou nome
-      const svc = servicesData.find(x => String(x.id) === String(s.catalogo?.id)) || 
-                  servicesData.find(x => x.name === s.catalogo?.nome);
-      const serviceId = svc ? String(svc.id) : String(s.catalogo?.id || '');
-      const serviceName = svc?.name ?? s.catalogo?.nome ?? '';
-      
+      const catId = s.catalogo?.id || s.catalogo_servico || s.repositorio?.id;
+      const catName = s.catalogo?.nome || s.repositorio?.nome || '';
+      const svc = servicesData.find(x => String(x.id) === String(catId)) || 
+                  servicesData.find(x => x.name === catName);
+      const serviceId = svc ? String(svc.id) : (catId ? String(catId) : `repo-${idx}`);
+      const serviceName = svc?.name ?? catName;
       return {
         id: `${Date.now()}-${idx}`,
-        serviceId: serviceId,
-        serviceName: serviceName,
-        quantity: Number(s.quantidade ?? 1),
-        unitPrice: Number(s.valor_servico ?? 0),
-        total: Number(s.valor_servico ?? 0) * Number(s.quantidade ?? 1),
+        serviceId,
+        serviceName,
+        quantity: 1,
+        unitPrice: 0,
+        total: 0,
         status: 'pending',
         note: s.descricao || '',
       } as ServiceItem;
@@ -226,25 +242,19 @@ const NewOrderPage = () => {
     setOrderServices(orderServices.filter(s => s.id !== id));
   };
 
-  const servicesTotal = orderServices.reduce((acc, s) => acc + (Number.isFinite(s.total) ? s.total : 0), 0);
-  const totalAmount = servicesTotal > 0 ? servicesTotal : Number(orderData?.valor_total ?? 0);
+  const servicesTotal = orderServices.length; // valor agora é explicitamente informado no formulário
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const missing: string[] = [];
     if (!formData.clientId) missing.push("Cliente");
-    if (!formData.saleDate) missing.push("Data da Venda");
+    if (!formData.createdAt) missing.push("Data de criação");
+    if (!Number.isFinite(formData.amount)) missing.push("Valor");
     if (!formData.paymentMethod) missing.push("Forma de Pagamento");
-    const inst = Number(formData.installments);
-    if (!Number.isFinite(inst) || inst < 1) missing.push("Quantidade de parcelas");
-    if (!formData.type) missing.push("Tipo");
-    if (formData.type === 'contrato') {
-      if (!formData.contractStart) missing.push("Início da vigência");
-      if (!formData.contractEnd) missing.push("Fim da vigência");
-    }
-    if (!formData.invoiceContactName) missing.push("Nome do responsável pela NF");
-    if (!formData.invoiceContactEmail) missing.push("Email de envio da NF");
-    if (!formData.billingNotes) missing.push("Observações de faturamento");
+    
+    if (!formData.invoiceContactName) missing.push("Nome do contato para NF");
+    if (!formData.invoiceContactEmail) missing.push("Contato envio NF (email)");
+    
     if (orderServices.length === 0) {
       missing.push("Serviços");
     } else {
@@ -260,30 +270,30 @@ const NewOrderPage = () => {
       return;
     }
 
-    const payload = {
+    const clientIdNum = Number(
+      formData.clientId ||
+      (typeof orderData?.cliente === 'object' ? orderData?.cliente?.id : orderData?.cliente ?? '')
+    );
+    const payload: any = {
       id,
-      cliente: Number(formData.clientId),
-      data_venda: formData.saleDate,
-      tipo_ordem_servico: formData.type,
-      status: orderData?.status ?? 'nao_iniciado',
-      valor_total: totalAmount,
       servicos: orderServices.map(s => ({
-        catalogo_servico: Number(s.serviceId),
-        quantidade: Number.isFinite(s.quantity) ? s.quantity : 1,
-        valor: Number(s.unitPrice ?? 0),
-        descricao: s.note || undefined,
+        repositorio_id: Number(s.serviceId),
+        descricao: s.note || '',
       })),
-      faturamento: {
-        nome_contato_envio_nf: formData.invoiceContactName || undefined,
-        contato_envio_nf: formData.invoiceContactEmail || undefined,
-        forma_pagamento: formData.paymentMethod || undefined,
-        descricao_faturamento: formData.billingNotes || undefined,
-        nao_faturavel: !!formData.nonBillable,
-        faturamento_liberado: !!formData.releaseBilling,
-      },
+      data_criacao: formData.createdAt,
+      valor: Number(formData.amount || 0),
+      forma_pagamento: formData.paymentMethod as any,
+      nome_contato_envio_nf: formData.invoiceContactName,
+      contato_envio_nf: formData.invoiceContactEmail,
+      cliente: Number(formData.clientId),
     };
+    if (!payload.cliente || isNaN(payload.cliente)) payload.cliente = clientIdNum;
+    if (formData.installments) payload.quantidade_parcelas = formData.installments as any;
+    if (formData.immediateCharge) payload.cobranca_imediata = formData.immediateCharge as any;
+    if (formData.billingDate1) payload.faturamento_1 = formData.billingDate1;
+    if (formData.observation) payload.observacao = formData.observation;
 
-    upsert.mutate(payload, {
+    upsert.mutate(payload as any, {
       onSuccess: () => {
         toast({
           title: id ? "Ordem atualizada com sucesso!" : "Ordem criada com sucesso!",
@@ -315,19 +325,19 @@ const NewOrderPage = () => {
       <form onSubmit={handleSubmit} className="space-y-6">
         <Card className="bg-card border-border">
           <CardHeader>
-            <CardTitle>Dados da Venda e Faturamento</CardTitle>
+            <CardTitle>Dados da Ordem</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid sm:grid-cols-3 gap-4">
               <div className="space-y-2 sm:col-span-2">
                 <Label>Cliente *</Label>
-                <Select value={formData.clientId} onValueChange={(v) => setFormData({ ...formData, clientId: v, invoiceContact: '' })}>
+                <Select value={formData.clientId} onValueChange={(v) => setFormData({ ...formData, clientId: v })}>
                   <SelectTrigger className="bg-secondary border-border">
                     <SelectValue placeholder="Selecione um cliente" />
                   </SelectTrigger>
                   <SelectContent>
                     {clientsData.map(c => (
-                      <SelectItem key={c.id} value={c.id}>
+                      <SelectItem key={String(c.id)} value={String(c.id)}>
                         {c.name}
                       </SelectItem>
                     ))}
@@ -343,21 +353,42 @@ const NewOrderPage = () => {
                 )}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="saleDate">Data da Venda *</Label>
+                <Label htmlFor="createdAt">Data de Criação *</Label>
                 <Input
-                  id="saleDate"
+                  id="createdAt"
                   type="date"
-                  value={formData.saleDate}
-                  onChange={(e) => setFormData({ ...formData, saleDate: e.target.value })}
+                  value={formData.createdAt}
+                  onChange={(e) => setFormData({ ...formData, createdAt: e.target.value })}
                   className="bg-secondary border-border"
                 />
               </div>
             </div>
             <div className="grid sm:grid-cols-3 gap-4">
-              <div className="space-y-2">
+              
+              <div className="space-y-2 sm:max-w-[280px] w-full">
+                <Label htmlFor="amount">Valor *</Label>
+                <Input
+                  id="amount"
+                  type="number"
+                  step="0.01"
+                  value={formData.amount}
+                  onChange={(e) => {
+                    let s = e.target.value ?? '';
+                    if (s.startsWith('0') && !s.startsWith('0.') && !s.startsWith('0,')) {
+                      s = s.replace(/^0+/, '');
+                      if (s === '') s = '0';
+                    }
+                    e.target.value = s;
+                    setFormData({ ...formData, amount: Number(s) });
+                  }}
+                  className="bg-secondary border-border"
+                  placeholder="0,00"
+                />
+              </div>
+              <div className="space-y-2 sm:max-w-[280px] w-full">
                 <Label>Forma de Pagamento *</Label>
-                <Select value={formData.paymentMethod} onValueChange={(v) => setFormData({ ...formData, paymentMethod: v })}>
-                  <SelectTrigger className="bg-secondary border-border">
+                <Select value={formData.paymentMethod} onValueChange={(v) => setFormData({ ...formData, paymentMethod: v as any })}>
+                  <SelectTrigger className="bg-secondary border-border w-full">
                     <SelectValue placeholder="Selecione" />
                   </SelectTrigger>
                   <SelectContent>
@@ -372,67 +403,48 @@ const NewOrderPage = () => {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="installments">Quantidade de parcelas *</Label>
-                <Input
-                  id="installments"
-                  type="number"
-                  min={1}
-                  value={formData.installments}
-                  onChange={(e) => setFormData({ ...formData, installments: Number(e.target.value) })}
-                  className="bg-secondary border-border"
-                  placeholder="1"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Tipo *</Label>
-                <Select value={formData.type} onValueChange={(v) => setFormData({ ...formData, type: v as 'avulso' | 'contrato' })}>
-                  <SelectTrigger className="bg-secondary border-border">
+              <div className="space-y-2 sm:max-w-[280px] w-full">
+                <Label>Quantidade de parcelas</Label>
+                <Select value={String(formData.installments)} onValueChange={(v) => setFormData({ ...formData, installments: Number(v) as any })}>
+                  <SelectTrigger className="bg-secondary border-border w-full">
                     <SelectValue placeholder="Selecione" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="avulso">Avulso</SelectItem>
-                    <SelectItem value="contrato">Contrato</SelectItem>
+                    {Array.from({ length: 12 }, (_, i) => i + 1).map(n => (
+                      <SelectItem key={n} value={String(n)}>{n} parcela{n > 1 ? 's' : ''}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
             </div>
-            {formData.type === 'contrato' && (
-              <div className="grid sm:grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="contractStart">Início da vigência *</Label>
-                  <Input
-                    id="contractStart"
-                    type="date"
-                    value={formData.contractStart}
-                    onChange={(e) => setFormData({ ...formData, contractStart: e.target.value })}
-                    className="bg-secondary border-border"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="contractEnd">Fim da vigência *</Label>
-                  <Input
-                    id="contractEnd"
-                    type="date"
-                    value={formData.contractEnd}
-                    onChange={(e) => setFormData({ ...formData, contractEnd: e.target.value })}
-                    className="bg-secondary border-border"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Renovação automática</Label>
-                  <div className="flex items-center gap-3">
-                    <Switch
-                      checked={formData.autoRenew}
-                      onCheckedChange={(v) => setFormData({ ...formData, autoRenew: v })}
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
             <div className="grid sm:grid-cols-3 gap-4">
-              <div className="space-y-2 sm:col-span-1">
-                <Label htmlFor="invoiceContactName">Nome do responsável pela NF *</Label>
+              <div className="space-y-2 sm:max-w-[280px] w-full">
+                <Label htmlFor="billingDate1">Faturamento 1</Label>
+                <Input
+                  id="billingDate1"
+                  type="date"
+                  value={formData.billingDate1}
+                  onChange={(e) => setFormData({ ...formData, billingDate1: e.target.value })}
+                  className="bg-secondary border-border w-full"
+                />
+              </div>
+              <div className="space-y-2 sm:max-w-[280px] w-full">
+                <Label>Cobrança imediata</Label>
+                <Select value={formData.immediateCharge} onValueChange={(v) => setFormData({ ...formData, immediateCharge: v as any })}>
+                  <SelectTrigger className="bg-secondary border-border w-full">
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="sim">Sim</SelectItem>
+                    <SelectItem value="nao">Não</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="hidden sm:block"></div>
+            </div>
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="invoiceContactName">Nome do contato para NF *</Label>
                 <Input
                   id="invoiceContactName"
                   value={formData.invoiceContactName}
@@ -441,8 +453,8 @@ const NewOrderPage = () => {
                   placeholder="Nome do responsável"
                 />
               </div>
-              <div className="space-y-2 sm:col-span-1">
-                <Label htmlFor="invoiceContactEmail">Email de envio da NF *</Label>
+              <div className="space-y-2">
+                <Label htmlFor="invoiceContactEmail">Contato envio NF *</Label>
                 <Input
                   id="invoiceContactEmail"
                   type="email"
@@ -454,35 +466,17 @@ const NewOrderPage = () => {
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="billingNotes">Observações de faturamento *</Label>
+              <Label htmlFor="observation">Observação</Label>
               <Textarea
-                id="billingNotes"
-                value={formData.billingNotes}
-                onChange={(e) => setFormData({ ...formData, billingNotes: e.target.value })}
+                id="observation"
+                value={formData.observation}
+                onChange={(e) => setFormData({ ...formData, observation: e.target.value })}
                 className="bg-secondary border-border min-h-24"
-                placeholder="Observações adicionais sobre faturamento..."
+                placeholder="Observação geral da OS"
               />
             </div>
-            <div className="space-y-2">
-              <Label>Ordem de Serviço não faturável</Label>
-              <div className="flex items-center gap-3">
-                <Switch
-                  checked={formData.nonBillable}
-                  onCheckedChange={(v) => setFormData({ ...formData, nonBillable: v })}
-                />
-              </div>
-            </div>
-            <div className="grid sm:grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label>Liberar faturamento</Label>
-                <div className="flex items-center gap-3">
-                  <Switch
-                    checked={formData.releaseBilling}
-                    onCheckedChange={(v) => setFormData({ ...formData, releaseBilling: v })}
-                  />
-                </div>
-              </div>
-            </div>
+
+
           </CardContent>
         </Card>
 
@@ -495,7 +489,7 @@ const NewOrderPage = () => {
               <div className="text-sm text-muted-foreground">
                 Nenhum serviço no catálogo.{' '}
                 <Link to="/dashboard/catalog/new" className="underline">
-                  Cadastrar serviço
+                  Cadastrar item
                 </Link>
               </div>
             )}
@@ -513,18 +507,6 @@ const NewOrderPage = () => {
                         {service.note && <p className="text-sm text-muted-foreground truncate">{service.note}</p>}
                       </div>
                       <div className="flex items-center gap-6">
-                        <div className="text-sm">
-                          <span className="text-muted-foreground">Valor</span>
-                          <div className="font-medium">{formatCurrency(service.unitPrice)}</div>
-                        </div>
-                        <div className="text-sm">
-                          <span className="text-muted-foreground">Qtd</span>
-                          <div className="font-medium">{service.quantity}</div>
-                        </div>
-                        <div className="text-sm">
-                          <span className="text-muted-foreground">Total</span>
-                          <div className="font-semibold">{formatCurrency(service.total)}</div>
-                        </div>
                         <Button
                           type="button"
                           variant="ghost"
@@ -563,7 +545,7 @@ const NewOrderPage = () => {
                 disabled={servicesLoading || servicesError || servicesData.length === 0}
               >
                 <Plus className="w-4 h-4" />
-                Adicionar Serviço
+                Adicionar
               </Button>
             </div>
             <AddServiceDialog
@@ -578,46 +560,12 @@ const NewOrderPage = () => {
           </CardContent>
         </Card>
 
-        <Card className="bg-card border-border">
-          <CardHeader>
-            <CardTitle>Resumo</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            
-
-            <div className="space-y-2">
-              {orderServices.map(service => (
-                <div key={service.id} className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">
-                    {service.serviceName}
-                  </span>
-                  <div className="text-right">
-                    <div className="font-semibold">{formatCurrency(service.total)}</div>
-                    <div className="text-xs text-muted-foreground">
-                      Qtd: {service.quantity}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-            
-            {orderServices.length > 0 && (
-              <>
-                <div className="border-t border-border pt-4">
-                  <div className="flex justify-between text-lg font-bold">
-                    <span>Total</span>
-                    <span className="gradient-text">{formatCurrency(totalAmount)}</span>
-                  </div>
-                </div>
-              </>
-            )}
-
-            <Button type="submit" variant="hero" className="w-full" size="lg" disabled={upsert.isPending}>
-              <Save className="w-4 h-4" />
-              {id ? 'Salvar Alterações' : 'Criar Ordem'}
-            </Button>
-          </CardContent>
-        </Card>
+        <div className="pt-2">
+          <Button type="submit" variant="hero" className="w-full" size="lg" disabled={upsert.isPending}>
+            <Save className="w-4 h-4" />
+            {id ? 'Salvar Alterações' : 'Criar Ordem'}
+          </Button>
+        </div>
       </form>
     </div>
   );

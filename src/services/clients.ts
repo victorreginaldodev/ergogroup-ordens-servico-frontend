@@ -9,19 +9,35 @@ type ClienteApi = {
   nome: string;
   tipo_inscricao: 'cnpj' | 'cpf' | 'cei' | 'cno' | 'caepf' | 'outro';
   numero_inscricao: string;
-  telefone_institucional: string;
-  email_institucional: string;
-  endereco: {
-    rua: string;
-    numero: string;
-    bairro: string;
-    cidade: string;
-    uf: string;
-    cep: string;
-  };
+  telefone_institucional?: string;
+  email_institucional?: string;
+  cliente_ativo?: string;
+  cobranca_revisao_alteracao?: boolean;
+  tipo_cliente?: string;
+  observacao?: string | null;
+  data_criacao?: string;
+  nome_representante?: string;
+  setor_representante?: string;
+  email_representante?: string;
+  contato_representante?: string;
 };
 
 export type ClienteApiInput = Omit<ClienteApi, 'id'>;
+
+export type ClienteUpsertPayload = {
+  id?: string;
+  nome: string;
+  tipo_inscricao: ClienteApi['tipo_inscricao'];
+  numero_inscricao: string;
+  tipo_cliente?: string;
+  observacao?: string | null;
+  nome_representante?: string;
+  setor_representante?: string;
+  email_representante?: string;
+  contato_representante?: string;
+  cliente_ativo?: 'sim' | 'nao';
+  cobranca_revisao_alteracao?: boolean;
+};
 
 const toClient = (c: ClienteApi): Client => {
   const id = String(c.id);
@@ -40,8 +56,16 @@ const toClient = (c: ClienteApi): Client => {
     email: c.email_institucional,
     phone: c.telefone_institucional,
     document: c.numero_inscricao,
-    address,
     tipo_inscricao: c.tipo_inscricao,
+    active: (c.cliente_ativo || '').toLowerCase() === 'sim',
+    chargeRevisionChange: !!c.cobranca_revisao_alteracao,
+    tipoCliente: c.tipo_cliente,
+    notes: c.observacao || undefined,
+    createdAt: c.data_criacao,
+    representativeName: c.nome_representante,
+    representativeSector: c.setor_representante,
+    representativeEmail: c.email_representante,
+    representativeContact: c.contato_representante,
   };
 };
 
@@ -76,7 +100,7 @@ export const useClient = (id?: string) => {
 export const useUpsertClient = () => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: ClienteApiInput & { id?: string }) => {
+    mutationFn: async (payload: ClienteUpsertPayload) => {
       if (payload.id) {
         const { id, ...body } = payload;
         const { data } = await api.put<ClienteApi>(`${endpoint}${id}/`, body);

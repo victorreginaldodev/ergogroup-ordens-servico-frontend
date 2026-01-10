@@ -1,25 +1,8 @@
-import { useMemo, useState } from 'react';
-import { 
-  DollarSign, 
-  TrendingUp, 
-  CreditCard, 
-  AlertCircle,
-  CheckCircle,
-  Clock,
-  Download,
-  Filter,
-  Search,
-  FileText,
-  MoreVertical
-} from 'lucide-react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { Lock, PencilLine, Search } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { ServiceOrder } from '@/types';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import {
   Table,
   TableBody,
@@ -28,6 +11,9 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
@@ -35,400 +21,804 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
-import { formatCurrency, formatDate } from '@/data/mockData';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { useServiceOrders, OrdemServicoDTO } from '@/services/orders';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import api from '@/services/api';
-
-const monthLabels = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-
-type OrdemFaturamentoUpdate = {
-  faturar_em?: string;
-  nao_faturavel?: boolean;
-  faturamento_liberado?: boolean;
-  contato_envio_nf?: number;
-  descricao_faturamento?: string;
-  forma_pagamento?: string;
-  numero_nf?: string;
-  data_faturamento?: string;
-};
+import { Separator } from '@/components/ui/separator';
+import { Skeleton } from '@/components/ui/skeleton';
+import { formatCurrency } from '@/data/mockData';
+import { useBillingKpis, useBillingServiceOrders, useMiniOs, useMiniOsDetail, useUpdateMiniOs } from '@/services/billing';
+import { useServiceOrder, useUpdateServiceOrderBilling } from '@/services/orders';
+import { useUserRole } from '@/hooks/useUserRole';
 
 const FinancialPage = () => {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [paymentFilter, setPaymentFilter] = useState<string>('all');
-  const { data: orders = [] } = useServiceOrders();
-  const queryClient = useQueryClient();
-
-  const updateBilling = useMutation({
-    mutationFn: async ({ id, data }: { id: string | number, data: OrdemFaturamentoUpdate }) => {
-      const { data: res } = await api.patch<OrdemServicoDTO>(`/api/ordens-servico/${id}/`, { faturamento: data });
-      return res;
-    },
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['serviceOrders'] });
-    },
-  });
-  
-  const [billingOpen, setBillingOpen] = useState(false);
-  const [selectedOrder, setSelectedOrder] = useState<ServiceOrder | null>(null);
+  const { data: orders = [], isLoading, isError } = useBillingServiceOrders();
+  const {
+    data: kpis,
+    isLoading: isKpiLoading,
+    isError: isKpiError,
+  } = useBillingKpis();
+  const {
+    data: miniOs = [],
+    isLoading: isMiniOsLoading,
+    isError: isMiniOsError,
+  } = useMiniOs();
+  const [miniOsSearch, setMiniOsSearch] = useState('');
+  const [miniOsBillingFilter, setMiniOsBillingFilter] = useState<'all' | 'faturada' | 'nao_faturada'>('all');
+  const [isMiniDialogOpen, setIsMiniDialogOpen] = useState(false);
+  const [selectedMiniId, setSelectedMiniId] = useState<number | null>(null);
+  const [miniBillingValue, setMiniBillingValue] = useState<'sim' | 'nao' | ''>('');
+  const [miniNfNumber, setMiniNfNumber] = useState('');
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
+  const [faturamentoValue, setFaturamentoValue] = useState<'sim' | 'nao' | ''>('');
+  const [billingDate, setBillingDate] = useState('');
   const [nfNumber, setNfNumber] = useState('');
-  const [billingDate, setBillingDate] = useState<string>(() => {
-    const d = new Date();
-    const pad = (n: number) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-  });
-  const [notes, setNotes] = useState('');
-  const [emitOpen, setEmitOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'concluida' | 'andamento'>('all');
+  const [billingFilter, setBillingFilter] = useState<'all' | 'faturada' | 'nao_faturada'>('all');
+  const [activeView, setActiveView] = useState<'os' | 'minios'>('os');
 
-  const totalRevenue = orders.reduce((acc, order) => acc + order.totalAmount, 0);
-  const today = new Date();
-  const pendingDueRevenue = orders
-    .filter(o => !o.isPaid && o.dueDate <= today)
-    .reduce((acc, order) => acc + order.totalAmount, 0);
-  const futureRevenue = orders
-    .filter(o => !o.isPaid && o.dueDate > today)
-    .reduce((acc, order) => acc + order.totalAmount, 0);
+  const selectedOrderIdString = selectedOrderId ? String(selectedOrderId) : undefined;
+  const {
+    data: orderDetail,
+    isLoading: isDetailLoading,
+    isError: isDetailError,
+  } = useServiceOrder(selectedOrderIdString);
+  const updateServiceOrderBilling = useUpdateServiceOrderBilling();
+  const {
+    data: miniDetail,
+    isLoading: isMiniDetailLoading,
+    isError: isMiniDetailError,
+  } = useMiniOsDetail(selectedMiniId ?? undefined);
+  const updateMiniOs = useUpdateMiniOs();
+  const { canAccessFinancials } = useUserRole();
 
-  const filteredOrders = orders.filter(order => {
-    const matchesSearch = 
-      order.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.orderNumber.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesPayment = 
-      paymentFilter === 'all' || 
-      (paymentFilter === 'paid' && order.isPaid) ||
-      (paymentFilter === 'pending' && !order.isPaid);
-    return matchesSearch && matchesPayment;
-  });
+  const renderBadge = (condition: boolean, positive: string, negative: string) => (
+    <Badge className={condition ? 'bg-status-completed text-primary-foreground' : 'bg-status-pending text-primary-foreground'}>
+      {condition ? positive : negative}
+    </Badge>
+  );
 
-  const stats = [
-    {
-      title: 'Total de Faturamento',
-      value: formatCurrency(totalRevenue),
-      icon: DollarSign,
-      color: 'text-primary',
-      bgColor: 'bg-primary/10',
-    },
-    {
-      title: 'Faturamentos Pendentes',
-      value: formatCurrency(pendingDueRevenue),
-      icon: AlertCircle,
-      color: 'text-status-pending',
-      bgColor: 'bg-status-pending/10',
-    },
-    {
-      title: 'Faturamentos Futuros',
-      value: formatCurrency(futureRevenue),
-      icon: Clock,
-      color: 'text-chart-2',
-      bgColor: 'bg-chart-2/10',
-    },
-  ];
+  const filteredOrders = useMemo(() => {
+    const normalizedSearch = searchTerm.trim().toLowerCase();
+    return orders.filter((order) => {
+      const concludedRaw = (order.concluida ?? '').toLowerCase();
+      const billedRaw = (order.faturamento ?? '').toLowerCase();
+      const concluded = concludedRaw === 'sim';
+      const billed = billedRaw === 'sim';
 
-  const pieData = useMemo(() => {
-    const paid = orders.filter(o => o.isPaid).length;
-    const pending = orders.filter(o => !o.isPaid).length;
-    return [
-      { name: 'Pagos', value: paid, color: 'hsl(142, 76%, 36%)' },
-      { name: 'Pendentes', value: pending, color: 'hsl(45, 93%, 47%)' },
-    ];
-  }, [orders]);
+      const matchesSearch =
+        normalizedSearch.length === 0 ||
+        order.cliente_nome.toLowerCase().includes(normalizedSearch) ||
+        String(order.numero_os).toLowerCase().includes(normalizedSearch);
 
-  const monthlyBillingData = useMemo(() => {
-    const map = new Map<string, number>();
-    orders
-      .filter(o => o.isPaid)
-      .forEach(o => {
-        const d = o.updatedAt instanceof Date ? o.updatedAt : new Date(o.updatedAt);
-        const key = `${monthLabels[d.getMonth()]}/${d.getFullYear()}`;
-        map.set(key, (map.get(key) || 0) + o.totalAmount);
-      });
-    return Array.from(map.entries())
-      .sort((a, b) => {
-        const [am, ay] = a[0].split('/');
-        const [bm, by] = b[0].split('/');
-        const mi = monthLabels.indexOf(am);
-        const mj = monthLabels.indexOf(bm);
-        const yi = Number(ay);
-        const yj = Number(by);
-        if (yi === yj) return mi - mj;
-        return yi - yj;
-      })
-      .map(([name, billing]) => ({ name, billing }));
-  }, [orders]);
+      const matchesStatus =
+        statusFilter === 'all' ||
+        (statusFilter === 'concluida' && concluded) ||
+        (statusFilter === 'andamento' && !concluded);
 
-  const openBilling = (order: ServiceOrder) => {
-    setSelectedOrder(order);
-    setNfNumber('');
-    const d = new Date();
-    const pad = (n: number) => String(n).padStart(2, '0');
-    setBillingDate(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`);
-    setNotes('');
-    setBillingOpen(true);
+      const matchesBilling =
+        billingFilter === 'all' ||
+        (billingFilter === 'faturada' && billed) ||
+        (billingFilter === 'nao_faturada' && !billed);
+
+      return matchesSearch && matchesStatus && matchesBilling;
+    });
+  }, [orders, searchTerm, statusFilter, billingFilter]);
+
+  const sortedOrders = useMemo(() => {
+    return [...filteredOrders].sort((a, b) => {
+      const billedA = (a.faturamento ?? '').toLowerCase() === 'sim';
+      const billedB = (b.faturamento ?? '').toLowerCase() === 'sim';
+      return Number(billedA) - Number(billedB);
+    });
+  }, [filteredOrders]);
+
+  const filteredMiniOs = useMemo(() => {
+    const normalizedSearch = miniOsSearch.trim().toLowerCase();
+    return miniOs.filter((mini) => {
+      const billedRaw = (mini.faturamento ?? '').toLowerCase();
+      const billed = billedRaw === 'sim';
+
+      const matchesSearch =
+        normalizedSearch.length === 0 ||
+        (mini.cliente?.nome ?? '').toLowerCase().includes(normalizedSearch) ||
+        String(mini.id).includes(normalizedSearch);
+
+      const matchesBilling =
+        miniOsBillingFilter === 'all' ||
+        (miniOsBillingFilter === 'faturada' && billed) ||
+        (miniOsBillingFilter === 'nao_faturada' && !billed);
+
+      return matchesSearch && matchesBilling;
+    });
+  }, [miniOs, miniOsSearch, miniOsBillingFilter]);
+
+  useEffect(() => {
+    if (!orderDetail) {
+      setFaturamentoValue('');
+      setBillingDate('');
+      setNfNumber('');
+      return;
+    }
+    const faturamentoRaw = (orderDetail.faturamento ?? '').toLowerCase();
+    if (faturamentoRaw === 'sim' || faturamentoRaw === 'nao') {
+      setFaturamentoValue(faturamentoRaw);
+    } else {
+      setFaturamentoValue('');
+    }
+    setBillingDate(orderDetail.data_faturamento ?? '');
+    const numeroNf = orderDetail.numero_nf;
+    setNfNumber(numeroNf !== null && numeroNf !== undefined ? String(numeroNf) : '');
+  }, [orderDetail]);
+
+  useEffect(() => {
+    if (!miniDetail) {
+      setMiniBillingValue('');
+      setMiniNfNumber('');
+      return;
+    }
+    const faturamentoRaw = (miniDetail.faturamento ?? '').toLowerCase();
+    if (faturamentoRaw === 'sim' || faturamentoRaw === 'nao') {
+      setMiniBillingValue(faturamentoRaw);
+    } else {
+      setMiniBillingValue('');
+    }
+    setMiniNfNumber(miniDetail.n_nf ?? '');
+  }, [miniDetail]);
+
+  const handleEditClick = (orderId: number) => {
+    setSelectedOrderId(orderId);
+    setIsDialogOpen(true);
   };
 
-  const confirmBilling = async () => {
-    if (!selectedOrder) return;
-    if (!nfNumber.trim()) return;
-    
-    try {
-      await updateBilling.mutateAsync({
-        id: selectedOrder.id,
-        data: {
-          numero_nf: nfNumber,
-          data_faturamento: billingDate,
-          descricao_faturamento: notes,
-          faturar_em: billingDate,
-          faturamento_liberado: true,
-        }
-      });
-      setBillingOpen(false);
-      setSelectedOrder(null);
-    } catch (error) {
-      console.error("Failed to bill order", error);
+  const handleDialogChange = (open: boolean) => {
+    setIsDialogOpen(open);
+    if (!open) {
+      setSelectedOrderId(null);
+      setFaturamentoValue('');
+      setBillingDate('');
+      setNfNumber('');
     }
   };
+
+  const handleMiniEditClick = (miniId: number) => {
+    setSelectedMiniId(miniId);
+    setIsMiniDialogOpen(true);
+  };
+
+  const handleMiniDialogChange = (open: boolean) => {
+    setIsMiniDialogOpen(open);
+    if (!open) {
+      setSelectedMiniId(null);
+      setMiniBillingValue('');
+      setMiniNfNumber('');
+    }
+  };
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!selectedOrderId) return;
+
+    try {
+      await updateServiceOrderBilling.mutateAsync({
+        id: selectedOrderId,
+        payload: {
+          faturamento: faturamentoValue || null,
+          data_faturamento: billingDate || null,
+          numero_nf: nfNumber ? Number(nfNumber) : null,
+        },
+      });
+    } catch (error) {
+      console.error('Erro ao atualizar ordem de serviço para faturamento', error);
+    }
+  };
+
+  const handleMiniSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!selectedMiniId) return;
+
+    try {
+      await updateMiniOs.mutateAsync({
+        id: selectedMiniId,
+        payload: {
+          faturamento: miniBillingValue || null,
+          n_nf: miniNfNumber || null,
+        },
+      });
+    } catch (error) {
+      console.error('Erro ao atualizar Mini OS', error);
+    }
+  };
+
+  if (!canAccessFinancials) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <Card className="max-w-lg text-center">
+          <CardHeader>
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10">
+              <Lock className="h-6 w-6 text-destructive" />
+            </div>
+            <CardTitle className="mt-4 text-xl">Acesso restrito</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-muted-foreground">
+              Seu perfil não possui permissão para visualizar as informações financeiras.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">Financeiro</h1>
-          <p className="text-muted-foreground">Acompanhe suas receitas e faturamento</p>
+          <p className="text-muted-foreground">Ordens de serviço disponíveis para faturamento</p>
         </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {stats.map((stat) => (
-          <Card key={stat.title} className="bg-card border-border">
-            <CardContent className="p-6">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground mb-1">{stat.title}</p>
-                  <p className="text-2xl font-bold">{stat.value}</p>
-                </div>
-                <div className={`w-12 h-12 rounded-xl ${stat.bgColor} flex items-center justify-center`}>
-                  <stat.icon className={`w-6 h-6 ${stat.color}`} />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      <div className="grid lg:grid-cols-3 gap-6">
-        <Card className="bg-card border-border lg:col-span-2">
-          <CardHeader>
-            <CardTitle className="text-lg font-semibold">Faturamento Mensal</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={monthlyBillingData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(222, 30%, 18%)" />
-                  <XAxis dataKey="name" stroke="hsl(215, 20%, 55%)" fontSize={12} />
-                  <YAxis stroke="hsl(215, 20%, 55%)" fontSize={12} />
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: 'hsl(222, 47%, 10%)', 
-                      border: '1px solid hsl(222, 30%, 18%)',
-                      borderRadius: '8px'
-                    }}
-                    formatter={(value: number) => formatCurrency(value)}
-                  />
-                  <Bar dataKey="billing" fill="hsl(173, 80%, 40%)" radius={[4, 4, 0, 0]} name="Faturamento" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-card border-border">
-          <CardHeader>
-            <CardTitle className="text-lg font-semibold">Status de Pagamento</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[250px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={pieData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={90}
-                    paddingAngle={5}
-                    dataKey="value"
-                  >
-                    {pieData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: 'hsl(222, 47%, 10%)', 
-                      border: '1px solid hsl(222, 30%, 18%)',
-                      borderRadius: '8px'
-                    }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="flex justify-center gap-6 mt-4">
-              {pieData.map((item) => (
-                <div key={item.name} className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
-                  <span className="text-sm text-muted-foreground">{item.name}</span>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
       </div>
 
       <Card className="bg-card border-border">
         <CardHeader>
-          <CardTitle className="text-lg font-semibold">Ordens para Faturamento</CardTitle>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <CardTitle className="text-lg font-semibold">Financeiro</CardTitle>
+            <div className="inline-flex rounded-md border border-border bg-muted p-1">
+              <Button
+                type="button"
+                variant={activeView === 'os' ? 'secondary' : 'ghost'}
+                size="sm"
+                onClick={() => setActiveView('os')}
+                className="rounded-sm px-4"
+              >
+                Ordens
+              </Button>
+              <Button
+                type="button"
+                variant={activeView === 'minios' ? 'secondary' : 'ghost'}
+                size="sm"
+                onClick={() => setActiveView('minios')}
+                className="rounded-sm px-4"
+              >
+                Tarefas rápidas
+              </Button>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-col sm:flex-row gap-4 mb-6">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                placeholder="Buscar por cliente ou ordem..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 bg-secondary border-border"
-              />
-            </div>
-            <Select value={paymentFilter} onValueChange={setPaymentFilter}>
-              <SelectTrigger className="w-full sm:w-48 bg-secondary border-border">
-                <Filter className="w-4 h-4 mr-2" />
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos</SelectItem>
-                <SelectItem value="paid">Pagos</SelectItem>
-                <SelectItem value="pending">Pendentes</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {isKpiLoading && (
+              <>
+                {Array.from({ length: 3 }).map((_, index) => (
+                  <Card key={`kpi-loading-${index}`} className="border-border bg-secondary/40">
+                    <CardContent className="space-y-3 p-4">
+                      <Skeleton className="h-4 w-32" />
+                      <Skeleton className="h-6 w-24" />
+                    </CardContent>
+                  </Card>
+                ))}
+              </>
+            )}
+
+            {!isKpiLoading && isKpiError && (
+              <Card className="border-destructive bg-destructive/10 sm:col-span-2 lg:col-span-3">
+                <CardContent className="p-4 text-destructive">
+                  Não foi possível carregar os indicadores de faturamento.
+                </CardContent>
+              </Card>
+            )}
+
+            {!isKpiLoading && !isKpiError && kpis && (
+              <>
+                <Card className="border-border bg-secondary/40">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-semibold text-muted-foreground">
+                      Total faturado
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    <p className="text-2xl font-bold">{formatCurrency(kpis.total_faturado ?? 0)}</p>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-border bg-secondary/40">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-semibold text-muted-foreground">
+                      Total para faturar
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    <p className="text-2xl font-bold">{formatCurrency(kpis.total_para_faturar ?? 0)}</p>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-border bg-secondary/40">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-semibold text-muted-foreground">
+                      Sem liberação
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    <p className="text-2xl font-bold">{formatCurrency(kpis.total_sem_liberacao ?? 0)}</p>
+                  </CardContent>
+                </Card>
+              </>
+            )}
           </div>
 
-          <Table>
-            <TableHeader>
-              <TableRow className="border-border hover:bg-transparent">
-                <TableHead>Ordem</TableHead>
-                <TableHead>Cliente</TableHead>
-                <TableHead>Valor</TableHead>
-                <TableHead>Pagamento</TableHead>
-                <TableHead className="hidden sm:table-cell">Vencimento</TableHead>
-                <TableHead></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredOrders.map((order) => (
-                <TableRow key={order.id} className="border-border">
-                  <TableCell className="font-medium">{order.orderNumber}</TableCell>
-                  <TableCell>{order.clientName}</TableCell>
-                  <TableCell className="font-semibold">{formatCurrency(order.totalAmount)}</TableCell>
-                  <TableCell>
-                    <Badge className={order.isPaid ? 'bg-status-completed text-primary-foreground' : 'bg-status-pending text-primary-foreground'}>
-                      {order.isPaid ? 'Pago' : 'Pendente'}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="hidden sm:table-cell text-muted-foreground">
-                    {formatDate(order.dueDate)}
-                  </TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" aria-label="Ações">
-                          <MoreVertical className="w-4 h-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          onClick={() => openBilling(order)}
-                          className="gap-2"
-                          disabled={order.isPaid}
-                        >
-                          <CreditCard className="w-4 h-4" />
-                          Faturar
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => setEmitOpen(true)} className="gap-2">
-                          <FileText className="w-4 h-4" />
-                          Emitir NF
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          {activeView === 'os' ? (
+            <>
+              <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="relative flex-1">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar por cliente ou número da OS..."
+                    value={searchTerm}
+                    onChange={(event) => setSearchTerm(event.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+                  <Select
+                    value={statusFilter}
+                    onValueChange={(value) => setStatusFilter(value as typeof statusFilter)}
+                  >
+                    <SelectTrigger className="w-full sm:w-48">
+                      <SelectValue placeholder="Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Status (todos)</SelectItem>
+                      <SelectItem value="concluida">Concluídas</SelectItem>
+                      <SelectItem value="andamento">Em andamento</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  <Select
+                    value={billingFilter}
+                    onValueChange={(value) => setBillingFilter(value as typeof billingFilter)}
+                  >
+                    <SelectTrigger className="w-full sm:w-48">
+                      <SelectValue placeholder="Faturamento" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Faturamento (todos)</SelectItem>
+                      <SelectItem value="faturada">Faturadas</SelectItem>
+                      <SelectItem value="nao_faturada">Não faturadas</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <Table>
+                <TableHeader>
+                  <TableRow className="border-border hover:bg-transparent">
+                    <TableHead className="uppercase">OS</TableHead>
+                    <TableHead className="uppercase">Cliente</TableHead>
+                    <TableHead className="uppercase text-center w-48">Status</TableHead>
+                    <TableHead className="uppercase text-center">Faturamento</TableHead>
+                    <TableHead className="uppercase text-right">Ações</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {isLoading && (
+                    <TableRow className="border-border">
+                      <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
+                        Carregando ordens de serviço...
+                      </TableCell>
+                    </TableRow>
+                  )}
+
+                  {isError && !isLoading && (
+                    <TableRow className="border-border">
+                      <TableCell colSpan={5} className="py-8 text-center text-destructive">
+                        Não foi possível carregar as ordens de serviço para faturamento.
+                      </TableCell>
+                    </TableRow>
+                  )}
+
+                  {!isLoading && !isError && sortedOrders.length === 0 && (
+                    <TableRow className="border-border">
+                      <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
+                        Nenhuma ordem de serviço disponível para faturamento.
+                      </TableCell>
+                    </TableRow>
+                  )}
+
+                  {!isLoading && !isError && sortedOrders.map((order) => {
+                    const concluded = (order.concluida ?? '').toLowerCase() === 'sim';
+                    const billed = (order.faturamento ?? '').toLowerCase() === 'sim';
+
+                    return (
+                      <TableRow key={order.id} className="border-border">
+                        <TableCell className="font-semibold text-muted-foreground">#{order.numero_os}</TableCell>
+                        <TableCell className="font-medium">{order.cliente_nome}</TableCell>
+                        <TableCell className="text-center">
+                          {renderBadge(concluded, 'Concluída', 'Em andamento')}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {renderBadge(billed, 'Faturada', 'Não faturada')}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleEditClick(order.id)}
+                          >
+                            <PencilLine className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </>
+          ) : (
+            <>
+              <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="relative flex-1">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar por cliente ou ID..."
+                    value={miniOsSearch}
+                    onChange={(event) => setMiniOsSearch(event.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+                  <Select
+                    value={miniOsBillingFilter}
+                    onValueChange={(value) =>
+                      setMiniOsBillingFilter(value as typeof miniOsBillingFilter)
+                    }
+                  >
+                    <SelectTrigger className="w-full sm:w-48">
+                      <SelectValue placeholder="Faturamento" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Faturamento (todos)</SelectItem>
+                      <SelectItem value="faturada">Faturadas</SelectItem>
+                      <SelectItem value="nao_faturada">Não faturadas</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <Table>
+                <TableHeader>
+                  <TableRow className="border-border hover:bg-transparent">
+                    <TableHead className="w-24 uppercase">ID</TableHead>
+                    <TableHead className="uppercase">Cliente</TableHead>
+                    <TableHead className="uppercase text-center">Faturamento</TableHead>
+                    <TableHead className="uppercase text-right">Ações</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {isMiniOsLoading && (
+                    <TableRow className="border-border">
+                      <TableCell colSpan={4} className="py-8 text-center text-muted-foreground">
+                        Carregando tarefas rápidas...
+                      </TableCell>
+                    </TableRow>
+                  )}
+
+                  {isMiniOsError && !isMiniOsLoading && (
+                    <TableRow className="border-border">
+                      <TableCell colSpan={4} className="py-8 text-center text-destructive">
+                        Não foi possível carregar as tarefas rápidas.
+                      </TableCell>
+                    </TableRow>
+                  )}
+
+                  {!isMiniOsLoading && !isMiniOsError && filteredMiniOs.length === 0 && (
+                    <TableRow className="border-border">
+                      <TableCell colSpan={4} className="py-8 text-center text-muted-foreground">
+                        Nenhuma mini OS encontrada.
+                      </TableCell>
+                    </TableRow>
+                  )}
+
+                  {!isMiniOsLoading && !isMiniOsError && filteredMiniOs.map((mini) => {
+                    const billed = (mini.faturamento ?? '').toLowerCase() === 'sim';
+                    return (
+                      <TableRow key={mini.id} className="border-border">
+                        <TableCell className="font-semibold text-muted-foreground">#{mini.id}</TableCell>
+                        <TableCell className="font-medium">
+                          {mini.cliente?.nome ?? 'Cliente não informado'}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {renderBadge(billed, 'Faturada', 'Não faturada')}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleMiniEditClick(mini.id)}
+                          >
+                            <PencilLine className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </>
+          )}
         </CardContent>
       </Card>
 
-      <Dialog open={emitOpen} onOpenChange={setEmitOpen}>
-        <DialogContent>
+      <Dialog open={isDialogOpen} onOpenChange={handleDialogChange}>
+        <DialogContent className="sm:max-w-3xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Emitir NF</DialogTitle>
-            <DialogDescription>Funcionalidade em desenvolvimento</DialogDescription>
+            <DialogTitle>Detalhes da ordem de serviço</DialogTitle>
           </DialogHeader>
-          <DialogFooter>
-            <Button onClick={() => setEmitOpen(false)}>Ok</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
-      <Dialog open={billingOpen} onOpenChange={setBillingOpen}>
-        <DialogContent className="sm:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Faturar Ordem</DialogTitle>
-          </DialogHeader>
-          
-          {selectedOrder && (
-            <div className="bg-secondary/50 p-4 rounded-lg mb-4 grid grid-cols-2 gap-4">
-              <div>
-                <Label className="text-muted-foreground">Cliente</Label>
-                <p className="font-medium">{selectedOrder.clientName}</p>
-              </div>
-              <div>
-                <Label className="text-muted-foreground">Valor Total</Label>
-                <p className="font-medium text-lg">{formatCurrency(selectedOrder.totalAmount)}</p>
-              </div>
-              <div>
-                <Label className="text-muted-foreground">Serviços</Label>
-                <p className="font-medium">{selectedOrder.services.length} itens</p>
-              </div>
-              <div>
-                <Label className="text-muted-foreground">Ordem</Label>
-                <p className="font-medium">{selectedOrder.orderNumber}</p>
-              </div>
+          {isDetailLoading && (
+            <div className="py-6 text-center text-muted-foreground">
+              Carregando detalhes da ordem de serviço...
             </div>
           )}
 
-          <div className="grid gap-4 py-2">
-            <div className="grid gap-2">
-              <Label>Número da Nota Fiscal</Label>
-              <Input value={nfNumber} onChange={(e) => setNfNumber(e.target.value)} placeholder="Ex.: 12345" />
+          {isDetailError && !isDetailLoading && (
+            <div className="py-6 text-center text-destructive">
+              Não foi possível carregar os detalhes da ordem de serviço.
             </div>
-            <div className="grid gap-2">
-              <Label>Data do Faturamento</Label>
-              <Input type="date" value={billingDate} onChange={(e) => setBillingDate(e.target.value)} />
+          )}
+
+          {!isDetailLoading && !isDetailError && orderDetail && (
+            <div className="space-y-6 pb-6">
+              <div>
+                <h3 className="text-sm font-semibold text-muted-foreground uppercase">Cliente</h3>
+                <p className="text-lg font-bold">{orderDetail.cliente?.nome ?? 'Cliente não informado'}</p>
+              </div>
+
+              <div className="space-y-4">
+                <h4 className="text-sm font-semibold uppercase text-muted-foreground">Informações financeiras</h4>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="rounded-lg bg-secondary/50 p-4">
+                    <span className="text-xs text-muted-foreground">Valor</span>
+                    <p className="text-base font-medium">{formatCurrency(orderDetail.valor ?? 0)}</p>
+                  </div>
+                  <div className="rounded-lg bg-secondary/50 p-4">
+                    <span className="text-xs text-muted-foreground">Forma de pagamento</span>
+                    <p className="text-base font-medium capitalize">{orderDetail.forma_pagamento ?? '-'}</p>
+                  </div>
+                  <div className="rounded-lg bg-secondary/50 p-4">
+                    <span className="text-xs text-muted-foreground">Parcelas</span>
+                    <p className="text-base font-medium">{orderDetail.quantidade_parcelas ?? 0}</p>
+                  </div>
+                  <div className="rounded-lg bg-secondary/50 p-4">
+                    <span className="text-xs text-muted-foreground">Cobrança imediata</span>
+                    <p className="text-base font-medium">
+                      {(orderDetail.cobranca_imediata ?? '').toLowerCase() === 'sim' ? 'Sim' : 'Não'}
+                    </p>
+                  </div>
+                  <div className="rounded-lg bg-secondary/50 p-4 sm:col-span-2">
+                    <span className="text-xs text-muted-foreground">Primeiro faturamento</span>
+                    <p className="text-base font-medium">{orderDetail.faturamento_1 ?? '-'}</p>
+                  </div>
+                </div>
+              </div>
+
+              <Separator />
+
+              <div className="space-y-4">
+                <h4 className="text-sm font-semibold uppercase text-muted-foreground">Contato para envio da NF</h4>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="rounded-lg bg-secondary/50 p-4">
+                    <span className="text-xs text-muted-foreground">Nome</span>
+                    <p className="text-base font-medium">{orderDetail.nome_contato_envio_nf ?? '-'}</p>
+                  </div>
+                  <div className="rounded-lg bg-secondary/50 p-4">
+                    <span className="text-xs text-muted-foreground">Contato</span>
+                    <p className="text-base font-medium break-words">{orderDetail.contato_envio_nf ?? '-'}</p>
+                  </div>
+                </div>
+              </div>
+
+              <Separator />
+
+              <div className="space-y-2">
+                <h4 className="text-sm font-semibold uppercase text-muted-foreground">Observação</h4>
+                <p className="rounded-lg bg-secondary/50 p-4 text-sm text-muted-foreground">
+                  {orderDetail.observacao?.trim() || 'Nenhuma observação registrada.'}
+                </p>
+              </div>
+
+              <Separator />
+
+              <div className="space-y-2">
+                <h4 className="text-sm font-semibold uppercase text-muted-foreground">Serviços</h4>
+                <div className="rounded-lg bg-secondary/50 p-4">
+                  {orderDetail.servicos?.length ? (
+                    <ul className="list-disc space-y-1 pl-4 text-sm">
+                      {orderDetail.servicos.map((svc) => (
+                        <li key={svc.id}>{svc.repositorio?.nome ?? 'Serviço sem nome'}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">Nenhum serviço associado à ordem.</p>
+                  )}
+                </div>
+              </div>
+
+              <Separator />
+
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <h4 className="text-sm font-semibold uppercase text-muted-foreground">Atualizar faturamento</h4>
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="faturamento">Faturamento</Label>
+                    <Select
+                      value={faturamentoValue}
+                      onValueChange={(value) => setFaturamentoValue(value as 'sim' | 'nao')}
+                      disabled={updateServiceOrderBilling.isPending}
+                    >
+                      <SelectTrigger id="faturamento">
+                        <SelectValue placeholder="Selecione" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="sim">Sim</SelectItem>
+                        <SelectItem value="nao">Não</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="data-faturamento">Data do faturamento</Label>
+                    <Input
+                      id="data-faturamento"
+                      type="date"
+                      value={billingDate}
+                      onChange={(event) => setBillingDate(event.target.value)}
+                      disabled={updateServiceOrderBilling.isPending}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="numero-nf">Número da NF</Label>
+                    <Input
+                      id="numero-nf"
+                      type="number"
+                      value={nfNumber}
+                      onChange={(event) => setNfNumber(event.target.value)}
+                      disabled={updateServiceOrderBilling.isPending}
+                    />
+                  </div>
+                </div>
+
+                <DialogFooter>
+                  <Button type="submit" disabled={updateServiceOrderBilling.isPending}>
+                    {updateServiceOrderBilling.isPending ? 'Salvando...' : 'Salvar alterações'}
+                  </Button>
+                </DialogFooter>
+              </form>
             </div>
-            <div className="grid gap-2">
-              <Label>Observações (opcional)</Label>
-              <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Observações..." />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isMiniDialogOpen} onOpenChange={handleMiniDialogChange}>
+        <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Detalhes da tarefa rápida</DialogTitle>
+          </DialogHeader>
+
+          {isMiniDetailLoading && (
+            <div className="py-6 text-center text-muted-foreground">
+              Carregando detalhes da tarefa rápida...
             </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setBillingOpen(false)}>Cancelar</Button>
-            <Button onClick={confirmBilling} disabled={!nfNumber.trim() || updateBilling.isPending}>
-              {updateBilling.isPending ? 'Salvando...' : 'Confirmar'}
-            </Button>
-          </DialogFooter>
+          )}
+
+          {isMiniDetailError && !isMiniDetailLoading && (
+            <div className="py-6 text-center text-destructive">
+              Não foi possível carregar os detalhes da tarefa rápida.
+            </div>
+          )}
+
+          {!isMiniDetailLoading && !isMiniDetailError && miniDetail && (
+            <div className="space-y-6 pb-4">
+              <div>
+                <h3 className="text-sm font-semibold text-muted-foreground uppercase">Cliente</h3>
+                <p className="text-lg font-bold">
+                  {miniDetail.cliente?.nome ?? 'Cliente não informado'}
+                </p>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-3">
+                <div className="rounded-lg bg-secondary/50 p-4">
+                  <span className="text-xs text-muted-foreground">Quantidade</span>
+                  <p className="text-base font-medium">{miniDetail.quantidade ?? '-'}</p>
+                </div>
+                <div className="rounded-lg bg-secondary/50 p-4">
+                  <span className="text-xs text-muted-foreground">Status</span>
+                  <div className="mt-1">
+                    {renderBadge(
+                      (miniDetail.status ?? '').toLowerCase() === 'finalizada',
+                      'Finalizada',
+                      miniDetail.status ?? 'Em andamento',
+                    )}
+                  </div>
+                </div>
+                <div className="rounded-lg bg-secondary/50 p-4">
+                  <span className="text-xs text-muted-foreground">NF atual</span>
+                  <p className="text-base font-medium">{miniDetail.n_nf ?? '-'}</p>
+                </div>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="rounded-lg bg-secondary/50 p-4">
+                  <span className="text-xs text-muted-foreground">Data de início</span>
+                  <p className="text-base font-medium">{miniDetail.data_inicio ?? '-'}</p>
+                </div>
+                <div className="rounded-lg bg-secondary/50 p-4">
+                  <span className="text-xs text-muted-foreground">Data de término</span>
+                  <p className="text-base font-medium">{miniDetail.data_termino ?? '-'}</p>
+                </div>
+              </div>
+
+              <div className="rounded-lg bg-secondary/50 p-4">
+                <span className="text-xs text-muted-foreground">Serviço</span>
+                <p className="text-base font-medium">{miniDetail.servico?.nome ?? '-'}</p>
+              </div>
+
+              <div className="rounded-lg bg-secondary/50 p-4">
+                <span className="text-xs text-muted-foreground">Descrição</span>
+                <p className="whitespace-pre-line text-sm text-muted-foreground">
+                  {miniDetail.descricao?.trim() || 'Sem descrição.'}
+                </p>
+              </div>
+
+              <div className="rounded-lg bg-secondary/50 p-4">
+                <span className="text-xs text-muted-foreground">Responsável</span>
+                <p className="text-base font-medium">
+                  {miniDetail.profile?.username ?? 'Não informado'}
+                </p>
+              </div>
+
+              <form onSubmit={handleMiniSubmit} className="space-y-4">
+                <h4 className="text-sm font-semibold uppercase text-muted-foreground">
+                  Atualizar faturamento
+                </h4>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="mini-faturamento">Faturamento</Label>
+                    <Select
+                      value={miniBillingValue}
+                      onValueChange={(value) => setMiniBillingValue(value as 'sim' | 'nao')}
+                      disabled={updateMiniOs.isPending}
+                    >
+                      <SelectTrigger id="mini-faturamento">
+                        <SelectValue placeholder="Selecione" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="sim">Sim</SelectItem>
+                        <SelectItem value="nao">Não</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="mini-nf">Número da NF</Label>
+                    <Input
+                      id="mini-nf"
+                      value={miniNfNumber}
+                      onChange={(event) => setMiniNfNumber(event.target.value)}
+                      placeholder="Ex.: 12345"
+                      disabled={updateMiniOs.isPending}
+                    />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button type="submit" disabled={updateMiniOs.isPending}>
+                    {updateMiniOs.isPending ? 'Salvando...' : 'Salvar alterações'}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

@@ -3,7 +3,6 @@ import { Link, useNavigate } from 'react-router-dom';
 import { 
   Plus, 
   Search, 
-  Filter, 
   MoreVertical,
   Edit,
   Trash2,
@@ -26,13 +25,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious, PaginationEllipsis } from '@/components/ui/pagination';
 import { Separator } from '@/components/ui/separator';
@@ -42,28 +34,21 @@ import { useServiceOrders, useDeleteServiceOrder } from '@/services/orders';
 import { useClients } from '@/services/clients';
 import { ServiceStatus } from '@/types';
 import { useUserRole } from '@/hooks/useUserRole';
-import { useToast } from '@/hooks/use-toast';
 
 const OrdersPage = () => {
   const navigate = useNavigate();
-  const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
   const [page, setPage] = useState(1);
   const { data: orders = [], isLoading } = useServiceOrders();
   const { data: clients = [] } = useClients();
   const del = useDeleteServiceOrder();
-  const { canManageFinancials, isRestricted } = useUserRole();
+  const { canViewOrderValues, canManageOrders } = useUserRole();
 
   const getClientName = (id: string) => clients.find(c => c.id === id)?.name || id;
 
-  const filteredOrders = orders.filter(order => {
-    const matchesSearch = 
-      getClientName(order.clientName).toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.orderNumber.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  const filteredOrders = orders.filter(order =>
+    getClientName(order.clientName).toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   const sortedOrders = [...filteredOrders].sort((a, b) => {
     const ta = a.createdAt instanceof Date ? a.createdAt.getTime() : new Date(a.createdAt).getTime();
@@ -77,7 +62,7 @@ const OrdersPage = () => {
 
   useEffect(() => {
     setPage(1);
-  }, [searchTerm, statusFilter]);
+  }, [searchTerm]);
 
   useEffect(() => {
     if (totalPages === 0) {
@@ -95,51 +80,28 @@ const OrdersPage = () => {
           <h1 className="text-2xl font-bold">Ordens de Serviço</h1>
           <p className="text-muted-foreground">Gerencie todas as suas ordens de serviço</p>
         </div>
-        <Button 
-          variant="hero"
-          onClick={() => {
-            if (isRestricted) {
-              toast({
-                title: "Acesso negado",
-                description: "Você não tem permissão para criar ordens.",
-                variant: "destructive",
-              });
-            } else {
-              navigate('/dashboard/orders/new');
-            }
-          }}
-        >
-          <Plus className="w-4 h-4" />
-          Nova Ordem
-        </Button>
+        {canManageOrders && (
+          <Button 
+            variant="hero"
+            onClick={() => navigate('/dashboard/orders/new')}
+          >
+            <Plus className="w-4 h-4" />
+            Nova Ordem
+          </Button>
+        )}
       </div>
 
       {/* Filters */}
       <Card className="bg-card border-border">
         <CardContent className="p-4">
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                placeholder="Buscar por cliente ou número da ordem..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 bg-secondary border-border"
-              />
-            </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full sm:w-48 bg-secondary border-border">
-                <Filter className="w-4 h-4 mr-2" />
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos</SelectItem>
-                <SelectItem value="pending">Pendente</SelectItem>
-                <SelectItem value="in_progress">Em Andamento</SelectItem>
-                <SelectItem value="completed">Concluído</SelectItem>
-                <SelectItem value="cancelled">Cancelado</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar por cliente..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 bg-secondary border-border"
+            />
           </div>
         </CardContent>
       </Card>
@@ -150,10 +112,11 @@ const OrdersPage = () => {
           <Table>
             <TableHeader>
               <TableRow className="border-border hover:bg-transparent">
-                <TableHead className="uppercase">Ordem</TableHead>
+                <TableHead className="uppercase">ID</TableHead>
                 <TableHead className="uppercase">Cliente</TableHead>
-                {canManageFinancials && <TableHead className="uppercase">Valor</TableHead>}
-                <TableHead className="uppercase w-48">Status</TableHead>
+                {canViewOrderValues && <TableHead className="uppercase">Valor</TableHead>}
+                <TableHead className="uppercase w-40">Conclusão</TableHead>
+                <TableHead className="uppercase w-40">Faturamento</TableHead>
                 <TableHead className="hidden sm:table-cell uppercase">Criação</TableHead>
                 <TableHead className="w-12"></TableHead>
               </TableRow>
@@ -173,7 +136,7 @@ const OrdersPage = () => {
                           </div>
                         </div>
                       </TableCell>
-                      {canManageFinancials && (
+                      {canViewOrderValues && (
                         <TableCell>
                           <Skeleton className="h-4 w-20" />
                         </TableCell>
@@ -192,7 +155,7 @@ const OrdersPage = () => {
                 : paginatedOrders.map((order) => (
                     <TableRow key={order.id} className="border-border">
                       <TableCell>
-                        <span className="font-medium uppercase">{order.orderNumber}</span>
+                        <span className="font-medium uppercase">{order.id}</span>
                       </TableCell>
                       <TableCell>
                         <div>
@@ -200,65 +163,57 @@ const OrdersPage = () => {
                           <p className="text-sm text-muted-foreground hidden sm:block">{order.clientEmail}</p>
                         </div>
                       </TableCell>
-                      {canManageFinancials && (
+                      {canViewOrderValues && (
                         <TableCell>
                           <span className="font-semibold">{formatCurrency(order.totalAmount)}</span>
                         </TableCell>
                       )}
-                      <TableCell className="w-48">
+                      <TableCell className="w-40">
                         <Badge className={`${getStatusColor(order.status)} border-0 uppercase`}>
                           {getStatusLabel(order.status)}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="w-40">
+                        <Badge className={`border-0 uppercase ${order.isPaid ? 'bg-green-600 text-white' : 'bg-muted text-foreground'}`}>
+                          {order.isPaid ? 'Faturado' : 'Não faturado'}
                         </Badge>
                       </TableCell>
                       <TableCell className="hidden sm:table-cell text-muted-foreground">
                         {formatDate(order.createdAt)}
                       </TableCell>
                       <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                              <MoreVertical className="w-4 h-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem 
-                              onClick={(e) => {
-                                if (isRestricted) {
-                                  e.preventDefault();
-                                  toast({
-                                    title: "Acesso negado",
-                                    description: "Você não tem permissão para editar ordens.",
-                                    variant: "destructive",
-                                  });
-                                } else {
-                                  navigate(`/dashboard/orders/${order.id}/edit`);
-                                }
-                              }}
-                            >
-                              <Edit className="w-4 h-4 mr-2" />
-                              Editar
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              className="text-destructive"
-                              onClick={() => {
-                                if (isRestricted) {
-                                  toast({
-                                    title: "Acesso negado",
-                                    description: "Você não tem permissão para excluir ordens.",
-                                    variant: "destructive",
-                                  });
-                                  return;
-                                }
-                                const ok = window.confirm('Deseja excluir esta ordem?');
-                                if (!ok) return;
-                                del.mutate(String(order.id));
-                              }}
-                            >
-                              <Trash2 className="w-4 h-4 mr-2" />
-                              Excluir
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                        {canManageOrders ? (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8">
+                                <MoreVertical className="w-4 h-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem 
+                                onClick={() => navigate(`/dashboard/orders/${order.id}/edit`)}
+                              >
+                                <Edit className="w-4 h-4 mr-2" />
+                                Editar
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className="text-destructive"
+                                onClick={() => {
+                                  const ok = window.confirm('Deseja excluir esta ordem?');
+                                  if (!ok) return;
+                                  del.mutate(String(order.id));
+                                }}
+                              >
+                                <Trash2 className="w-4 h-4 mr-2" />
+                                Excluir
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        ) : (
+                          <Button variant="ghost" size="icon" className="h-8 w-8" disabled>
+                            <MoreVertical className="w-4 h-4 text-muted-foreground" />
+                          </Button>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -338,12 +293,14 @@ const OrdersPage = () => {
               <p className="text-muted-foreground mb-4">
                 Tente ajustar os filtros ou crie uma nova ordem
               </p>
-              <Link to="/dashboard/orders/new">
-                <Button variant="hero">
-                  <Plus className="w-4 h-4" />
-                  Nova Ordem
-                </Button>
-              </Link>
+              {canManageOrders && (
+                <Link to="/dashboard/orders/new">
+                  <Button variant="hero">
+                    <Plus className="w-4 h-4" />
+                    Nova Ordem
+                  </Button>
+                </Link>
+              )}
             </div>
           )}
         </CardContent>

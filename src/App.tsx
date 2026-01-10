@@ -21,6 +21,10 @@ import ContactsPage from "./pages/dashboard/ContactsPage";
 import CatalogPage from "./pages/dashboard/CatalogPage";
 import CatalogFormPage from "./pages/dashboard/CatalogFormPage";
 import ServiceManagementPage from "./pages/dashboard/ServiceManagementPage";
+import TasksPage from "./pages/dashboard/TasksPage";
+import QuickTasksPage from "./pages/dashboard/QuickTasksPage";
+import QuickTasksCatalogPage from "./pages/dashboard/QuickTasksCatalogPage";
+import QuickTasksCatalogFormPage from "./pages/dashboard/QuickTasksCatalogFormPage";
 import ClientFormPage from "./pages/dashboard/ClientFormPage";
 import ContactFormPage from "./pages/dashboard/ContactFormPage";
 import NotFound from "./pages/NotFound";
@@ -47,6 +51,11 @@ const App = () => (
             <Route path="/dashboard/orders/:id/edit" element={<DashboardLayout><NewOrderPage /></DashboardLayout>} />
             <Route path="/dashboard/services" element={<DashboardLayout><ServicesPage /></DashboardLayout>} />
             <Route path="/dashboard/services/manage/:orderId/:itemId" element={<DashboardLayout><ServiceManagementPage /></DashboardLayout>} />
+            <Route path="/dashboard/tasks" element={<DashboardLayout><TasksPage /></DashboardLayout>} />
+            <Route path="/dashboard/quick-tasks" element={<DashboardLayout><QuickTasksPage /></DashboardLayout>} />
+            <Route path="/dashboard/quick-tasks/catalog" element={<DashboardLayout><QuickTasksCatalogPage /></DashboardLayout>} />
+            <Route path="/dashboard/quick-tasks/catalog/new" element={<DashboardLayout><QuickTasksCatalogFormPage /></DashboardLayout>} />
+            <Route path="/dashboard/quick-tasks/catalog/:id/edit" element={<DashboardLayout><QuickTasksCatalogFormPage /></DashboardLayout>} />
             <Route path="/dashboard/clients" element={<DashboardLayout><ClientsPage /></DashboardLayout>} />
             <Route path="/dashboard/clients/new" element={<DashboardLayout><ClientFormPage /></DashboardLayout>} />
             <Route path="/dashboard/clients/:id/edit" element={<DashboardLayout><ClientFormPage /></DashboardLayout>} />

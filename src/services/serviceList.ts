@@ -11,13 +11,22 @@ export const useServiceList = () => {
         if ('cliente_nome' in item && 'servico_catalogo_nome' in item) {
           return item as ServiceListItem;
         }
+        if ('repositorio' in item || 'ordem_servico' in item) {
+          return {
+            id: item.id,
+            cliente_nome: '',
+            servico_catalogo_nome: item.repositorio?.nome ?? '',
+            status: item.status ?? 'nao_iniciado',
+            ordem_servico: item.ordem_servico,
+          } as ServiceListItem;
+        }
         const detailed = item as ServiceExecution;
         return {
           id: detailed.id,
           cliente_nome: detailed.nome_cliente ?? detailed.ordem_servico_details?.cliente_details?.nome ?? '',
           servico_catalogo_nome: detailed.nome_servico ?? detailed.catalogo_servico_details?.nome ?? String(detailed.catalogo_servico ?? ''),
           status: detailed.status ?? 'nao_iniciado',
-        };
+        } as ServiceListItem;
       });
     },
   });

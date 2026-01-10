@@ -3,90 +3,155 @@ import api from './api';
 import { UserDetail, UserProfile } from './auth';
 
 export type TipoUsuarioKey =
-  | 'admin_geral'
-  | 'financeiro'
-  | 'comercial'
-  | 'admin_tecnico'
-  | 'sub_admin_tecnico'
-  | 'operacional';
+  | 'diretor'
+  | 'administrativo'
+  | 'lider_tecnico'
+  | 'sub_lider_tecnico'
+  | 'tecnico';
+
+export const NIVEL_USUARIO_OPTIONS = [
+  { value: 'super_admin', label: 'Super Admin' },
+  { value: 'admin', label: 'Admin' },
+  { value: 'normal', label: 'Normal' },
+];
 
 export const TIPO_USUARIO_OPTIONS: Array<{ value: TipoUsuarioKey; label: string }> = [
-  { value: 'admin_geral', label: 'Administrador Geral' },
-  { value: 'financeiro', label: 'Financeiro' },
-  { value: 'comercial', label: 'Comercial' },
-  { value: 'admin_tecnico', label: 'Administrador Operacional' },
-  { value: 'sub_admin_tecnico', label: 'Sub Administrador Operacional' },
-  { value: 'operacional', label: 'Operacional' },
+  { value: 'diretor', label: 'Diretor' },
+  { value: 'administrativo', label: 'Administrativo' },
+  { value: 'lider_tecnico', label: 'Líder Técnico' },
+  { value: 'sub_lider_tecnico', label: 'Sub-Líder Técnico' },
+  { value: 'tecnico', label: 'Técnico' },
 ];
 
 export interface CreateUserPayload {
   username: string;
   password: string;
   email: string;
-  first_name: string;
-  last_name: string;
-  tipo_usuario: TipoUsuarioKey;
+  roleId: number;
   ativo: boolean;
-  foto_perfil?: File | null;
 }
 
 export interface UpdateUserPayload {
   username?: string;
   password?: string;
   email?: string;
-  first_name?: string;
-  last_name?: string;
-  tipo_usuario?: TipoUsuarioKey;
+  roleId?: number;
   ativo?: boolean;
-  foto_perfil?: File | null;
 }
 
 const endpoint = '/api/usuarios/';
+const profilesEndpoint = '/api/profiles/';
 
-const toFormData = (data: Record<string, unknown>) => {
-  const fd = new FormData();
-  Object.entries(data).forEach(([k, v]) => {
-    if (v === undefined || v === null) return;
-    if (v instanceof File) {
-      fd.append(k, v);
-    } else {
-      fd.append(k, String(v));
-    }
-  });
-  return fd;
+export interface ProfileApi {
+  id: number;
+  user: UserDetail;
+  role: string | number;
+  cpf: string;
+  created: string;
+  token: string | null;
+  profile_picture: string | null;
+  active: boolean;
+}
+
+interface ProfileUpsertPayload {
+  user: {
+    username: string;
+    email: string;
+    password?: string;
+  };
+  role: number;
+  active: boolean;
+}
+
+const ROLE_ID_MAP: Record<TipoUsuarioKey, number> = {
+  diretor: 1,
+  administrativo: 2,
+  lider_tecnico: 3,
+  sub_lider_tecnico: 4,
+  tecnico: 5,
+};
+const ID_TO_ROLE_KEY: Record<number, TipoUsuarioKey> = {
+  1: 'diretor',
+  2: 'administrativo',
+  3: 'lider_tecnico',
+  4: 'sub_lider_tecnico',
+  5: 'tecnico',
+};
+
+const toRoleId = (key: TipoUsuarioKey) => ROLE_ID_MAP[key] ?? ROLE_ID_MAP.operacional;
+
+const normalize = (s: string) =>
+  s
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/-/g, ' ')
+    .trim();
+const labelToKey = (label: string): TipoUsuarioKey => {
+  const n = normalize(label);
+  const map: Record<string, TipoUsuarioKey> = {
+    'diretor': 'diretor',
+    'administrativo': 'administrativo',
+    'lider tecnico': 'lider_tecnico',
+    'sub lider tecnico': 'sub_lider_tecnico',
+    'tecnico': 'tecnico',
+  };
+  return map[n] ?? 'tecnico';
+};
+
+const mapProfileApiToUserProfile = (p: ProfileApi): UserProfile => {
+  const tipo =
+    typeof p.role === 'number'
+      ? ID_TO_ROLE_KEY[p.role] ?? 'tecnico'
+      : labelToKey(String(p.role));
+  return {
+    id: p.id,
+    user: p.user,
+    tipo_usuario: tipo,
+    nivel_usuario: 'normal',
+    foto_perfil: p.profile_picture,
+    ativo: p.active,
+    criado_em: p.created,
+    criado_por: null,
+    cpf: p.cpf,
+    token: p.token,
+  };
 };
 
 export const usersService = {
   list: async (): Promise<UserProfile[]> => {
-    const res = await api.get<UserProfile[]>(endpoint);
-    return res.data;
+    const res = await api.get<ProfileApi[]>(profilesEndpoint);
+    const items = res.data;
+    return items.map(mapProfileApiToUserProfile);
   },
   create: async (payload: CreateUserPayload): Promise<UserProfile> => {
-    const fd = toFormData({
-      username: payload.username,
-      password: payload.password,
-      email: payload.email,
-      first_name: payload.first_name,
-      last_name: payload.last_name,
-      tipo_usuario: payload.tipo_usuario,
-      ativo: payload.ativo,
-      foto_perfil: payload.foto_perfil || undefined,
-    });
-    const res = await api.post<UserProfile>(endpoint, fd);
-    return res.data;
+    const body: ProfileUpsertPayload = {
+      user: {
+        username: payload.username,
+        email: payload.email,
+        password: payload.password,
+      },
+      role: payload.roleId ?? 5,
+      active: payload.ativo,
+    };
+    const res = await api.post<ProfileApi>(profilesEndpoint, body);
+    return mapProfileApiToUserProfile(res.data);
   },
   update: async (id: number, payload: UpdateUserPayload): Promise<UserProfile> => {
-    const hasFile = !!payload.foto_perfil;
-    if (hasFile) {
-      const fd = toFormData(payload as Record<string, unknown>);
-      const res = await api.patch<UserProfile>(`${endpoint}${id}/`, fd);
-      return res.data;
-    }
-    const res = await api.patch<UserProfile>(`${endpoint}${id}/`, payload);
-    return res.data;
+    const body: ProfileUpsertPayload = {
+      user: {
+        username: payload.username ?? '',
+        email: payload.email ?? '',
+        ...(payload.password ? { password: payload.password } : {}),
+      },
+      role: payload.roleId ?? 5,
+      active: payload.ativo ?? true,
+    };
+    const res = await api.patch<ProfileApi>(`${profilesEndpoint}${id}/`, body);
+    return mapProfileApiToUserProfile(res.data);
   },
   remove: async (id: number): Promise<void> => {
-    await api.delete(`${endpoint}${id}/`);
+    await api.delete(`${profilesEndpoint}${id}/`);
   },
 };
 
@@ -127,4 +192,3 @@ export const useDeleteUser = () => {
     },
   });
 };
-

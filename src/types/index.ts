@@ -8,6 +8,12 @@ export interface Service {
   nao_faturavel?: boolean;
 }
 
+export interface RepositoryItem {
+  id: string;
+  name: string;
+  description: string;
+}
+
 export interface ServiceItem {
   id: string;
   serviceId: string;
@@ -70,6 +76,14 @@ export interface Client {
   address?: string;
   notes?: string;
   tipo_inscricao?: 'cnpj' | 'cpf' | 'cei' | 'cno' | 'caepf' | 'outro';
+  active?: boolean;
+  chargeRevisionChange?: boolean;
+  tipoCliente?: string;
+  representativeName?: string;
+  representativeSector?: string;
+  representativeEmail?: string;
+  representativeContact?: string;
+  createdAt?: string;
 }
 
 export interface Contact {
@@ -191,8 +205,6 @@ export interface OrdemServicoDetails {
   id: number;
   cliente_details: ClienteDetails;
   data_venda: string;
-  tipo_ordem_servico: string;
-  renovacao_automatica: boolean;
   status: string;
   valor_total: string;
   data_criacao: string;
@@ -231,4 +243,5 @@ export interface ServiceListItem {
   cliente_nome: string;
   servico_catalogo_nome: string;
   status: string;
+  ordem_servico?: number;
 }

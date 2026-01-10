@@ -11,27 +11,19 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreVertical, Edit, Trash2, Users } from 'lucide-react';
+import { MoreVertical, Edit, Trash2, Users, Plus } from 'lucide-react';
 import { Client } from '@/types';
 import { useClients, useDeleteClient } from '@/services/clients';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Badge } from '@/components/ui/badge';
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious, PaginationEllipsis } from '@/components/ui/pagination';
+import { Separator } from '@/components/ui/separator';
 
 const ClientsPage = () => {
   const { data: clients = [] } = useClients();
   const del = useDeleteClient();
   const navigate = useNavigate();
   const location = useLocation();
-
-  const formatDoc = (digits?: string) => {
-    const d = (digits || '').replace(/\D/g, '');
-    if (d.length === 11) {
-      return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9, 11)}`;
-    }
-    if (d.length === 14) {
-      return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12, 14)}`;
-    }
-    return digits || '';
-  };
 
   const [query, setQuery] = useState<string>(new URLSearchParams(location.search).get('q') || '');
   useEffect(() => {
@@ -45,10 +37,25 @@ const ClientsPage = () => {
   }, [query]);
   const q = query.toLowerCase();
   const filtered = q
-    ? clients.filter(c =>
-        [c.name, c.email, c.phone, c.document].filter(Boolean).some(v => v!.toLowerCase().includes(q))
-      )
+    ? clients.filter(c => (c.name || '').toLowerCase().includes(q))
     : clients;
+  const sorted = [...filtered].sort((a, b) =>
+    (a.name || '').localeCompare(b.name || '', 'pt-BR', { sensitivity: 'base' })
+  );
+  const [page, setPage] = useState(1);
+  useEffect(() => {
+    setPage(1);
+  }, [query]);
+  const itemsPerPage = 10;
+  const totalPages = Math.ceil(sorted.length / itemsPerPage);
+  const paginated = sorted.slice((page - 1) * itemsPerPage, page * itemsPerPage);
+  useEffect(() => {
+    if (totalPages === 0) {
+      setPage(1);
+    } else if (page > totalPages) {
+      setPage(totalPages);
+    }
+  }, [totalPages]);
 
   return (
     <div className="space-y-6">
@@ -57,7 +64,10 @@ const ClientsPage = () => {
         <div className="flex items-center justify-between gap-4">
           <p className="text-muted-foreground">Gerencie seus clientes</p>
           <Button asChild variant="hero">
-            <Link to="/dashboard/clients/new">Novo cliente</Link>
+            <Link to="/dashboard/clients/new" className="flex items-center gap-2">
+              <Plus className="w-4 h-4" />
+              Novo cliente
+            </Link>
           </Button>
         </div>
       </div>
@@ -76,26 +86,29 @@ const ClientsPage = () => {
             <TableHeader>
               <TableRow className="border-border hover:bg-transparent">
                 <TableHead>Cliente</TableHead>
-                <TableHead>E-mail</TableHead>
-                <TableHead>Telefone</TableHead>
+                <TableHead className="uppercase text-center">Ativo</TableHead>
+                <TableHead className="uppercase text-center">Cobrança Revisão/Alteração</TableHead>
                 <TableHead className="w-12"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((c) => (
+              {paginated.map((c) => (
                 <TableRow key={c.id} className="border-border">
                   <TableCell>
                     <div>
-                      <p className="font-medium">{c.name}</p>
-                      {c.document && (
-                        <p className="text-xs text-muted-foreground">
-                          {c.tipo_inscricao?.toUpperCase()}: {formatDoc(c.document)}
-                        </p>
-                      )}
+                      <p className="font-medium uppercase">{c.name}</p>
                     </div>
                   </TableCell>
-                  <TableCell className="text-muted-foreground">{c.email}</TableCell>
-                  <TableCell className="text-muted-foreground">{c.phone || '-'}</TableCell>
+                  <TableCell className="w-32 text-center">
+                    <Badge className="uppercase inline-flex justify-center" variant={c.active ? 'default' : 'destructive'}>
+                      {c.active ? 'Sim' : 'Não'}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="w-56 text-center">
+                    <Badge className="uppercase inline-flex justify-center" variant={c.chargeRevisionChange ? 'secondary' : 'outline'}>
+                      {c.chargeRevisionChange ? 'Sim' : 'Não'}
+                    </Badge>
+                  </TableCell>
                   <TableCell>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -119,7 +132,71 @@ const ClientsPage = () => {
               ))}
             </TableBody>
           </Table>
-          {filtered.length === 0 && (
+          <div className="px-4">
+            <Separator />
+          </div>
+          {totalPages > 1 && (
+            <div className="p-4">
+              <Pagination>
+                <PaginationContent>
+                  <PaginationItem>
+                    <PaginationPrevious
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        if (page > 1) setPage(page - 1);
+                      }}
+                      className={page === 1 ? 'pointer-events-none opacity-50' : ''}
+                    />
+                  </PaginationItem>
+                  {(() => {
+                    const siblingCount = 1;
+                    const items: (number | 'ellipsis')[] = [];
+                    if (totalPages <= 7) {
+                      for (let p = 1; p <= totalPages; p++) items.push(p);
+                    } else {
+                      items.push(1);
+                      const left = Math.max(page - siblingCount, 2);
+                      const right = Math.min(page + siblingCount, totalPages - 1);
+                      if (left > 2) items.push('ellipsis');
+                      for (let p = left; p <= right; p++) items.push(p);
+                      if (right < totalPages - 1) items.push('ellipsis');
+                      items.push(totalPages);
+                    }
+                    return items.map((it, idx) => (
+                      <PaginationItem key={`${it}-${idx}`}>
+                        {it === 'ellipsis' ? (
+                          <PaginationEllipsis />
+                        ) : (
+                          <PaginationLink
+                            href="#"
+                            isActive={it === page}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              setPage(it as number);
+                            }}
+                          >
+                            {it as number}
+                          </PaginationLink>
+                        )}
+                      </PaginationItem>
+                    ));
+                  })()}
+                  <PaginationItem>
+                    <PaginationNext
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        if (page < totalPages) setPage(page + 1);
+                      }}
+                      className={page === totalPages ? 'pointer-events-none opacity-50' : ''}
+                    />
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
+            </div>
+          )}
+          {sorted.length === 0 && (
             <div className="text-center py-12">
               <Users className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
               <h3 className="text-lg font-semibold mb-2">Nenhum cliente encontrado</h3>
@@ -127,7 +204,10 @@ const ClientsPage = () => {
                 Adicione um novo cliente para começar
               </p>
               <Button asChild variant="hero">
-                <Link to="/dashboard/clients/new">Novo cliente</Link>
+                <Link to="/dashboard/clients/new" className="flex items-center gap-2">
+                  <Plus className="w-4 h-4" />
+                  Novo cliente
+                </Link>
               </Button>
             </div>
           )}

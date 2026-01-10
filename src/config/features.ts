@@ -1,2 +1,2 @@
-export const SHOW_DASHBOARD_UNDER_DEVELOPMENT = true;
+export const SHOW_DASHBOARD_UNDER_DEVELOPMENT = false;
 

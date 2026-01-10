@@ -6,69 +6,66 @@ import { Button } from '@/components/ui/button';
 import BackButton from '@/components/BackButton';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
-import { useServicesCatalog, useUpsertService, useServiceById } from '@/services/catalog';
+import { Textarea } from '@/components/ui/textarea';
+import { useRepositories, useUpsertRepository, useRepository } from '@/services/repositories';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Save } from 'lucide-react';
+import { Save } from 'lucide-react';
+import { useUserRole } from '@/hooks/useUserRole';
 
 type FormValues = {
   id?: string;
   name?: string;
   description?: string;
-  price?: string | number;
-  nao_faturavel?: boolean;
 };
 
 const CatalogFormPage = () => {
   const navigate = useNavigate();
   const params = useParams();
   const id = params.id;
-  const { data: services = [] } = useServicesCatalog();
-  const { data: serviceById, isLoading: loadingById } = useServiceById(id);
-  const upsert = useUpsertService();
+  const { data: repos = [] } = useRepositories();
+  const { data: repoById } = useRepository(id);
+  const upsert = useUpsertRepository();
   const { toast } = useToast();
+  const { role } = useUserRole();
+  const isTechnician = role === 'tecnico';
+
+  useEffect(() => {
+    if (isTechnician) {
+      toast({
+        title: 'Acesso negado',
+        description: 'Você não tem permissão para gerenciar o catálogo de serviços.',
+        variant: 'destructive',
+      });
+      navigate('/dashboard/catalog');
+    }
+  }, [isTechnician, navigate, toast]);
 
   const form = useForm<FormValues>({
-    defaultValues: { name: '', description: '', price: 0, nao_faturavel: false },
+    defaultValues: { name: '', description: '' },
   });
 
   useEffect(() => {
     if (id) {
-      const source = serviceById || services.find(s => s.id === id);
+      const source = repoById || repos.find(r => r.id === id);
       if (source) {
         form.reset({
           id: source.id,
           name: source.name,
           description: source.description,
-          price: source.price,
-          nao_faturavel: !!source.nao_faturavel,
         });
       }
     }
-  }, [id, services, serviceById]);
-
-  const normalizePrice = (v: unknown) => {
-    let s = String(v ?? '').trim().replace(/,/g, '.');
-    const dots = (s.match(/\./g) || []).length;
-    if (dots > 1) {
-      const last = s.lastIndexOf('.');
-      s = s.slice(0, last).replace(/\./g, '') + s.slice(last);
-    }
-    const n = Number(s);
-    return Number.isNaN(n) ? 0 : n;
-  };
+  }, [id, repos, repoById]);
 
   const onSubmit = (values: FormValues) => {
     const payload = {
       id: id,
       name: values.name || '',
       description: values.description || '',
-      price: typeof values.price === 'number' ? values.price : normalizePrice(values.price),
-      nao_faturavel: !!values.nao_faturavel,
     };
     upsert.mutate(payload, {
       onSuccess: () => {
-        toast({ title: id ? 'Serviço atualizado' : 'Serviço criado', description: 'Operação realizada com sucesso.' });
+        toast({ title: id ? 'Repositório atualizado' : 'Repositório criado', description: 'Operação realizada com sucesso.' });
         navigate('/dashboard/catalog');
       },
       onError: () => {
@@ -77,21 +74,25 @@ const CatalogFormPage = () => {
     });
   };
 
-  const title = id ? 'Editar Serviço do Catálogo' : 'Novo Serviço do Catálogo';
+  const title = id ? 'Editar serviço' : 'Novo serviço';
+
+  if (isTechnician) {
+    return null;
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center gap-4">
-        <BackButton to="/dashboard/catalog" />
+      <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">{title}</h1>
-          <p className="text-muted-foreground">Preencha os dados do serviço</p>
+          <p className="text-muted-foreground">Preencha os dados do repositório</p>
         </div>
+        <BackButton to="/dashboard/catalog" />
       </div>
 
       <Card className="bg-card border-border">
         <CardHeader>
-          <CardTitle>Dados do Serviço</CardTitle>
+          <CardTitle>Dados do Repositório</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
@@ -99,36 +100,19 @@ const CatalogFormPage = () => {
               <div className="space-y-2 sm:col-span-2">
                 <Label>Nome</Label>
                 <Input
-                  placeholder="Nome do serviço"
+                  placeholder="Nome do repositório"
                   {...form.register('name')}
                   className="bg-secondary border-border"
                 />
               </div>
               <div className="space-y-2 sm:col-span-2">
                 <Label>Descrição</Label>
-                <Input
+                <Textarea
                   placeholder="Descrição"
+                  rows={4}
                   {...form.register('description')}
-                  className="bg-secondary border-border"
+                  className="bg-secondary border-border min-h-28"
                 />
-              </div>
-              <div className="space-y-2">
-                <Label>Preço</Label>
-                <Input
-                  placeholder="0,00"
-                  inputMode="decimal"
-                  {...form.register('price')}
-                  className="bg-secondary border-border"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Não faturável</Label>
-                <div className="flex items-center gap-3">
-                  <Switch
-                    checked={!!form.watch('nao_faturavel')}
-                    onCheckedChange={(v) => form.setValue('nao_faturavel', v)}
-                  />
-                </div>
               </div>
             </div>
 

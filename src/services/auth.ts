@@ -12,36 +12,74 @@ export interface UserProfile {
   id: number;
   user: UserDetail;
   tipo_usuario: string;
+  nivel_usuario: string;
   foto_perfil: string | null;
   ativo: boolean;
   criado_em: string;
   criado_por: string | null;
+  cpf?: string;
+  token?: string | null;
 }
 
-export interface LoginResponse {
+export interface TokenLoginResponse {
   refresh: string;
   access: string;
-  user: UserProfile;
+  user: UserDetail;
+  profile: {
+    id: number;
+    role: string;
+  };
 }
 
 export interface LoginCredentials {
-  email: string;
+  username: string;
   password: string;
 }
 
 export const authService = {
-  login: async (credentials: LoginCredentials): Promise<LoginResponse> => {
-    const response = await api.post<LoginResponse>('/api/usuarios/login/', {
-      email: credentials.email,
+  login: async (credentials: LoginCredentials): Promise<TokenLoginResponse> => {
+    const response = await api.post<TokenLoginResponse>('/api/token/', {
+      username: credentials.username,
       password: credentials.password,
     });
     
     const data = response.data;
     
-    // Saving the whole structure as requested
-    localStorage.setItem('auth_data', JSON.stringify(data));
-    
-    // Saving tokens specifically for easy access (e.g. by api.ts)
+    const normalize = (s: string) =>
+      s
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/-/g, ' ')
+        .trim();
+    const map: Record<string, string> = {
+      'diretor': 'diretor',
+      'administrativo': 'administrativo',
+      'lider tecnico': 'lider_tecnico',
+      'sub lider tecnico': 'sub_lider_tecnico',
+      'tecnico': 'tecnico',
+    };
+    const tipoUsuario = map[normalize(data.profile.role)] ?? 'tecnico';
+
+    const mergedUserProfile: UserProfile = {
+      id: data.profile.id,
+      user: data.user,
+      tipo_usuario: tipoUsuario,
+      nivel_usuario: 'normal',
+      foto_perfil: null,
+      ativo: true,
+      criado_em: '',
+      criado_por: null,
+    };
+
+    const compatibleAuthData = {
+      refresh: data.refresh,
+      access: data.access,
+      user: mergedUserProfile,
+    };
+
+    localStorage.setItem('auth_data', JSON.stringify(compatibleAuthData));
+    localStorage.setItem('auth_raw', JSON.stringify(data));
     localStorage.setItem('access_token', data.access);
     localStorage.setItem('refresh_token', data.refresh);
     
@@ -58,6 +96,7 @@ export const authService = {
 
   logout: () => {
     localStorage.removeItem('auth_data');
+    localStorage.removeItem('auth_raw');
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
   },

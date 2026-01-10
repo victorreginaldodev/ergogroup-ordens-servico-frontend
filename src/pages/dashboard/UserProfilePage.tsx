@@ -10,98 +10,153 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
-import { authService, UserProfile as BackendUserProfile } from '@/services/auth';
-import { useUpsertUser } from '@/services/users';
+import { authService } from '@/services/auth';
 import { Badge } from '@/components/ui/badge';
-import { TIPO_USUARIO_OPTIONS } from '@/services/users';
+import { Switch } from '@/components/ui/switch';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  profileResponseToUserProfile,
+  useProfileDetail,
+  useUpdateProfile,
+} from '@/services/profile';
+
+const ROLE_OPTIONS = [
+  { value: '1', label: 'Diretor' },
+  { value: '2', label: 'Administrativo' },
+  { value: '3', label: 'Líder Técnico' },
+  { value: '4', label: 'Sub-Líder Técnico' },
+  { value: '5', label: 'Técnico' },
+];
 
 const schema = z.object({
   username: z.string().min(2, 'Username muito curto'),
   email: z.string().email('E-mail inválido'),
-  first_name: z.string().min(1, 'Nome obrigatório'),
-  last_name: z.string().min(1, 'Sobrenome obrigatório'),
-  foto_perfil: z.any().optional(),
+  password: z
+    .string()
+    .optional()
+    .or(z.literal(''))
+    .refine((value) => !value || value.length >= 6, 'Senha deve ter no mínimo 6 caracteres'),
+  role: z.string().min(1, 'Selecione um papel'),
+  active: z.boolean(),
 });
 
 type FormValues = z.infer<typeof schema>;
 
 const UserProfilePage = () => {
-  const [user, setUser] = useState<BackendUserProfile | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const updateUser = useUpsertUser();
+  const [profileId, setProfileId] = useState<number | null>(null);
   const { toast } = useToast();
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { username: '', email: '', first_name: '', last_name: '', foto_perfil: undefined },
+    defaultValues: { username: '', email: '', password: '', role: '1', active: true },
   });
 
   useEffect(() => {
-    const u = authService.getCurrentUser();
-    if (u) {
-      setUser(u);
-      form.reset({
-        username: u.user.username || '',
-        email: u.user.email || '',
-        first_name: u.user.first_name || '',
-        last_name: u.user.last_name || '',
-        foto_perfil: undefined,
-      });
+    const stored = authService.getCurrentUser();
+    if (stored?.id) {
+      setProfileId(stored.id);
+      return;
     }
-    setIsLoading(false);
+    const raw = localStorage.getItem('auth_raw');
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw);
+        const idFromRaw = parsed?.profile?.id;
+        if (typeof idFromRaw === 'number') {
+          setProfileId(idFromRaw);
+        }
+      } catch {
+        // ignore parse errors
+      }
+    }
   }, []);
 
-  const onSubmit = (values: FormValues) => {
-    if (!user) return;
-    const fotoFile = (values.foto_perfil as FileList | undefined)?.[0] ?? undefined;
-    updateUser.mutate(
-      {
-        id: user.id,
-        username: values.username,
-        email: values.email,
-        first_name: values.first_name,
-        last_name: values.last_name,
-        foto_perfil: fotoFile,
-      },
-      {
-      onSuccess: (updated) => {
-        toast({
-          title: 'Dados atualizados',
-          description: 'Seu perfil foi atualizado com sucesso.',
-        });
-        authService.setCurrentUser(updated as any);
-        window.dispatchEvent(new Event('servix:auth-updated'));
-        setUser(updated as any);
-      },
-      onError: () => {
-        toast({
-          title: 'Erro ao atualizar',
-          description: 'Não foi possível salvar suas alterações.',
-          variant: 'destructive',
-        });
-      },
-    });
+  const {
+    data: profile,
+    isLoading: isProfileLoading,
+    isError: isProfileError,
+  } = useProfileDetail(profileId);
+  const updateProfile = useUpdateProfile();
+
+  useEffect(() => {
+    if (profile) {
+      form.reset({
+        username: profile.user.username ?? '',
+        email: profile.user.email ?? '',
+        password: '',
+        role: String(profile.role ?? '1'),
+        active: profile.active ?? true,
+      });
+    }
+  }, [profile, form]);
+
+  const onSubmit = async (values: FormValues) => {
+    if (!profileId) return;
+    try {
+      const payload = {
+        user: {
+          username: values.username,
+          email: values.email,
+          ...(values.password ? { password: values.password } : {}),
+        },
+        role: Number(values.role),
+        active: values.active,
+      };
+      const updated = await updateProfile.mutateAsync({ id: profileId, payload });
+      toast({
+        title: 'Dados atualizados',
+        description: 'Seu perfil foi atualizado com sucesso.',
+      });
+      const normalized = profileResponseToUserProfile(updated);
+      authService.setCurrentUser(normalized);
+      window.dispatchEvent(new Event('servix:auth-updated'));
+    } catch (error) {
+      console.error('Failed to update profile', error);
+      toast({
+        title: 'Erro ao atualizar',
+        description: 'Não foi possível salvar suas alterações.',
+        variant: 'destructive',
+      });
+    }
   };
 
-  const selectedFile = form.watch('foto_perfil') as FileList | undefined;
-  const avatarSrc = useMemo(() => {
-    const file = selectedFile?.[0];
-    if (file) return URL.createObjectURL(file);
-    return user?.foto_perfil || '';
-  }, [selectedFile, user]);
-  const displayName = `${user?.user.first_name || ''} ${user?.user.last_name || ''}`.trim() || user?.user.username || 'U';
-  const initials = displayName
-    .split(' ')
-    .map(n => n[0])
-    .slice(0, 2)
-    .join('')
-    .toUpperCase();
+  const isLoading = isProfileLoading || profileId === null;
+  const roleValue = form.watch('role');
+  const rolePreviewLabel =
+    ROLE_OPTIONS.find((option) => option.value === roleValue)?.label ||
+    profile?.role_display ||
+    '';
+  const isActive = form.watch('active');
+  const usernamePreview = form.watch('username') || profile?.user.username || 'Usuário';
+  const emailPreview = form.watch('email') || profile?.user.email || '';
 
-  const tipoLabel = (key?: string | null) => {
-    if (!key) return '';
-    return TIPO_USUARIO_OPTIONS.find(o => o.value === key)?.label || key;
-  };
+  const initials = useMemo(() => {
+    return usernamePreview
+      .split(' ')
+      .filter(Boolean)
+      .map((part) => part[0])
+      .slice(0, 2)
+      .join('')
+      .toUpperCase() || 'U';
+  }, [usernamePreview]);
 
-  
+  if (isProfileError) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold">Meu Perfil</h1>
+          <p className="text-muted-foreground">
+            Não foi possível carregar suas informações. Tente novamente mais tarde.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -125,6 +180,7 @@ const UserProfilePage = () => {
                 <Skeleton className="h-10 w-full" />
                 <Skeleton className="h-10 w-full" />
               </div>
+              <Skeleton className="h-10 w-full" />
               <Skeleton className="h-10 w-32 ml-auto" />
             </div>
           ) : (
@@ -132,17 +188,23 @@ const UserProfilePage = () => {
               <div className="flex items-center gap-6">
                 <div className="flex flex-col items-center gap-3">
                   <Avatar className="w-20 h-20">
-                    {avatarSrc ? <AvatarImage src={avatarSrc} /> : null}
+                    {null}
                     <AvatarFallback>{initials}</AvatarFallback>
                   </Avatar>
                 </div>
                 <div className="w-full">
-                  <h2 className="text-lg font-semibold">{`${user?.user.first_name || ''} ${user?.user.last_name || ''}`.trim() || user?.user.username}</h2>
-                  <p className="text-sm text-muted-foreground">{`${user?.user.email || ''} • @${user?.user.username || ''}`}</p>
+                  <h2 className="text-lg font-semibold">{usernamePreview}</h2>
+                  <p className="text-sm text-muted-foreground">
+                    {emailPreview ? `${emailPreview} • @${usernamePreview}` : `@${usernamePreview}`}
+                  </p>
                   <div className="mt-2 flex flex-wrap items-center gap-2">
-                    {!!user?.tipo_usuario && <Badge variant="secondary">{tipoLabel(user?.tipo_usuario)}</Badge>}
-                    <Badge className={`${user?.ativo ? 'bg-green-600 text-primary-foreground' : 'bg-muted text-muted-foreground'} border-0`}>
-                      {user?.ativo ? 'Ativo' : 'Inativo'}
+                    {rolePreviewLabel && <Badge variant="secondary">{rolePreviewLabel}</Badge>}
+                    <Badge
+                      className={`${
+                        isActive ? 'bg-green-600 text-primary-foreground' : 'bg-muted text-muted-foreground'
+                      } border-0`}
+                    >
+                      {isActive ? 'Ativo' : 'Inativo'}
                     </Badge>
                   </div>
                 </div>
@@ -155,12 +217,16 @@ const UserProfilePage = () => {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <FormField
                         control={form.control}
-                        name="first_name"
+                        name="username"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Nome</FormLabel>
+                            <FormLabel>Username</FormLabel>
                             <FormControl>
-                              <Input placeholder="Seu nome" {...field} disabled={updateUser.isPending} />
+                              <Input
+                                placeholder="seu.username"
+                                {...field}
+                                disabled={updateProfile.isPending}
+                              />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -173,7 +239,12 @@ const UserProfilePage = () => {
                           <FormItem>
                             <FormLabel>E-mail</FormLabel>
                             <FormControl>
-                              <Input type="email" placeholder="seu@email.com" {...field} disabled={updateUser.isPending} />
+                              <Input
+                                type="email"
+                                placeholder="seu@email.com"
+                                {...field}
+                                disabled={updateProfile.isPending}
+                              />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -181,12 +252,17 @@ const UserProfilePage = () => {
                       />
                       <FormField
                         control={form.control}
-                        name="last_name"
+                        name="password"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Sobrenome</FormLabel>
+                            <FormLabel>Nova senha</FormLabel>
                             <FormControl>
-                              <Input placeholder="Seu sobrenome" {...field} disabled={updateUser.isPending} />
+                              <Input
+                                type="password"
+                                placeholder="••••••"
+                                {...field}
+                                disabled={updateProfile.isPending}
+                              />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -194,43 +270,59 @@ const UserProfilePage = () => {
                       />
                       <FormField
                         control={form.control}
-                        name="username"
+                        name="role"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Username</FormLabel>
-                            <FormControl>
-                              <Input placeholder="seu.username" {...field} disabled={updateUser.isPending} />
-                            </FormControl>
+                            <FormLabel>Função</FormLabel>
+                            <Select
+                              value={field.value}
+                              onValueChange={field.onChange}
+                              disabled={updateProfile.isPending}
+                            >
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Selecione a função" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {ROLE_OPTIONS.map((option) => (
+                                  <SelectItem key={option.value} value={option.value}>
+                                    {option.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                             <FormMessage />
                           </FormItem>
                         )}
                       />
                     </div>
-                  </div>
-
-                  <div className="space-y-4">
-                    <h3 className="text-sm font-medium">Avatar</h3>
-                    <Separator />
                     <FormField
                       control={form.control}
-                      name="foto_perfil"
+                      name="active"
                       render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Foto de Perfil</FormLabel>
+                        <FormItem className="flex items-center justify-between rounded-lg border border-border px-4 py-3">
+                          <div className="space-y-0.5">
+                            <FormLabel>Status do usuário</FormLabel>
+                            <p className="text-sm text-muted-foreground">
+                              Defina se o usuário está ativo na plataforma.
+                            </p>
+                          </div>
                           <FormControl>
-                            <Input type="file" accept="image/*" onChange={(e) => field.onChange(e.target.files)} disabled={updateUser.isPending} />
+                            <Switch
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                              disabled={updateProfile.isPending}
+                            />
                           </FormControl>
-                          <FormMessage />
                         </FormItem>
                       )}
                     />
                   </div>
 
-                  
-
                   <div className="flex justify-end gap-2">
-                    <Button type="submit" className="min-w-32" disabled={updateUser.isPending}>
-                      {updateUser.isPending ? 'Salvando...' : 'Salvar'}
+                    <Button type="submit" className="min-w-32" disabled={updateProfile.isPending}>
+                      {updateProfile.isPending ? 'Salvando...' : 'Salvar'}
                     </Button>
                   </div>
                 </form>

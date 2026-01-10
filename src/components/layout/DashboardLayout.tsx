@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   Sidebar,
@@ -18,7 +18,6 @@ import {
   FileText,
   Wrench,
   DollarSign,
-  Settings,
   LogOut,
   User,
   Users,
@@ -27,10 +26,7 @@ import {
   AlertCircle,
   CheckCircle2,
   Clock,
-  Ticket,
-  Plus,
-  List,
-  Headphones
+  List
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -45,18 +41,22 @@ import { Separator } from '@/components/ui/separator';
 import ThemeToggle from '@/components/ThemeToggle';
 import { authService, UserProfile as BackendUserProfile } from '@/services/auth';
 import UnderDevelopmentOverlay from '@/components/UnderDevelopmentOverlay';
+import { useUserRole } from '@/hooks/useUserRole';
 
-const menuItems = [
+const baseMenuItems = [
   { title: 'Dashboard', url: '/dashboard', icon: LayoutDashboard },
   { title: 'Ordens de Serviço', url: '/dashboard/orders', icon: FileText },
   { title: 'Serviços', url: '/dashboard/services', icon: Wrench },
+  { title: 'Tarefas', url: '/dashboard/tasks', icon: List },
+  { title: 'Tarefas Rápidas', url: '/dashboard/quick-tasks', icon: List },
   { title: 'Financeiro', url: '/dashboard/financial', icon: DollarSign },
 ];
 
 const adminItems = [
   { title: 'Clientes', url: '/dashboard/clients', icon: Users },
-  { title: 'Contatos', url: '/dashboard/contacts', icon: Phone },
+  // Contatos removido conforme solicitação
   { title: 'Catálogo', url: '/dashboard/catalog', icon: Wrench },
+  { title: 'Catálogo Tarefas Rápidas', url: '/dashboard/quick-tasks/catalog', icon: List },
   { title: 'Usuários', url: '/dashboard/users', icon: Users },
   // { title: 'Empresa', url: '/dashboard/company', icon: Settings },
 ];
@@ -69,6 +69,23 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
   const [currentUser, setCurrentUser] = useState<BackendUserProfile | null>(null);
+  const { canAccessFinancials } = useUserRole();
+  const visibleMenuItems = useMemo(() => {
+    return baseMenuItems.filter((item) => {
+      if (!canAccessFinancials && item.url === '/dashboard/financial') return false;
+      return true;
+    });
+  }, [canAccessFinancials]);
+  const headerTitle = useMemo(() => {
+    const allItems = [...visibleMenuItems, ...adminItems];
+    return (
+      allItems.find(
+        (item) =>
+          location.pathname === item.url ||
+          (item.url !== '/dashboard' && location.pathname.startsWith(item.url)),
+      )?.title || 'Dashboard'
+    );
+  }, [visibleMenuItems, location.pathname]);
 
   const SidebarEventBridge = ({ onCollapsedChange }: { onCollapsedChange: (v: boolean) => void }) => {
     const { setOpen, setOpenMobile, isMobile } = useSidebar();
@@ -163,7 +180,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
             <SidebarGroup>
               <SidebarGroupContent>
                 <SidebarMenu>
-                  {menuItems.map((item) => {
+                  {visibleMenuItems.map((item) => {
                     const isActive = location.pathname === item.url ||
                       (item.url !== '/dashboard' && location.pathname.startsWith(item.url));
 
@@ -233,10 +250,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
             <div className="flex items-center gap-4">
               <SidebarTrigger onClick={() => setCollapsed(!collapsed)} />
               <h1 className="text-lg font-semibold hidden sm:block">
-                {menuItems.find(item =>
-                  location.pathname === item.url ||
-                  (item.url !== '/dashboard' && location.pathname.startsWith(item.url))
-                )?.title || 'Dashboard'}
+                {headerTitle}
               </h1>
             </div>
 
@@ -279,29 +293,6 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
               <ThemeToggle />
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="relative h-9 w-9 p-0" aria-label="Tickets de suporte">
-                    <Headphones className="w-5 h-5" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-64">
-                  <div className="px-2 py-1.5 text-sm font-semibold">Suporte</div>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem asChild>
-                    <Link to="/dashboard/tickets/new" className="flex items-center">
-                      <Plus className="w-4 h-4 mr-2" />
-                      Abrir ticket
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link to="/dashboard/tickets" className="flex items-center">
-                      <List className="w-4 h-4 mr-2" />
-                      Meus tickets
-                    </Link>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="flex items-center gap-3 h-auto p-2">
                     <Avatar className="w-8 h-8">
                       {currentUser?.foto_perfil ? <AvatarImage src={currentUser.foto_perfil} /> : null}
@@ -317,12 +308,6 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                     <Link to="/dashboard/profile" className="flex items-center">
                       <User className="w-4 h-4 mr-2" />
                       Meu Perfil
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link to="/dashboard/company" className="flex items-center">
-                      <Settings className="w-4 h-4 mr-2" />
-                      Configurações
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
@@ -341,7 +326,16 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
           <main className="flex-1 px-8 py-6">
             {(() => {
               const p = location.pathname;
-              const isExcept = p.startsWith('/dashboard/orders') || p.startsWith('/dashboard/services');
+              const isExcept =
+                p.startsWith('/dashboard/orders') ||
+                p.startsWith('/dashboard/services') ||
+                p.startsWith('/dashboard/users') ||
+                p.startsWith('/dashboard/financial') ||
+                p.startsWith('/dashboard/clients') ||
+                p.startsWith('/dashboard/catalog') ||
+                p.startsWith('/dashboard/tasks') ||
+                p.startsWith('/dashboard/quick-tasks') ||
+                p.startsWith('/dashboard/profile');
               const isDashboardRoot = p === '/dashboard';
               if (!isExcept && !isDashboardRoot) {
                 return <UnderDevelopmentOverlay />;
