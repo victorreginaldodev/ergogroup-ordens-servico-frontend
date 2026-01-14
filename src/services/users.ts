@@ -91,6 +91,7 @@ const labelToKey = (label: string): TipoUsuarioKey => {
   const n = normalize(label);
   const map: Record<string, TipoUsuarioKey> = {
     'diretor': 'diretor',
+    'gestor comercial': 'diretor',
     'administrativo': 'administrativo',
     'lider tecnico': 'lider_tecnico',
     'sub lider tecnico': 'sub_lider_tecnico',

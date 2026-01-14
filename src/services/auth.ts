@@ -54,6 +54,7 @@ export const authService = {
         .trim();
     const map: Record<string, string> = {
       'diretor': 'diretor',
+      'gestor comercial': 'diretor',
       'administrativo': 'administrativo',
       'lider tecnico': 'lider_tecnico',
       'sub lider tecnico': 'sub_lider_tecnico',
