@@ -32,7 +32,7 @@ const schema = z
     username: z.string().min(2, 'Username muito curto'),
     password: z.string().min(6, 'Senha deve ter ao menos 6 caracteres').optional().or(z.literal('')),
     email: z.string().email('E-mail inválido'),
-    roleId: z.number().int().min(1).max(5),
+    roleId: z.number().int().min(1).max(6),
     ativo: z.boolean(),
   })
   .superRefine((val, ctx) => {
@@ -80,6 +80,7 @@ const UsersManagementPage = () => {
         lider_tecnico: 3,
         sub_lider_tecnico: 4,
         tecnico: 5,
+        gestor_comercial: 6,
       };
       form.reset({
         id: editing.id,
@@ -297,6 +298,7 @@ const UsersManagementPage = () => {
                           <SelectItem value="3">Líder Técnico</SelectItem>
                           <SelectItem value="4">Sub-Líder Técnico</SelectItem>
                           <SelectItem value="5">Técnico</SelectItem>
+                          <SelectItem value="6">Gestor Comercial</SelectItem>
                         </SelectContent>
                       </Select>
                     </FormControl>

@@ -1,7 +1,11 @@
 import axios from 'axios';
 
+// URL base da API - altere aqui para desenvolvimento
+const API_BASE_URL = 'http://localhost:8000/';
+// const API_BASE_URL = 'https://www.ergogroupapp.com/'; 
+
 const api = axios.create({
-  baseURL: 'https://www.ergogroupapp.com/',
+  baseURL: API_BASE_URL,
 });
 
 api.interceptors.request.use(

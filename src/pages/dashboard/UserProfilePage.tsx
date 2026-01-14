@@ -32,6 +32,7 @@ const ROLE_OPTIONS = [
   { value: '3', label: 'Líder Técnico' },
   { value: '4', label: 'Sub-Líder Técnico' },
   { value: '5', label: 'Técnico' },
+  { value: '6', label: 'Gestor Comercial' },
 ];
 
 const schema = z.object({
@@ -83,6 +84,10 @@ const UserProfilePage = () => {
   } = useProfileDetail(profileId);
   const updateProfile = useUpdateProfile();
 
+  // Verifica se o usuário atual é técnico ou sub-líder técnico
+  const currentUser = authService.getCurrentUser();
+  const isTechnicianOrSubLead = currentUser?.tipo_usuario === 'tecnico' || currentUser?.tipo_usuario === 'sub_lider_tecnico';
+
   useEffect(() => {
     if (profile) {
       form.reset({
@@ -98,14 +103,18 @@ const UserProfilePage = () => {
   const onSubmit = async (values: FormValues) => {
     if (!profileId) return;
     try {
+      // Se for técnico ou sub-líder técnico, mantém o role e active originais
+      const roleToUse = isTechnicianOrSubLead && profile ? profile.role : Number(values.role);
+      const activeToUse = isTechnicianOrSubLead && profile ? profile.active : values.active;
+      
       const payload = {
         user: {
           username: values.username,
           email: values.email,
           ...(values.password ? { password: values.password } : {}),
         },
-        role: Number(values.role),
-        active: values.active,
+        role: roleToUse,
+        active: activeToUse,
       };
       const updated = await updateProfile.mutateAsync({ id: profileId, payload });
       toast({
@@ -277,7 +286,7 @@ const UserProfilePage = () => {
                             <Select
                               value={field.value}
                               onValueChange={field.onChange}
-                              disabled={updateProfile.isPending}
+                              disabled={updateProfile.isPending || isTechnicianOrSubLead}
                             >
                               <FormControl>
                                 <SelectTrigger>
@@ -292,6 +301,11 @@ const UserProfilePage = () => {
                                 ))}
                               </SelectContent>
                             </Select>
+                            {isTechnicianOrSubLead && (
+                              <p className="text-sm text-muted-foreground">
+                                Técnicos e Sub-Líderes Técnicos não podem alterar seu tipo de usuário.
+                              </p>
+                            )}
                             <FormMessage />
                           </FormItem>
                         )}
@@ -305,14 +319,16 @@ const UserProfilePage = () => {
                           <div className="space-y-0.5">
                             <FormLabel>Status do usuário</FormLabel>
                             <p className="text-sm text-muted-foreground">
-                              Defina se o usuário está ativo na plataforma.
+                              {isTechnicianOrSubLead 
+                                ? 'Técnicos e Sub-Líderes Técnicos não podem alterar seu status.'
+                                : 'Defina se o usuário está ativo na plataforma.'}
                             </p>
                           </div>
                           <FormControl>
                             <Switch
                               checked={field.value}
                               onCheckedChange={field.onChange}
-                              disabled={updateProfile.isPending}
+                              disabled={updateProfile.isPending || isTechnicianOrSubLead}
                             />
                           </FormControl>
                         </FormItem>

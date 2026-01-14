@@ -7,7 +7,8 @@ export type TipoUsuarioKey =
   | 'administrativo'
   | 'lider_tecnico'
   | 'sub_lider_tecnico'
-  | 'tecnico';
+  | 'tecnico'
+  | 'gestor_comercial';
 
 export const NIVEL_USUARIO_OPTIONS = [
   { value: 'super_admin', label: 'Super Admin' },
@@ -21,6 +22,7 @@ export const TIPO_USUARIO_OPTIONS: Array<{ value: TipoUsuarioKey; label: string 
   { value: 'lider_tecnico', label: 'Líder Técnico' },
   { value: 'sub_lider_tecnico', label: 'Sub-Líder Técnico' },
   { value: 'tecnico', label: 'Técnico' },
+  { value: 'gestor_comercial', label: 'Gestor Comercial' },
 ];
 
 export interface CreateUserPayload {
@@ -69,6 +71,7 @@ const ROLE_ID_MAP: Record<TipoUsuarioKey, number> = {
   lider_tecnico: 3,
   sub_lider_tecnico: 4,
   tecnico: 5,
+  gestor_comercial: 6,
 };
 const ID_TO_ROLE_KEY: Record<number, TipoUsuarioKey> = {
   1: 'diretor',
@@ -76,6 +79,7 @@ const ID_TO_ROLE_KEY: Record<number, TipoUsuarioKey> = {
   3: 'lider_tecnico',
   4: 'sub_lider_tecnico',
   5: 'tecnico',
+  6: 'gestor_comercial',
 };
 
 const toRoleId = (key: TipoUsuarioKey) => ROLE_ID_MAP[key] ?? ROLE_ID_MAP.operacional;
@@ -91,7 +95,7 @@ const labelToKey = (label: string): TipoUsuarioKey => {
   const n = normalize(label);
   const map: Record<string, TipoUsuarioKey> = {
     'diretor': 'diretor',
-    'gestor comercial': 'diretor',
+    'gestor comercial': 'gestor_comercial',
     'administrativo': 'administrativo',
     'lider tecnico': 'lider_tecnico',
     'sub lider tecnico': 'sub_lider_tecnico',
