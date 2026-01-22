@@ -244,4 +244,5 @@ export interface ServiceListItem {
   servico_catalogo_nome: string;
   status: string;
   ordem_servico?: number;
+  tem_tarefas?: boolean;
 }

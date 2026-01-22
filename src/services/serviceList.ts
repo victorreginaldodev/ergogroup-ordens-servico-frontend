@@ -8,24 +8,44 @@ export const useServiceList = () => {
     queryFn: async () => {
       const { data } = await api.get<any[]>('/api/servicos/');
       return (data ?? []).map((item) => {
-        if ('cliente_nome' in item && 'servico_catalogo_nome' in item) {
-          return item as ServiceListItem;
+        // Extração robusta de dados para cobrir variações na resposta da API
+        const id = item.id;
+        const status = item.status ?? 'nao_iniciado';
+        const ordem_servico = item.ordem_servico;
+        // Garante que tem_tarefas seja capturado se existir, verificando variações comuns
+        // Converte explicitamente para booleano
+        const rawTemTarefas = item.tem_tarefas ?? item.temTarefas ?? item.hasTasks ?? item.has_tasks;
+        const tem_tarefas = Boolean(rawTemTarefas);
+        
+        // Debug para verificar o que está chegando (será removido em produção)
+        // console.log(`Service ${id} tem_tarefas:`, tem_tarefas, 'raw:', rawTemTarefas);
+
+        let cliente_nome = item.cliente_nome ?? '';
+        let servico_catalogo_nome = item.servico_catalogo_nome ?? '';
+
+        // Fallbacks para servico_catalogo_nome
+        if (!servico_catalogo_nome) {
+          if (item.repositorio?.nome) {
+            servico_catalogo_nome = item.repositorio.nome;
+          } else {
+            const detailed = item as ServiceExecution;
+            servico_catalogo_nome = detailed.nome_servico ?? detailed.catalogo_servico_details?.nome ?? String(detailed.catalogo_servico ?? '');
+          }
         }
-        if ('repositorio' in item || 'ordem_servico' in item) {
-          return {
-            id: item.id,
-            cliente_nome: '',
-            servico_catalogo_nome: item.repositorio?.nome ?? '',
-            status: item.status ?? 'nao_iniciado',
-            ordem_servico: item.ordem_servico,
-          } as ServiceListItem;
+
+        // Fallbacks para cliente_nome
+        if (!cliente_nome) {
+          const detailed = item as ServiceExecution;
+          cliente_nome = detailed.nome_cliente ?? detailed.ordem_servico_details?.cliente_details?.nome ?? '';
         }
-        const detailed = item as ServiceExecution;
+
         return {
-          id: detailed.id,
-          cliente_nome: detailed.nome_cliente ?? detailed.ordem_servico_details?.cliente_details?.nome ?? '',
-          servico_catalogo_nome: detailed.nome_servico ?? detailed.catalogo_servico_details?.nome ?? String(detailed.catalogo_servico ?? ''),
-          status: detailed.status ?? 'nao_iniciado',
+          id,
+          cliente_nome,
+          servico_catalogo_nome,
+          status,
+          ordem_servico,
+          tem_tarefas,
         } as ServiceListItem;
       });
     },

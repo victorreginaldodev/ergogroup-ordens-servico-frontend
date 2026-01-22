@@ -35,9 +35,11 @@ import { useUserRole } from '@/hooks/useUserRole';
 const ServicesPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [tasksFilter, setTasksFilter] = useState<string>('all');
   const [page, setPage] = useState(1);
 
   const { data: services = [], isLoading, error } = useServiceList();
+  
   const { canManageServices } = useUserRole();
   const { data: orders = [] } = useServiceOrders();
   const ordersMap = useMemo(() => {
@@ -61,6 +63,7 @@ const ServicesPage = () => {
         status,
         orderId,
         clientName,
+        tem_tarefas: item.tem_tarefas,
       };
     });
   }, [services, ordersMap]);
@@ -83,7 +86,12 @@ const ServicesPage = () => {
         statusFilter === 'all' || 
         item.status === statusFilter;
 
-      return matchesSearch && matchesStatus;
+      const matchesTasks =
+        tasksFilter === 'all' ||
+        (tasksFilter === 'with_tasks' && item.tem_tarefas) ||
+        (tasksFilter === 'without_tasks' && !item.tem_tarefas);
+
+      return matchesSearch && matchesStatus && matchesTasks;
     })
     .sort((a, b) => statusOrder[a.status] - statusOrder[b.status]);
 
@@ -93,7 +101,7 @@ const ServicesPage = () => {
 
   useEffect(() => {
     setPage(1);
-  }, [searchTerm, statusFilter]);
+  }, [searchTerm, statusFilter, tasksFilter]);
 
   useEffect(() => {
     if (page > totalPages) {
@@ -130,7 +138,7 @@ const ServicesPage = () => {
                   />
                 </div>
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-[180px] bg-secondary border-border">
+                  <SelectTrigger className="w-[220px] bg-secondary border-border">
                     <SelectValue placeholder="Status" />
                   </SelectTrigger>
                   <SelectContent>
@@ -138,6 +146,16 @@ const ServicesPage = () => {
                     <SelectItem value="pending">Não iniciado</SelectItem>
                     <SelectItem value="in_progress">Em andamento</SelectItem>
                     <SelectItem value="completed">Concluído</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={tasksFilter} onValueChange={setTasksFilter}>
+                  <SelectTrigger className="w-[220px] bg-secondary border-border">
+                    <SelectValue placeholder="Tarefas" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas as tarefas</SelectItem>
+                    <SelectItem value="with_tasks">Com tarefas</SelectItem>
+                    <SelectItem value="without_tasks">Sem tarefas</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -156,6 +174,7 @@ const ServicesPage = () => {
                 <TableHead className="uppercase w-72">Cliente</TableHead>
                 <TableHead className="uppercase w-56">Repositório</TableHead>
                 <TableHead className="w-48 uppercase">Status</TableHead>
+                <TableHead className="w-24 uppercase text-center">Tarefas</TableHead>
                 <TableHead className="w-16"></TableHead>
               </TableRow>
             </TableHeader>
@@ -193,6 +212,13 @@ const ServicesPage = () => {
                         <span className={`text-xs px-2 py-0.5 rounded whitespace-nowrap inline-flex uppercase ${getStatusColor(item.status)}`}>
                           {getStatusLabel(item.status)}
                         </span>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {item.tem_tarefas ? (
+                          <span className="text-xs font-medium text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded uppercase">Sim</span>
+                        ) : (
+                          <span className="text-xs font-medium text-muted-foreground bg-muted/50 px-2 py-0.5 rounded uppercase">Não</span>
+                        )}
                       </TableCell>
                   <TableCell>
                     {canManageServices ? (

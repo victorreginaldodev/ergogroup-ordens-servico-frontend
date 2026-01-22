@@ -290,8 +290,21 @@ const TasksPage = () => {
                   })()}
                 </div>
               </div>
+
+              {(() => {
+                const serviceDesc = detail?.servico_descricao || tasks.find(t => t.id === selectedId)?.servico_descricao;
+                return serviceDesc ? (
+                  <div className="space-y-2">
+                    <p className="text-xs text-muted-foreground">Descrição do Serviço (Feita pela área comercial)</p>
+                    <div className="bg-secondary/10 p-3 rounded-md border border-border/50 text-sm font-medium">
+                      {serviceDesc}
+                    </div>
+                  </div>
+                ) : null;
+              })()}
+
               <div className="space-y-2">
-                <p className="text-xs text-muted-foreground">Descrição</p>
+                <p className="text-xs text-muted-foreground">Descrição da Tarefa</p>
                 <div className="bg-secondary/30 p-4 rounded-md border border-border/50 leading-relaxed text-sm">
                   {detail?.descricao || '-'}
                 </div>
