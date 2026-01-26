@@ -52,7 +52,7 @@ const QuickTasksPage = () => {
     if (isEdit && minioDetail) {
       const d: any = minioDetail;
       const st = String(d?.status || '').toLowerCase();
-      const norm = st === 'finalizada' || st === 'concluida' ? 'concluida' : st === 'em_andamento' ? 'em_andamento' : 'nao_iniciado';
+      const norm = st === 'finalizada' || st === 'concluida' ? 'finalizada' : st === 'em_andamento' ? 'em_andamento' : 'nao_iniciado';
       setForm({
         quantidade: Number(d?.quantidade ?? 1),
         descricao: String(d?.descricao ?? ''),
@@ -153,9 +153,9 @@ const QuickTasksPage = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos os status</SelectItem>
-                  <SelectItem value="pending">Não iniciado</SelectItem>
-                  <SelectItem value="in_progress">Em andamento</SelectItem>
-                  <SelectItem value="completed">Concluída</SelectItem>
+                  <SelectItem value="pending">NÃO INICIADO</SelectItem>
+                  <SelectItem value="in_progress">EM ANDAMENTO</SelectItem>
+                  <SelectItem value="completed">FINALIZADA</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -188,6 +188,11 @@ const QuickTasksPage = () => {
                   ))
                 : paginated.map((t: any) => {
                     const label = mapStatus(t?.status);
+                    const statusText = {
+                      pending: 'NÃO INICIADO',
+                      in_progress: 'EM ANDAMENTO',
+                      completed: 'FINALIZADA',
+                    }[label] || 'PENDENTE';
                     return (
                       <TableRow key={t.id} className="border-border">
                         <TableCell className="font-mono">{t.id}</TableCell>
@@ -195,7 +200,7 @@ const QuickTasksPage = () => {
                         <TableCell className="uppercase">{t.servico?.nome || t.repositorio_nome || t.nome_servico || '-'}</TableCell>
                         <TableCell className="w-40">
                           <span className={`text-xs px-2 py-0.5 rounded whitespace-nowrap inline-flex uppercase ${getStatusColor(label)}`}>
-                            {getStatusLabel(label)}
+                            {statusText}
                           </span>
                         </TableCell>
                         <TableCell className="flex items-center gap-1">
@@ -424,9 +429,9 @@ const QuickTasksPage = () => {
                     <SelectValue placeholder="Selecione o status" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="nao_iniciado">Não iniciado</SelectItem>
-                    <SelectItem value="em_andamento">Em andamento</SelectItem>
-                    <SelectItem value="concluida">Concluída</SelectItem>
+                    <SelectItem value="nao_iniciado">NÃO INICIADO</SelectItem>
+                    <SelectItem value="em_andamento">EM ANDAMENTO</SelectItem>
+                    <SelectItem value="finalizada">FINALIZADA</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
