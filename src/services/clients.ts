@@ -52,7 +52,7 @@ const toClient = (c: ClienteApi): Client => {
     .join('');
   return {
     id,
-    name: c.nome,
+    name: c.nome.toUpperCase(),
     email: c.email_institucional,
     phone: c.telefone_institucional,
     document: c.numero_inscricao,
@@ -71,7 +71,9 @@ const toClient = (c: ClienteApi): Client => {
 
 export const getClients = async (): Promise<Client[]> => {
   const { data } = await api.get<ClienteApi[]>(endpoint);
-  return (data || []).map(toClient);
+  return (data || [])
+  .map(toClient)
+  .sort((a, b) => a.name.localeCompare(b.name));
 };
 
 export const useClients = () => {

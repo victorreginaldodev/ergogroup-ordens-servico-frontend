@@ -1,12 +1,26 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Plus, Trash2, Save, Edit } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Save, Edit, Check, ChevronsUpDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import BackButton from '@/components/BackButton';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { cn } from "@/lib/utils";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
 import {
   Select,
   SelectContent,
@@ -100,6 +114,7 @@ const NewOrderPage = () => {
     return 0;
   };
 
+  const [openClientSelect, setOpenClientSelect] = useState(false);
   const [formData, setFormData] = useState({
     clientId: '',
     createdAt: new Date().toISOString().slice(0, 10),
@@ -331,18 +346,49 @@ const NewOrderPage = () => {
             <div className="grid sm:grid-cols-3 gap-4">
               <div className="space-y-2 sm:col-span-2">
                 <Label>Cliente *</Label>
-                <Select value={formData.clientId} onValueChange={(v) => setFormData({ ...formData, clientId: v })}>
-                  <SelectTrigger className="bg-secondary border-border">
-                    <SelectValue placeholder="Selecione um cliente" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {clientsData.map(c => (
-                      <SelectItem key={String(c.id)} value={String(c.id)}>
-                        {c.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Popover open={openClientSelect} onOpenChange={setOpenClientSelect}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={openClientSelect}
+                      className="w-full justify-between bg-secondary border-border font-normal"
+                    >
+                      {formData.clientId
+                        ? clientsData.find((client) => String(client.id) === formData.clientId)?.name
+                        : "Selecione um cliente..."}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[400px] p-0" align="start">
+                    <Command>
+                      <CommandInput placeholder="Pesquisar cliente..." />
+                      <CommandList>
+                        <CommandEmpty>Nenhum cliente encontrado.</CommandEmpty>
+                        <CommandGroup>
+                          {clientsData.map((client) => (
+                            <CommandItem
+                              key={String(client.id)}
+                              value={client.name}
+                              onSelect={() => {
+                                setFormData({ ...formData, clientId: String(client.id) })
+                                setOpenClientSelect(false)
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 h-4 w-4",
+                                  formData.clientId === String(client.id) ? "opacity-100" : "opacity-0"
+                                )}
+                              />
+                              {client.name}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
                 {clientsData.length === 0 && (
                   <div className="text-sm text-muted-foreground">
                     Nenhum cliente encontrado.{' '}
