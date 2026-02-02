@@ -17,6 +17,7 @@ import { useUsers } from '@/services/users';
 import { useCreateQuickTask } from '@/services/quickTasks';
 import { useQueryClient } from '@tanstack/react-query';
 import { useUserRole } from '@/hooks/useUserRole';
+import { Switch } from '@/components/ui/switch';
 
 const QuickTasksPage = () => {
   const { data: items = [], isLoading, error } = useMinioRepositories();
@@ -41,6 +42,7 @@ const QuickTasksPage = () => {
     data_inicio: '',
     data_termino: '',
     status: 'nao_iniciado',
+    revisao_cliente: false,
     cliente: 0,
     servico: 0,
     profile: 0,
@@ -60,6 +62,7 @@ const QuickTasksPage = () => {
         data_inicio: String(d?.data_inicio ?? ''),
         data_termino: String(d?.data_termino ?? ''),
         status: norm,
+        revisao_cliente: Boolean(d?.revisao_cliente ?? false),
         cliente: Number(d?.cliente?.id ?? 0),
         servico: Number(d?.servico?.id ?? 0),
         profile: Number(d?.profile?.id ?? 0),
@@ -124,6 +127,7 @@ const QuickTasksPage = () => {
               data_inicio: '',
               data_termino: '',
               status: 'nao_iniciado',
+              revisao_cliente: false,
               cliente: 0,
               servico: 0,
               profile: 0,
@@ -438,6 +442,20 @@ const QuickTasksPage = () => {
             </div>
             <div className="grid sm:grid-cols-3 gap-4">
               <div>
+                <p className="text-xs text-muted-foreground mb-1">Revisão do cliente</p>
+                <div className="flex items-center gap-2 py-2">
+                  <Switch
+                    checked={form.revisao_cliente}
+                    onCheckedChange={(v) => setForm({ ...form, revisao_cliente: Boolean(v) })}
+                  />
+                  <span className="text-xs text-muted-foreground">
+                    {form.revisao_cliente ? 'Sim' : 'Não'}
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div className="grid sm:grid-cols-3 gap-4">
+              <div>
                 <p className="text-xs text-muted-foreground mb-1">Início</p>
                 <Input
                   type="date"
@@ -479,6 +497,7 @@ const QuickTasksPage = () => {
                       data_inicio: form.data_inicio || null,
                       data_termino: form.data_termino || null,
                       status: form.status,
+                      revisao_cliente: form.revisao_cliente,
                       cliente: form.cliente,
                       servico: form.servico,
                       profile: form.profile,
@@ -507,6 +526,7 @@ const QuickTasksPage = () => {
                       data_inicio: form.data_inicio || null,
                       data_termino: form.data_termino || null,
                       status: form.status || 'nao_iniciado',
+                      revisao_cliente: form.revisao_cliente,
                       cliente: form.cliente,
                       servico: form.servico,
                       profile: form.profile,
@@ -522,6 +542,7 @@ const QuickTasksPage = () => {
                           data_inicio: '',
                           data_termino: '',
                           status: 'nao_iniciado',
+                          revisao_cliente: false,
                           cliente: 0,
                           servico: 0,
                           profile: 0,

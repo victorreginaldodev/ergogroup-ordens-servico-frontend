@@ -7,6 +7,7 @@ export interface DashboardOrdersSummary {
   total?: number;
   total_concluidas?: number;
   total_nao_concluidas?: number;
+  vendas_por_mes?: DashboardServiceMonthlyItem[];
   recentes?: Array<{
     id?: number | string;
     numero?: string;
@@ -63,6 +64,8 @@ export interface DashboardTasksSummary {
 export interface DashboardMinioSummary {
   concluidas_ultimos_12_meses_total?: number;
   concluidas_por_mes?: DashboardServiceMonthlyItem[];
+  total?: number;
+  total_revisao_cliente?: number;
 }
 
 export interface DashboardClientItem {
@@ -71,8 +74,15 @@ export interface DashboardClientItem {
   total_valor_faturado: number;
 }
 
+export interface DashboardClientSalesItem {
+  cliente_id: number;
+  cliente_nome: string;
+  total_valor_vendas: number;
+}
+
 export interface DashboardClientsSummary {
   mais_faturamento?: DashboardClientItem[];
+  mais_vendas?: DashboardClientSalesItem[];
 }
 
 export interface DashboardAnalyticsResponse {

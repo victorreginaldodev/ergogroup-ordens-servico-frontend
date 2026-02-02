@@ -12,6 +12,7 @@ export type QuickTaskItem = {
   data_inicio: string | null;
   data_termino: string | null;
   status: string;
+  revisao_cliente?: boolean;
   faturamento: string;
   n_nf: string;
   cliente: {
@@ -78,6 +79,7 @@ export const quickTasksService = {
     data_inicio?: string | null;
     data_termino?: string | null;
     status: string;
+    revisao_cliente?: boolean;
     cliente: number;
     servico: number;
     profile: number;
@@ -92,6 +94,7 @@ export const quickTasksService = {
     data_inicio?: string | null;
     data_termino?: string | null;
     status?: string;
+    revisao_cliente?: boolean;
     cliente?: number;
     servico?: number;
     profile?: number;

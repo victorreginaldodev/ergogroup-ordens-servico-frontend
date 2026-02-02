@@ -34,11 +34,14 @@ import { useServiceOrders, useDeleteServiceOrder } from '@/services/orders';
 import { useClients } from '@/services/clients';
 import { ServiceStatus } from '@/types';
 import { useUserRole } from '@/hooks/useUserRole';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
 
 const OrdersPage = () => {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [page, setPage] = useState(1);
+  const [dateRange, setDateRange] = useState<{ from?: Date; to?: Date }>({});
   const { data: orders = [], isLoading } = useServiceOrders();
   const { data: clients = [] } = useClients();
   const del = useDeleteServiceOrder();
@@ -46,9 +49,17 @@ const OrdersPage = () => {
 
   const getClientName = (id: string) => clients.find(c => c.id === id)?.name || id;
 
-  const filteredOrders = orders.filter(order =>
-    getClientName(order.clientName).toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredOrders = orders.filter(order => {
+    const matchesText = getClientName(order.clientName).toLowerCase().includes(searchTerm.toLowerCase());
+    const created = order.createdAt instanceof Date ? order.createdAt : new Date(order.createdAt);
+    if (!dateRange.from && !dateRange.to) return matchesText;
+    const start = dateRange.from ? new Date(dateRange.from.getFullYear(), dateRange.from.getMonth(), dateRange.from.getDate(), 0, 0, 0, 0) : undefined;
+    const end = dateRange.to ? new Date(dateRange.to.getFullYear(), dateRange.to.getMonth(), dateRange.to.getDate(), 23, 59, 59, 999) : undefined;
+    const inRange =
+      (!start || created >= start) &&
+      (!end || created <= end);
+    return matchesText && inRange;
+  });
 
   const sortedOrders = [...filteredOrders].sort((a, b) => {
     const ta = a.createdAt instanceof Date ? a.createdAt.getTime() : new Date(a.createdAt).getTime();
@@ -62,7 +73,7 @@ const OrdersPage = () => {
 
   useEffect(() => {
     setPage(1);
-  }, [searchTerm]);
+  }, [searchTerm, dateRange]);
 
   useEffect(() => {
     if (totalPages === 0) {
@@ -94,14 +105,43 @@ const OrdersPage = () => {
       {/* Filters */}
       <Card className="bg-card border-border">
         <CardContent className="p-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar por cliente..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 bg-secondary border-border"
-            />
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="relative sm:flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar por cliente..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 bg-secondary border-border"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="uppercase">
+                    {dateRange.from && dateRange.to
+                      ? `${formatDate(dateRange.from)} — ${formatDate(dateRange.to)}`
+                      : dateRange.from
+                        ? `${formatDate(dateRange.from)} — ...`
+                        : 'Entre datas'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="end">
+                  <Calendar
+                    mode="range"
+                    selected={dateRange}
+                    onSelect={setDateRange}
+                    numberOfMonths={2}
+                    showOutsideDays
+                  />
+                </PopoverContent>
+              </Popover>
+              {dateRange.from || dateRange.to ? (
+                <Button variant="ghost" onClick={() => setDateRange({})} className="uppercase">
+                  Limpar
+                </Button>
+              ) : null}
+            </div>
           </div>
         </CardContent>
       </Card>

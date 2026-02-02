@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/services/api';
 import { ServiceExecution, ServiceListItem } from '@/types';
 
@@ -59,6 +59,20 @@ export const useServiceExecutionById = (id: string) => {
     queryFn: async () => {
       const { data } = await api.get<ServiceExecution>(`/api/servicos/${id}/`);
       return data;
+    },
+  });
+};
+
+export const useUpdateServiceStatus = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, status }: { id: number; status: string }) => {
+      const { data } = await api.patch(`/api/servicos/${id}/`, { status });
+      return data;
+    },
+    onSuccess: (_, variables) => {
+      qc.invalidateQueries({ queryKey: ['serviceExecution', String(variables.id)] });
+      qc.invalidateQueries({ queryKey: ['serviceList'] });
     },
   });
 };

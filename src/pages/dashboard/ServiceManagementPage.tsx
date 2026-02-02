@@ -4,7 +4,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
-import { useServiceExecutionById } from '@/services/serviceList';
+import { useServiceExecutionById, useUpdateServiceStatus } from '@/services/serviceList';
 import { getStatusColor, getStatusLabel, formatCurrency, formatDate } from '@/data/mockData';
 import { useUsers } from '@/services/users';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
@@ -29,6 +29,7 @@ const ServiceManagementPage = () => {
   const deleteTask = useDeleteTask();
   const { toast } = useToast();
   const { canManageServices } = useUserRole();
+  const updateStatus = useUpdateServiceStatus();
   const [newTaskOpen, setNewTaskOpen] = useState(false);
   const [taskProfileId, setTaskProfileId] = useState<string>('');
   const [taskDescription, setTaskDescription] = useState('');
@@ -38,6 +39,7 @@ const ServiceManagementPage = () => {
   const statusLabel =
     data?.status === 'concluida' ? 'completed' :
     data?.status === 'em_andamento' ? 'in_progress' :
+    data?.status === 'em_espera' ? 'pending' :
     'pending';
   const statusClass = getStatusColor(statusLabel);
   const statusText = getStatusLabel(statusLabel);
@@ -95,8 +97,40 @@ const ServiceManagementPage = () => {
             </p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Status</p>
-            <Badge className={`${statusClass} border-0 uppercase`}>{statusText}</Badge>
+            <p className="text-xs text-muted-foreground mb-2">Status</p>
+            <Select
+              value={data?.status}
+              onValueChange={(val) => {
+                if (data?.id) {
+                  updateStatus.mutate(
+                    { id: data.id, status: val },
+                    {
+                      onSuccess: () => {
+                        toast({
+                          title: 'Status atualizado',
+                          description: 'O status do serviço foi alterado com sucesso.',
+                        });
+                      },
+                      onError: () => {
+                        toast({
+                          title: 'Erro ao atualizar',
+                          description: 'Não foi possível alterar o status do serviço.',
+                          variant: 'destructive',
+                        });
+                      },
+                    }
+                  );
+                }
+              }}
+            >
+              <SelectTrigger className={`w-auto min-w-[130px] h-7 ${statusClass} border-0 uppercase text-white font-semibold focus:ring-0 focus:ring-offset-0 px-3 text-xs`}>
+                <SelectValue placeholder={statusText} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="em_espera">Em Espera</SelectItem>
+                <SelectItem value="em_andamento">Em Andamento</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </CardContent>
       </Card>

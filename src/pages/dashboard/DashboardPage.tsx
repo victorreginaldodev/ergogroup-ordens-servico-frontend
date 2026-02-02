@@ -144,7 +144,7 @@ const resolveMonthlyLabel = (entry: DashboardServiceMonthlyItem, index: number):
 const DashboardPage = () => {
   const { data: analytics, isLoading, isError } = useDashboardAnalytics();
   const [completedPeriodMonths, setCompletedPeriodMonths] = useState<string>('6');
-  const { canViewOrderValues } = useUserRole();
+  const { canViewOrderValues, isRestricted } = useUserRole();
 
   const stats = useMemo(() => {
     if (!analytics) return [];
@@ -277,6 +277,25 @@ const DashboardPage = () => {
     [tasksMonthlySeries],
   );
 
+  const salesMonthlySeries = useMemo(() => {
+    const entries = analytics?.ordens_servico?.vendas_por_mes ?? [];
+    return entries
+      .map((entry, index) => {
+        const { label, sortKey } = resolveMonthlyLabel(
+          { mes: entry.mes, ano: entry.ano, total: entry.total },
+          index,
+        );
+        const value = Number(entry.total ?? 0);
+        return { name: label, value, sortKey };
+      })
+      .sort((a, b) => a.sortKey - b.sortKey);
+  }, [analytics]);
+
+  const salesMonthlyChartData = useMemo(
+    () => salesMonthlySeries.map(({ name, value }) => ({ name, value })),
+    [salesMonthlySeries],
+  );
+
   const miniosMonthlySeries = useMemo(() => {
     const entries = analytics?.minios?.concluidas_por_mes ?? [];
     return entries
@@ -301,6 +320,25 @@ const DashboardPage = () => {
     ? miniosMonthlySeries.map(({ name, value }) => ({ name, value }))
     : miniosFallbackSeries;
 
+  const miniosRevisionData = useMemo(() => {
+    const total = Number(analytics?.minios?.total ?? 0);
+    const revisions = Number(analytics?.minios?.total_revisao_cliente ?? 0);
+    if (total <= 0 && revisions <= 0) return [];
+    const others = Math.max(total - revisions, 0);
+    return [
+      { name: 'Revisão do cliente', value: revisions },
+      { name: 'Outros', value: others },
+    ];
+  }, [analytics]);
+
+  const miniosRevisionPct = useMemo(() => {
+    const total = Number(analytics?.minios?.total ?? 0);
+    const revisions = Number(analytics?.minios?.total_revisao_cliente ?? 0);
+    if (total <= 0) return 0;
+    const pct = (revisions / total) * 100;
+    return Math.min(Math.max(pct, 0), 100);
+  }, [analytics]);
+
   const topClientsData = useMemo(() => {
     const list = analytics?.clientes?.mais_faturamento ?? [];
     return list
@@ -317,6 +355,24 @@ const DashboardPage = () => {
   const totalClientsValue = useMemo(
     () => topClientsData.reduce((acc, cur) => acc + (cur.value ?? 0), 0),
     [topClientsData],
+  );
+
+  const topClientsSalesData = useMemo(() => {
+    const list = analytics?.clientes?.mais_vendas ?? [];
+    return list
+      .slice()
+      .sort((a, b) => (b.total_valor_vendas ?? 0) - (a.total_valor_vendas ?? 0))
+      .map((item) => ({
+        id: item.cliente_id,
+        name: item.cliente_nome,
+        value: Number(item.total_valor_vendas ?? 0),
+      }))
+      .slice(0, 10);
+  }, [analytics]);
+
+  const totalClientsSalesValue = useMemo(
+    () => topClientsSalesData.reduce((acc, cur) => acc + (cur.value ?? 0), 0),
+    [topClientsSalesData],
   );
 
   const trendColorClass = hasTrend
@@ -435,6 +491,36 @@ const DashboardPage = () => {
             ) : (
               <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
                 {isLoading ? 'Carregando dados...' : 'Sem dados suficientes para exibir.'}
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="bg-card border-border">
+        <CardHeader className="flex items-center justify-between">
+          <CardTitle className="text-lg font-semibold">Vendas por Mês</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="h-[320px]">
+            {salesMonthlyChartData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={salesMonthlyChartData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(222, 30%, 18%)" />
+                  <XAxis dataKey="name" stroke="hsl(215, 20%, 55%)" fontSize={12} />
+                  <YAxis stroke="hsl(215, 20%, 55%)" fontSize={12} hide={isRestricted} />
+                  <Tooltip
+                    contentStyle={tooltipContentStyle}
+                    itemStyle={tooltipItemStyle}
+                    labelStyle={tooltipLabelStyle}
+                    formatter={(value: number) => [isRestricted ? '—' : formatCurrency(value), 'Total de vendas']}
+                  />
+                  <Bar dataKey="value" fill="hsl(215, 85%, 60%)" />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                {isLoading ? 'Carregando dados...' : 'Sem histórico de vendas.'}
               </div>
             )}
           </div>
@@ -665,10 +751,53 @@ const DashboardPage = () => {
 
         <Card className="bg-card border-border">
           <CardHeader className="flex items-center justify-between">
-            <CardTitle className="text-lg font-semibold">Principais Clientes</CardTitle>
+            <CardTitle className="text-lg font-semibold">MinIOs: Revisão do Cliente vs Total</CardTitle>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <span className="h-2.5 w-2.5 rounded-[2px]" style={{ backgroundColor: COLORS[0] }} />
+              Revisão do cliente: {miniosRevisionPct.toFixed(1)}%
+            </div>
           </CardHeader>
           <CardContent>
-            {canViewOrderValues ? (
+            <div className="h-[320px]">
+              {miniosRevisionData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={miniosRevisionData}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={110}
+                      paddingAngle={2}
+                    >
+                      {miniosRevisionData.map((entry, index) => (
+                        <Cell key={`minio-rev-${entry.name}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      contentStyle={tooltipContentStyle}
+                      itemStyle={tooltipItemStyle}
+                      labelStyle={tooltipLabelStyle}
+                      formatter={(value: number, name: string) => [value, name]}
+                    />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                  {isLoading ? 'Carregando dados...' : 'Sem dados de MinIOs para exibir.'}
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+          <Card className="bg-card border-border">
+            <CardHeader className="flex items-center justify-between">
+              <CardTitle className="text-lg font-semibold">Principais Clientes</CardTitle>
+            </CardHeader>
+            <CardContent>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-center">
                 <div className="h-[320px]">
                   {topClientsData.length > 0 ? (
@@ -692,7 +821,10 @@ const DashboardPage = () => {
                           contentStyle={tooltipContentStyle}
                           itemStyle={tooltipItemStyle}
                           labelStyle={tooltipLabelStyle}
-                          formatter={(value: number) => [formatCurrency(value), 'Valor faturado']}
+                          formatter={(value: number) => [
+                            isRestricted ? '—' : formatCurrency(value),
+                            isRestricted ? 'Valor restrito' : 'Valor faturado',
+                          ]}
                         />
                       </PieChart>
                     </ResponsiveContainer>
@@ -707,7 +839,7 @@ const DashboardPage = () => {
                     <TableHeader>
                       <TableRow>
                         <TableHead>Cliente</TableHead>
-                        <TableHead className="text-right">Valor faturado</TableHead>
+                        {!isRestricted && <TableHead className="text-right">Valor faturado</TableHead>}
                         <TableHead className="text-right">% do total</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -724,14 +856,16 @@ const DashboardPage = () => {
                                   {item.name}
                                 </div>
                               </TableCell>
-                              <TableCell className="text-right">{formatCurrency(item.value)}</TableCell>
+                              {!isRestricted && (
+                                <TableCell className="text-right">{formatCurrency(item.value)}</TableCell>
+                              )}
                               <TableCell className="text-right">{pct.toFixed(1)}%</TableCell>
                             </TableRow>
                           );
                         })
                       ) : (
                         <TableRow>
-                          <TableCell colSpan={3} className="text-center text-muted-foreground text-sm">
+                          <TableCell colSpan={isRestricted ? 2 : 3} className="text-center text-muted-foreground text-sm">
                             {isLoading ? 'Carregando...' : 'Nenhum dado disponível.'}
                           </TableCell>
                         </TableRow>
@@ -740,11 +874,90 @@ const DashboardPage = () => {
                   </Table>
                 </div>
               </div>
-            ) : (
-              <div className="flex h-[320px] items-center justify-center rounded-lg border border-dashed border-border text-sm text-muted-foreground text-center px-6">
-                Dados de faturamento não estão disponíveis para o seu perfil de acesso.
+            </CardContent>
+          </Card>
+
+        <Card className="bg-card border-border">
+          <CardHeader className="flex items-center justify-between">
+            <CardTitle className="text-lg font-semibold">Clientes com Mais Vendas</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-center">
+              <div className="h-[320px]">
+                {topClientsSalesData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={topClientsSalesData}
+                        dataKey="value"
+                        nameKey="name"
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={70}
+                        outerRadius={110}
+                        paddingAngle={2}
+                      >
+                        {topClientsSalesData.map((entry, index) => (
+                          <Cell key={`client-sales-${entry.id}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        contentStyle={tooltipContentStyle}
+                        itemStyle={tooltipItemStyle}
+                        labelStyle={tooltipLabelStyle}
+                        formatter={(value: number) => [
+                          isRestricted ? '—' : formatCurrency(value),
+                          isRestricted ? 'Valor restrito' : 'Valor vendido',
+                        ]}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                    {isLoading ? 'Carregando dados...' : 'Nenhum cliente com vendas registradas.'}
+                  </div>
+                )}
               </div>
-            )}
+              <div className="overflow-hidden rounded-lg border border-border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Cliente</TableHead>
+                      {!isRestricted && <TableHead className="text-right">Valor vendido</TableHead>}
+                      <TableHead className="text-right">% do total</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {topClientsSalesData.length > 0 ? (
+                      topClientsSalesData.map((item, index) => {
+                        const pct = totalClientsSalesValue > 0 ? (item.value / totalClientsSalesValue) * 100 : 0;
+                        const color = COLORS[index % COLORS.length];
+                        return (
+                          <TableRow key={item.id}>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <span className="h-2.5 w-2.5 rounded-[2px]" style={{ backgroundColor: color }} />
+                                {item.name}
+                              </div>
+                            </TableCell>
+                            {!isRestricted && (
+                              <TableCell className="text-right">{formatCurrency(item.value)}</TableCell>
+                            )}
+                            <TableCell className="text-right">{pct.toFixed(1)}%</TableCell>
+                          </TableRow>
+                        );
+                      })
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={isRestricted ? 2 : 3} className="text-center text-muted-foreground text-sm">
+                          {isLoading ? 'Carregando...' : 'Nenhum dado disponível.'}
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>
