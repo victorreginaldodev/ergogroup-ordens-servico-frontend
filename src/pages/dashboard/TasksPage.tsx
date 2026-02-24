@@ -69,7 +69,19 @@ const TasksPage = () => {
       const sb = String(b.status || '').toLowerCase();
       const na = sa === 'concluida' ? 'completed' : sa === 'em_andamento' ? 'in_progress' : 'pending';
       const nb = sb === 'concluida' ? 'completed' : sb === 'em_andamento' ? 'in_progress' : 'pending';
-      return order[na] - order[nb];
+      
+      const statusDiff = order[na] - order[nb];
+      if (statusDiff !== 0) return statusDiff;
+
+      // Ordenação secundária: Data de criação (mais recente primeiro)
+      // Usa data_criacao ou created_at se disponível
+      const dateA = a.data_criacao || a.created_at ? new Date(a.data_criacao || a.created_at || '').getTime() : 0;
+      const dateB = b.data_criacao || b.created_at ? new Date(b.data_criacao || b.created_at || '').getTime() : 0;
+      
+      if (dateA !== dateB) return dateB - dateA;
+      
+      // Fallback para ID (maior ID = mais recente)
+      return b.id - a.id;
     });
   }, [tasks, searchTerm, statusFilter]);
   const itemsPerPage = 100;

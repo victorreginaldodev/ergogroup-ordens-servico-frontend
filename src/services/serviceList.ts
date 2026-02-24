@@ -39,6 +39,13 @@ export const useServiceList = () => {
           cliente_nome = detailed.nome_cliente ?? detailed.ordem_servico_details?.cliente_details?.nome ?? '';
         }
 
+        // Tenta capturar data de criação de várias fontes possíveis para ordenação
+        const data_criacao = item.data_criacao ?? 
+                             item.created_at ?? 
+                             item.ordem_servico_details?.data_criacao ?? 
+                             item.ordem_servico_details?.data_venda ?? 
+                             '';
+
         return {
           id,
           cliente_nome,
@@ -46,6 +53,7 @@ export const useServiceList = () => {
           status,
           ordem_servico,
           tem_tarefas,
+          data_criacao,
         } as ServiceListItem;
       });
     },

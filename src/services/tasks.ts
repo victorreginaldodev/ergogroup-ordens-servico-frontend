@@ -72,6 +72,8 @@ export type TaskListItem = {
   usuario_nome: string;
   status: string;
   servico_descricao?: string;
+  data_criacao?: string;
+  created_at?: string;
 };
 
 import { useQuery } from '@tanstack/react-query';

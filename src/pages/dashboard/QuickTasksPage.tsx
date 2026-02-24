@@ -92,7 +92,23 @@ const QuickTasksPage = () => {
 
   const ordered = useMemo(() => {
     const order: Record<'pending' | 'in_progress' | 'completed', number> = { pending: 0, in_progress: 1, completed: 2 };
-    return [...filtered].sort((a: any, b: any) => order[mapStatus(a?.status)] - order[mapStatus(b?.status)]);
+    return [...filtered].sort((a: any, b: any) => {
+      // Ordenação primária: Status
+      const statusA = order[mapStatus(a?.status)];
+      const statusB = order[mapStatus(b?.status)];
+      
+      const diff = statusA - statusB;
+      if (diff !== 0) return diff;
+      
+      // Ordenação secundária: Data de recebimento (mais recente primeiro)
+      const dateA = new Date(a?.data_recebimento || 0).getTime();
+      const dateB = new Date(b?.data_recebimento || 0).getTime();
+      
+      if (dateA !== dateB) return dateB - dateA;
+      
+      // Fallback para ID
+      return (b?.id || 0) - (a?.id || 0);
+    });
   }, [filtered]);
 
   const itemsPerPage = 100;

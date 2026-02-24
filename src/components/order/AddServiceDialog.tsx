@@ -1,17 +1,24 @@
 import { useState, useMemo, useEffect } from "react";
-import { Plus } from "lucide-react";
+import { Plus, Check, ChevronsUpDown } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/data/mockData";
 import { Service, ServiceItem } from "@/types";
 
@@ -27,8 +34,13 @@ type Props = {
 
 export default function AddServiceDialog({ open, onOpenChange, services, existingIds, onAdd, itemToEdit, onUpdate }: Props) {
   const [selectedId, setSelectedId] = useState<string>("");
+  const [openSelect, setOpenSelect] = useState(false);
   const selected = useMemo(() => services.find(s => String(s.id) === String(selectedId)), [services, selectedId]);
   const [note, setNote] = useState<string>("");
+
+  const sortedServices = useMemo(() => {
+    return [...services].sort((a, b) => a.name.localeCompare(b.name));
+  }, [services]);
 
   useEffect(() => {
     if (!open) return;
@@ -85,22 +97,54 @@ export default function AddServiceDialog({ open, onOpenChange, services, existin
         <div className="space-y-4">
           <div className="space-y-2">
             <Label>Serviço do catálogo</Label>
-            <Select value={selectedId} onValueChange={onSelectService}>
-              <SelectTrigger className="bg-secondary border-border">
-                <SelectValue placeholder="Selecione um serviço" />
-              </SelectTrigger>
-              <SelectContent>
-                {services.map((svc) => (
-                  <SelectItem
-                    key={svc.id}
-                    value={String(svc.id)}
-                    disabled={existingIds.includes(String(svc.id)) && String(svc.id) !== String(itemToEdit?.serviceId)}
-                  >
-                    {svc.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Popover open={openSelect} onOpenChange={setOpenSelect} modal={true}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={openSelect}
+                  className="w-full justify-between bg-secondary border-border font-normal"
+                >
+                  {selectedId
+                    ? services.find((s) => String(s.id) === String(selectedId))?.name.toUpperCase()
+                    : "SELECIONE UM SERVIÇO"}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[400px] p-0 z-[9999]" align="start">
+                <Command className="w-full">
+                  <CommandInput placeholder="BUSCAR SERVIÇO..." />
+                  <CommandList className="max-h-[240px] w-full overflow-y-auto overflow-x-hidden">
+                    <CommandEmpty>NENHUM SERVIÇO ENCONTRADO.</CommandEmpty>
+                    {sortedServices.map((svc) => {
+                      const isDisabled = existingIds.includes(String(svc.id)) && String(svc.id) !== String(itemToEdit?.serviceId);
+                      return (
+                        <CommandItem
+                          key={svc.id}
+                          value={svc.name}
+                          onSelect={() => {
+                            if (!isDisabled) {
+                              onSelectService(String(svc.id));
+                              setOpenSelect(false);
+                            }
+                          }}
+                          disabled={isDisabled}
+                          className={cn(isDisabled && "opacity-50 cursor-not-allowed")}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              selectedId === String(svc.id) ? "opacity-100" : "opacity-0"
+                            )}
+                          />
+                          {svc.name.toUpperCase()}
+                        </CommandItem>
+                      );
+                    })}
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </div>
 
           

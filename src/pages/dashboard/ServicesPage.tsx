@@ -64,6 +64,7 @@ const ServicesPage = () => {
         orderId,
         clientName,
         tem_tarefas: item.tem_tarefas,
+        data_criacao: item.data_criacao,
       };
     });
   }, [services, ordersMap]);
@@ -93,7 +94,20 @@ const ServicesPage = () => {
 
       return matchesSearch && matchesStatus && matchesTasks;
     })
-    .sort((a, b) => statusOrder[a.status] - statusOrder[b.status]);
+    .sort((a, b) => {
+      // Ordenação primária: Status
+      const statusDiff = statusOrder[a.status] - statusOrder[b.status];
+      if (statusDiff !== 0) return statusDiff;
+      
+      // Ordenação secundária: Data de criação (mais recente primeiro)
+      // Se não tiver data, usa o ID como proxy (maior ID = mais recente)
+      const dateA = a.data_criacao ? new Date(a.data_criacao).getTime() : 0;
+      const dateB = b.data_criacao ? new Date(b.data_criacao).getTime() : 0;
+      
+      if (dateA !== dateB) return dateB - dateA;
+      
+      return Number(b.id) - Number(a.id);
+    });
 
   const itemsPerPage = 100;
   const totalPages = Math.ceil(filteredServiceItems.length / itemsPerPage) || 1;

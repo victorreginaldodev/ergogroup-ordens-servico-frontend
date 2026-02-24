@@ -245,4 +245,5 @@ export interface ServiceListItem {
   status: string;
   ordem_servico?: number;
   tem_tarefas?: boolean;
+  data_criacao?: string;
 }
