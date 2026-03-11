@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -160,7 +161,15 @@ const TasksPage = () => {
                     const s = (t.status || '').toLowerCase();
                     const label = s === 'concluida' ? 'completed' : s === 'em_andamento' ? 'in_progress' : 'pending';
                     return (
-                      <TableRow key={t.id} className="border-border">
+                      <TableRow
+                        key={t.id}
+                        className={`border-border ${showActions ? 'cursor-pointer hover:bg-muted/40' : ''}`}
+                        onClick={() => {
+                          if (!showActions) return;
+                          setSelectedId(t.id);
+                          setDetailsOpen(true);
+                        }}
+                      >
                         <TableCell className="font-mono">{t.id}</TableCell>
                         <TableCell className="uppercase">{t.cliente_nome}</TableCell>
                         <TableCell className="uppercase">{t.repositorio_nome}</TableCell>
@@ -172,15 +181,26 @@ const TasksPage = () => {
                         </TableCell>
                         {showActions && (
                           <TableCell>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8"
-                              aria-label="Editar tarefa"
-                              onClick={() => { setSelectedId(t.id); setDetailsOpen(true); }}
-                            >
-                              <Edit className="w-4 h-4" />
-                            </Button>
+                            <div className="flex items-center justify-end" onClick={(e) => e.stopPropagation()}>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    aria-label="Acoes da tarefa"
+                                  >
+                                    <MoreVertical className="w-4 h-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem onClick={() => { setSelectedId(t.id); setDetailsOpen(true); }}>
+                                    <Edit className="w-4 h-4 mr-2" />
+                                    Editar
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
                           </TableCell>
                         )}
                       </TableRow>

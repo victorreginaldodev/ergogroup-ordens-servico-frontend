@@ -3,9 +3,10 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useMinioRepositories, useRepoMinioServices, useMinioById, useDeleteQuickTask, useUpdateQuickTask } from '@/services/quickTasks';
 import { getStatusColor, getStatusLabel } from '@/data/mockData';
-import { Pencil, Trash } from 'lucide-react';
+import { MoreVertical, Pencil, Trash } from 'lucide-react';
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious, PaginationEllipsis } from '@/components/ui/pagination';
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -214,7 +215,16 @@ const QuickTasksPage = () => {
                       completed: 'FINALIZADA',
                     }[label] || 'PENDENTE';
                     return (
-                      <TableRow key={t.id} className="border-border">
+                      <TableRow
+                        key={t.id}
+                        className={`border-border ${canManageQuickTasks ? 'cursor-pointer hover:bg-muted/40' : ''}`}
+                        onClick={() => {
+                          if (!canManageQuickTasks) return;
+                          setIsEdit(true);
+                          setSelectedId(Number(t.id));
+                          setCreateOpen(true);
+                        }}
+                      >
                         <TableCell className="font-mono">{t.id}</TableCell>
                         <TableCell className="uppercase">{t.cliente?.nome || t.cliente_nome || '-'}</TableCell>
                         <TableCell className="uppercase">{t.servico?.nome || t.repositorio_nome || t.nome_servico || '-'}</TableCell>
@@ -223,43 +233,53 @@ const QuickTasksPage = () => {
                             {statusText}
                           </span>
                         </TableCell>
-                        <TableCell className="flex items-center gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            aria-label="Editar"
-                            disabled={!canManageQuickTasks}
-                            onClick={() => {
-                              if (!canManageQuickTasks) return;
-                              setIsEdit(true);
-                              setSelectedId(Number(t.id));
-                              setCreateOpen(true);
-                            }}
-                          >
-                            <Pencil className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-destructive"
-                            aria-label="Excluir"
-                            disabled={deleteQuickTask.isPending || !canManageQuickTasks}
-                            onClick={() => {
-                              if (!canManageQuickTasks) return;
-                              const id = Number(t.id);
-                              if (!id) return;
-                              if (window.confirm('Excluir esta tarefa rápida?')) {
-                                deleteQuickTask.mutate(id, {
-                                  onSuccess: async () => {
-                                    await qc.invalidateQueries({ queryKey: ['quickTasksMinioRepos'] });
-                                  },
-                                });
-                              }
-                            }}
-                          >
-                            <Trash className="w-4 h-4" />
-                          </Button>
+                        <TableCell>
+                          <div className="flex items-center justify-end" onClick={(e) => e.stopPropagation()}>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  aria-label="Acoes"
+                                  disabled={!canManageQuickTasks}
+                                >
+                                  <MoreVertical className="w-4 h-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem
+                                  onClick={() => {
+                                    if (!canManageQuickTasks) return;
+                                    setIsEdit(true);
+                                    setSelectedId(Number(t.id));
+                                    setCreateOpen(true);
+                                  }}
+                                >
+                                  <Pencil className="w-4 h-4 mr-2" />
+                                  Editar
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  className="text-destructive"
+                                  onClick={() => {
+                                    if (!canManageQuickTasks) return;
+                                    const id = Number(t.id);
+                                    if (!id) return;
+                                    if (window.confirm('Excluir esta tarefa rapida?')) {
+                                      deleteQuickTask.mutate(id, {
+                                        onSuccess: async () => {
+                                          await qc.invalidateQueries({ queryKey: ['quickTasksMinioRepos'] });
+                                        },
+                                      });
+                                    }
+                                  }}
+                                >
+                                  <Trash className="w-4 h-4 mr-2" />
+                                  Excluir
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
                         </TableCell>
                       </TableRow>
                     );
