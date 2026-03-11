@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Lock, PencilLine, Search } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -29,6 +30,7 @@ import { useServiceOrder, useUpdateServiceOrderBilling } from '@/services/orders
 import { useUserRole } from '@/hooks/useUserRole';
 
 const FinancialPage = () => {
+  const navigate = useNavigate();
   const { data: orders = [], isLoading, isError } = useBillingServiceOrders();
   const {
     data: kpis,
@@ -439,14 +441,24 @@ const FinancialPage = () => {
                           {renderBadge(billed, 'Faturada', 'Não faturada')}
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleEditClick(order.id)}
-                          >
-                            <PencilLine className="h-4 w-4" />
-                          </Button>
+                          <div className="flex items-center justify-end gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => navigate(`/dashboard/orders/${order.id}/edit`)}
+                            >
+                              Editar OS
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleEditClick(order.id)}
+                            >
+                              <PencilLine className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     );
