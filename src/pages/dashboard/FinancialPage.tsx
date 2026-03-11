@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Lock, PencilLine, Search } from 'lucide-react';
+import { FileText, Lock, PencilLine, Search } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -441,15 +441,7 @@ const FinancialPage = () => {
                           {renderBadge(billed, 'Faturada', 'Não faturada')}
                         </TableCell>
                         <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() => navigate(`/dashboard/orders/${order.id}/edit`)}
-                            >
-                              Editar OS
-                            </Button>
+                          <div className="flex items-center justify-end gap-1">
                             <Button
                               type="button"
                               variant="ghost"
@@ -457,6 +449,14 @@ const FinancialPage = () => {
                               onClick={() => handleEditClick(order.id)}
                             >
                               <PencilLine className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => navigate(`/dashboard/orders/${order.id}/edit`)}
+                            >
+                              <FileText className="h-4 w-4" />
                             </Button>
                           </div>
                         </TableCell>
