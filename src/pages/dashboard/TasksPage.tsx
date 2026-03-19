@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Card, CardContent } from '@/components/ui/card';
@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
 import { MoreVertical, Edit } from 'lucide-react';
-import { useTaskById, useTasksListPage, useUpdateTask } from '@/services/tasks';
+import { useTaskById, useTasksList, useUpdateTask } from '@/services/tasks';
 import { getStatusColor, getStatusLabel } from '@/data/mockData';
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious, PaginationEllipsis } from '@/components/ui/pagination';
 import { Separator } from '@/components/ui/separator';
@@ -16,10 +16,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Badge } from '@/components/ui/badge';
 import { useQueryClient } from '@tanstack/react-query';
 
-const PAGE_SIZE = 20;
-
 const TasksPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
+  const { data: tasks = [], isLoading, error } = useTasksList();
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const { role, canManageTasks } = useUserRole();
@@ -28,14 +27,6 @@ const TasksPage = () => {
   const showActions = canManageTasks;
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const { data: tasksPage, isLoading, error } = useTasksListPage({
-    page,
-    pageSize: PAGE_SIZE,
-    q: searchTerm,
-    status: statusFilter,
-  });
-  const tasks = tasksPage?.items ?? [];
-  const totalPages = tasksPage?.totalPages ?? 1;
   const { data: detail, isLoading: loadingDetail } = useTaskById(selectedId ?? undefined);
   const updateTask = useUpdateTask();
   const qc = useQueryClient();
@@ -53,15 +44,41 @@ const TasksPage = () => {
     }
   }, [detail]);
 
+  const items = useMemo(() => {
+    const filtered = tasks.filter(t => {
+      const term = searchTerm.toLowerCase();
+      const matchesSearch = (
+        String(t.cliente_nome || '').toLowerCase().includes(term) ||
+        String(t.repositorio_nome || '').toLowerCase().includes(term) ||
+        String(t.usuario_nome || '').toLowerCase().includes(term)
+      );
+      const s = String(t.status || '').toLowerCase();
+      const normalized = s === 'concluida' ? 'completed' : s === 'em_andamento' ? 'in_progress' : 'pending';
+      const matchesStatus = statusFilter === 'all' || normalized === statusFilter;
+      return matchesSearch && matchesStatus;
+    });
+    const order: Record<'pending' | 'in_progress' | 'completed', number> = { pending: 0, in_progress: 1, completed: 2 };
+    return filtered.sort((a, b) => {
+      const sa = String(a.status || '').toLowerCase();
+      const sb = String(b.status || '').toLowerCase();
+      const na = sa === 'concluida' ? 'completed' : sa === 'em_andamento' ? 'in_progress' : 'pending';
+      const nb = sb === 'concluida' ? 'completed' : sb === 'em_andamento' ? 'in_progress' : 'pending';
+      const statusDiff = order[na] - order[nb];
+      if (statusDiff !== 0) return statusDiff;
+      const dateA = a.data_criacao || a.created_at ? new Date(a.data_criacao || a.created_at || '').getTime() : 0;
+      const dateB = b.data_criacao || b.created_at ? new Date(b.data_criacao || b.created_at || '').getTime() : 0;
+      if (dateA !== dateB) return dateB - dateA;
+      return b.id - a.id;
+    });
+  }, [tasks, searchTerm, statusFilter]);
+
+  const itemsPerPage = 100;
+  const totalPages = Math.ceil(items.length / itemsPerPage) || 1;
+  const paginated = items.slice((page - 1) * itemsPerPage, page * itemsPerPage);
+
   useEffect(() => {
     setPage(1);
   }, [searchTerm, statusFilter]);
-
-  useEffect(() => {
-    if (page > totalPages) {
-      setPage(totalPages);
-    }
-  }, [page, totalPages]);
 
   if (error) {
     return <div className="text-destructive">Falha ao carregar tarefas.</div>;
@@ -78,23 +95,16 @@ const TasksPage = () => {
         <CardContent className="p-4">
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
             <div className="flex-1">
-              <Input
-                placeholder="Buscar por cliente, serviço ou usuário..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="bg-secondary border-border"
-              />
+              <Input placeholder="Buscar por cliente, serviço ou usuário..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="bg-secondary border-border" />
             </div>
             <div className="w-[200px]">
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="bg-secondary border-border">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
+                <SelectTrigger className="bg-secondary border-border"><SelectValue placeholder="Status" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos os status</SelectItem>
-                  <SelectItem value="pending">Não iniciada</SelectItem>
+                  <SelectItem value="pending">N?o iniciada</SelectItem>
                   <SelectItem value="in_progress">Em andamento</SelectItem>
-                  <SelectItem value="completed">Concluída</SelectItem>
+                  <SelectItem value="completed">Conclu?da</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -127,42 +137,25 @@ const TasksPage = () => {
                       {showActions && <TableCell><Skeleton className="h-8 w-8 rounded-md" /></TableCell>}
                     </TableRow>
                   ))
-                : tasks.map((t) => {
+                : paginated.map((t) => {
                     const s = (t.status || '').toLowerCase();
                     const label = s === 'concluida' ? 'completed' : s === 'em_andamento' ? 'in_progress' : 'pending';
                     return (
-                      <TableRow
-                        key={t.id}
-                        className={`border-border ${showActions ? 'cursor-pointer hover:bg-muted/40' : ''}`}
-                        onClick={() => {
-                          if (!showActions) return;
-                          setSelectedId(t.id);
-                          setDetailsOpen(true);
-                        }}
-                      >
+                      <TableRow key={t.id} className={`border-border ${showActions ? 'cursor-pointer hover:bg-muted/40' : ''}`} onClick={() => { if (!showActions) return; setSelectedId(t.id); setDetailsOpen(true); }}>
                         <TableCell className="font-mono">{t.id}</TableCell>
                         <TableCell className="uppercase">{t.cliente_nome}</TableCell>
                         <TableCell className="uppercase">{t.repositorio_nome}</TableCell>
                         {showUserColumn && <TableCell className="uppercase">{t.usuario_nome}</TableCell>}
-                        <TableCell className="w-48">
-                          <span className={`text-xs px-2 py-0.5 rounded whitespace-nowrap inline-flex uppercase ${getStatusColor(label)}`}>
-                            {getStatusLabel(label)}
-                          </span>
-                        </TableCell>
+                        <TableCell className="w-48"><span className={`text-xs px-2 py-0.5 rounded whitespace-nowrap inline-flex uppercase ${getStatusColor(label)}`}>{getStatusLabel(label)}</span></TableCell>
                         {showActions && (
                           <TableCell>
                             <div className="flex items-center justify-end" onClick={(e) => e.stopPropagation()}>
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Acoes da tarefa">
-                                    <MoreVertical className="w-4 h-4" />
-                                  </Button>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Acoes da tarefa"><MoreVertical className="w-4 h-4" /></Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
-                                  <DropdownMenuItem onClick={() => { setSelectedId(t.id); setDetailsOpen(true); }}>
-                                    <Edit className="w-4 h-4 mr-2" />
-                                    Editar
-                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => { setSelectedId(t.id); setDetailsOpen(true); }}><Edit className="w-4 h-4 mr-2" />Editar</DropdownMenuItem>
                                 </DropdownMenuContent>
                               </DropdownMenu>
                             </div>
@@ -171,230 +164,35 @@ const TasksPage = () => {
                       </TableRow>
                     );
                   })}
-              {!isLoading && tasks.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={4 + (showUserColumn ? 1 : 0) + (showActions ? 1 : 0)} className="text-center text-muted-foreground py-8">
-                    Nenhuma tarefa encontrada
-                  </TableCell>
-                </TableRow>
-              )}
+              {!isLoading && items.length === 0 && <TableRow><TableCell colSpan={4 + (showUserColumn ? 1 : 0) + (showActions ? 1 : 0)} className="text-center text-muted-foreground py-8">Nenhuma tarefa encontrada</TableCell></TableRow>}
             </TableBody>
           </Table>
-          <div className="px-4">
-            <Separator />
-          </div>
-          {totalPages > 1 && (
-            <div className="p-4">
-              <Pagination>
-                <PaginationContent>
-                  <PaginationItem>
-                    <PaginationPrevious
-                      href="#"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        if (page > 1) setPage(page - 1);
-                      }}
-                      className={page === 1 ? 'pointer-events-none opacity-50' : ''}
-                    />
-                  </PaginationItem>
-                  {(() => {
-                    const siblingCount = 1;
-                    const items: (number | 'ellipsis')[] = [];
-                    if (totalPages <= 7) {
-                      for (let p = 1; p <= totalPages; p++) items.push(p);
-                    } else {
-                      items.push(1);
-                      const left = Math.max(page - siblingCount, 2);
-                      const right = Math.min(page + siblingCount, totalPages - 1);
-                      if (left > 2) items.push('ellipsis');
-                      for (let p = left; p <= right; p++) items.push(p);
-                      if (right < totalPages - 1) items.push('ellipsis');
-                      items.push(totalPages);
-                    }
-                    return items.map((it, idx) => (
-                      <PaginationItem key={`${it}-${idx}`}>
-                        {it === 'ellipsis' ? (
-                          <PaginationEllipsis />
-                        ) : (
-                          <PaginationLink
-                            href="#"
-                            isActive={it === page}
-                            onClick={(e) => {
-                              e.preventDefault();
-                              setPage(it as number);
-                            }}
-                          >
-                            {it as number}
-                          </PaginationLink>
-                        )}
-                      </PaginationItem>
-                    ));
-                  })()}
-                  <PaginationItem>
-                    <PaginationNext
-                      href="#"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        if (page < totalPages) setPage(page + 1);
-                      }}
-                      className={page === totalPages ? 'pointer-events-none opacity-50' : ''}
-                    />
-                  </PaginationItem>
-                </PaginationContent>
-              </Pagination>
-            </div>
-          )}
+          <div className="px-4"><Separator /></div>
+          {totalPages > 1 && <div className="p-4"><Pagination><PaginationContent><PaginationItem><PaginationPrevious href="#" onClick={(e) => { e.preventDefault(); if (page > 1) setPage(page - 1); }} className={page === 1 ? 'pointer-events-none opacity-50' : ''} /></PaginationItem>{(() => { const siblingCount = 1; const items: (number | 'ellipsis')[] = []; if (totalPages <= 7) { for (let p = 1; p <= totalPages; p++) items.push(p); } else { items.push(1); const left = Math.max(page - siblingCount, 2); const right = Math.min(page + siblingCount, totalPages - 1); if (left > 2) items.push('ellipsis'); for (let p = left; p <= right; p++) items.push(p); if (right < totalPages - 1) items.push('ellipsis'); items.push(totalPages); } return items.map((it, idx) => <PaginationItem key={`${it}-${idx}`}>{it === 'ellipsis' ? <PaginationEllipsis /> : <PaginationLink href="#" isActive={it === page} onClick={(e) => { e.preventDefault(); setPage(it as number); }}>{it as number}</PaginationLink>}</PaginationItem>); })()}<PaginationItem><PaginationNext href="#" onClick={(e) => { e.preventDefault(); if (page < totalPages) setPage(page + 1); }} className={page === totalPages ? 'pointer-events-none opacity-50' : ''} /></PaginationItem></PaginationContent></Pagination></div>}
         </CardContent>
       </Card>
 
-      <Dialog
-        open={showActions && detailsOpen}
-        onOpenChange={(v) => {
-          if (!showActions && v) return;
-          setDetailsOpen(v);
-          if (!v) setSelectedId(null);
-        }}
-      >
+      <Dialog open={showActions && detailsOpen} onOpenChange={(v) => { if (!showActions && v) return; setDetailsOpen(v); if (!v) setSelectedId(null); }}>
         <DialogContent className="sm:max-w-3xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Detalhes da Tarefa</DialogTitle>
-            <DialogDescription>Informações da execução e do cliente</DialogDescription>
+            <DialogDescription>Informa??es da execu??o e do cliente</DialogDescription>
           </DialogHeader>
           {loadingDetail ? (
-            <div className="space-y-4">
-              <Skeleton className="h-6 w-64" />
-              <Skeleton className="h-24 w-full" />
-              <Skeleton className="h-6 w-48" />
-              <Skeleton className="h-32 w-full" />
-            </div>
+            <div className="space-y-4"><Skeleton className="h-6 w-64" /><Skeleton className="h-24 w-full" /><Skeleton className="h-6 w-48" /><Skeleton className="h-32 w-full" /></div>
           ) : (
             <div className="space-y-6">
               <div className="grid sm:grid-cols-4 gap-4">
-                <div>
-                  <p className="text-xs text-muted-foreground">ID</p>
-                  <p className="font-mono">{detail?.id ?? '-'}</p>
-                </div>
-                <div className="sm:col-span-2">
-                  <p className="text-xs text-muted-foreground">Repositório</p>
-                  <p className="font-semibold uppercase">{detail?.servico_info?.nome_repositorio || '-'}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Status</p>
-                  {(() => {
-                    const s = String(detail?.status || '').toLowerCase();
-                    const label = s === 'concluida' ? 'completed' : s === 'em_andamento' ? 'in_progress' : 'pending';
-                    return <Badge className={`${getStatusColor(label)} border-0 uppercase`}>{getStatusLabel(label)}</Badge>;
-                  })()}
-                </div>
+                <div><p className="text-xs text-muted-foreground">ID</p><p className="font-mono">{detail?.id ?? '-'}</p></div>
+                <div className="sm:col-span-2"><p className="text-xs text-muted-foreground">Repositório</p><p className="font-semibold uppercase">{detail?.servico_info?.nome_repositorio || '-'}</p></div>
+                <div><p className="text-xs text-muted-foreground">Status</p>{(() => { const s = String(detail?.status || '').toLowerCase(); const label = s === 'concluida' ? 'completed' : s === 'em_andamento' ? 'in_progress' : 'pending'; return <Badge className={`${getStatusColor(label)} border-0 uppercase`}>{getStatusLabel(label)}</Badge>; })()}</div>
               </div>
-
-              {detail?.servico_descricao ? (
-                <div className="space-y-2">
-                  <p className="text-xs text-muted-foreground">Descrição do Serviço (Feita pela área comercial)</p>
-                  <div className="bg-secondary/10 p-3 rounded-md border border-border/50 text-sm font-medium">
-                    {detail.servico_descricao}
-                  </div>
-                </div>
-              ) : null}
-
-              <div className="space-y-2">
-                <p className="text-xs text-muted-foreground">Descrição da Tarefa</p>
-                <div className="bg-secondary/30 p-4 rounded-md border border-border/50 leading-relaxed text-sm">
-                  {detail?.descricao || '-'}
-                </div>
-              </div>
-              <div className="grid sm:grid-cols-3 gap-4">
-                <div>
-                  <p className="text-xs text-muted-foreground">Início</p>
-                  <p className="font-medium">{detail?.data_inicio || '-'}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Término</p>
-                  <p className="font-medium">{detail?.data_termino || '-'}</p>
-                </div>
-              </div>
-              <div className="rounded-md border border-border bg-secondary/30 p-4">
-                <p className="text-xs text-muted-foreground mb-2">Cliente</p>
-                <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-4">
-                  <div className="sm:col-span-2 md:col-span-3">
-                    <p className="text-xs text-muted-foreground">Nome</p>
-                    <p className="font-medium uppercase">{detail?.cliente?.nome || '-'}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Telefone</p>
-                    <p className="font-medium">{detail?.cliente?.contato || '-'}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Representante</p>
-                    <p className="font-medium">{detail?.cliente?.representante?.nome || '-'}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Setor</p>
-                    <p className="font-medium">{detail?.cliente?.representante?.setor || '-'}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">E-mail</p>
-                    <p className="font-medium">{detail?.cliente?.representante?.email || '-'}</p>
-                  </div>
-                </div>
-              </div>
+              {(() => { const serviceDesc = detail?.servico_descricao || tasks.find(t => t.id === selectedId)?.servico_descricao; return serviceDesc ? <div className="space-y-2"><p className="text-xs text-muted-foreground">Descri??o do Servi?o (Feita pela ?rea comercial)</p><div className="bg-secondary/10 p-3 rounded-md border border-border/50 text-sm font-medium">{serviceDesc}</div></div> : null; })()}
+              <div className="space-y-2"><p className="text-xs text-muted-foreground">Descri??o da Tarefa</p><div className="bg-secondary/30 p-4 rounded-md border border-border/50 leading-relaxed text-sm">{detail?.descricao || '-'}</div></div>
+              <div className="grid sm:grid-cols-3 gap-4"><div><p className="text-xs text-muted-foreground">In?cio</p><p className="font-medium">{detail?.data_inicio || '-'}</p></div><div><p className="text-xs text-muted-foreground">T?rmino</p><p className="font-medium">{detail?.data_termino || '-'}</p></div></div>
+              <div className="rounded-md border border-border bg-secondary/30 p-4"><p className="text-xs text-muted-foreground mb-2">Cliente</p><div className="grid sm:grid-cols-2 md:grid-cols-3 gap-4"><div className="sm:col-span-2 md:col-span-3"><p className="text-xs text-muted-foreground">Nome</p><p className="font-medium uppercase">{detail?.cliente?.nome || '-'}</p></div><div><p className="text-xs text-muted-foreground">Telefone</p><p className="font-medium">{detail?.cliente?.contato || '-'}</p></div><div><p className="text-xs text-muted-foreground">Representante</p><p className="font-medium">{detail?.cliente?.representante?.nome || '-'}</p></div><div><p className="text-xs text-muted-foreground">Setor</p><p className="font-medium">{detail?.cliente?.representante?.setor || '-'}</p></div><div><p className="text-xs text-muted-foreground">E-mail</p><p className="font-medium">{detail?.cliente?.representante?.email || '-'}</p></div></div></div>
               <Separator />
-              <div className="space-y-3">
-                <p className="text-xs text-muted-foreground">Atualizar tarefa</p>
-                <div className="grid sm:grid-cols-3 gap-4">
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1">Início</p>
-                    <Input type="date" value={editStart} onChange={(e) => setEditStart(e.target.value)} className="bg-background border-border" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1">Término</p>
-                    <Input type="date" value={editEnd} onChange={(e) => setEditEnd(e.target.value)} className="bg-background border-border" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1">Status</p>
-                    <Select value={editStatus} onValueChange={setEditStatus}>
-                      <SelectTrigger className="bg-background border-border">
-                        <SelectValue placeholder="Selecione o status" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="nao_iniciada">Não iniciada</SelectItem>
-                        <SelectItem value="em_andamento">Em andamento</SelectItem>
-                        <SelectItem value="concluida">Concluída</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <div className="flex justify-end">
-                  <Button
-                    variant="hero"
-                    disabled={updateTask.isPending || !selectedId}
-                    onClick={() => {
-                      if (!selectedId || updateTask.isPending) return;
-                      updateTask.mutate(
-                        {
-                          id: selectedId,
-                          payload: {
-                            data_inicio: editStart || undefined,
-                            data_termino: editEnd || undefined,
-                            status: editStatus || undefined,
-                          },
-                        },
-                        {
-                          onSuccess: async () => {
-                            await qc.invalidateQueries({ queryKey: ['taskDetail', selectedId] });
-                            await qc.invalidateQueries({ queryKey: ['tasksList'] });
-                            await qc.invalidateQueries({ queryKey: ['tasksListPage'] });
-                            setDetailsOpen(false);
-                            setSelectedId(null);
-                          },
-                        }
-                      );
-                    }}
-                  >
-                    {updateTask.isPending ? 'Salvando...' : 'Salvar alterações'}
-                  </Button>
-                </div>
-              </div>
+              <div className="space-y-3"><p className="text-xs text-muted-foreground">Atualizar tarefa</p><div className="grid sm:grid-cols-3 gap-4"><div><p className="text-xs text-muted-foreground mb-1">In?cio</p><Input type="date" value={editStart} onChange={(e) => setEditStart(e.target.value)} className="bg-background border-border" /></div><div><p className="text-xs text-muted-foreground mb-1">T?rmino</p><Input type="date" value={editEnd} onChange={(e) => setEditEnd(e.target.value)} className="bg-background border-border" /></div><div><p className="text-xs text-muted-foreground mb-1">Status</p><Select value={editStatus} onValueChange={setEditStatus}><SelectTrigger className="bg-background border-border"><SelectValue placeholder="Selecione o status" /></SelectTrigger><SelectContent><SelectItem value="nao_iniciada">N?o iniciada</SelectItem><SelectItem value="em_andamento">Em andamento</SelectItem><SelectItem value="concluida">Conclu?da</SelectItem></SelectContent></Select></div></div><div className="flex justify-end"><Button variant="hero" disabled={updateTask.isPending || !selectedId} onClick={() => { if (!selectedId || updateTask.isPending) return; updateTask.mutate({ id: selectedId, payload: { data_inicio: editStart || undefined, data_termino: editEnd || undefined, status: editStatus || undefined } }, { onSuccess: async () => { await qc.invalidateQueries({ queryKey: ['taskDetail', selectedId] }); await qc.invalidateQueries({ queryKey: ['tasksList'] }); setDetailsOpen(false); setSelectedId(null); } }); }}>{updateTask.isPending ? 'Salvando...' : 'Salvar altera??es'}</Button></div></div>
             </div>
           )}
         </DialogContent>
