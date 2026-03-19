@@ -1,5 +1,7 @@
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
+
 import api from './api';
+import { isPaginatedResponse, PageResult, toPageResult } from './pagination';
 
 const endpoint = '/api/tarefas/';
 
@@ -76,14 +78,54 @@ export type TaskListItem = {
   created_at?: string;
 };
 
-import { useQuery } from '@tanstack/react-query';
-
 export const useTasksList = () => {
   return useQuery<TaskListItem[]>({
     queryKey: ['tasksList'],
     queryFn: async () => {
       const items = await tasksService.list();
       return items as TaskListItem[];
+    },
+  });
+};
+
+export type TasksPageParams = {
+  page?: number;
+  pageSize?: number;
+  q?: string;
+  status?: string;
+};
+
+export const useTasksListPage = (params: TasksPageParams) => {
+  return useQuery<PageResult<TaskListItem>>({
+    queryKey: ['tasksListPage', params],
+    queryFn: async () => {
+      const page = params.page ?? 1;
+      const pageSize = params.pageSize ?? 20;
+      const queryParams: Record<string, string | number> = {
+        page,
+        page_size: pageSize,
+      };
+      if (params.q) queryParams.q = params.q;
+      if (params.status && params.status !== 'all') queryParams.status = params.status;
+
+      const { data } = await api.get(endpoint, { params: queryParams });
+      if (isPaginatedResponse<TaskListItem>(data)) {
+        return {
+          ...toPageResult(data, page, pageSize),
+          items: data.results,
+        };
+      }
+
+      const items = Array.isArray(data) ? (data as TaskListItem[]) : [];
+      return {
+        items,
+        count: items.length,
+        page,
+        pageSize,
+        totalPages: Math.max(1, Math.ceil(items.length / pageSize)),
+        next: null,
+        previous: null,
+      };
     },
   });
 };

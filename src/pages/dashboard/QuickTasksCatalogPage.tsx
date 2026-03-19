@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -20,48 +20,37 @@ import { Button } from '@/components/ui/button';
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious, PaginationEllipsis } from '@/components/ui/pagination';
 import { Separator } from '@/components/ui/separator';
 import { ListChecks, MoreVertical, Pencil, Plus, Trash2 } from 'lucide-react';
-import { useDeleteQuickTaskCatalog, useQuickTaskCatalog } from '@/services/quickTasks';
+import { useDeleteQuickTaskCatalog, useQuickTaskCatalogPage } from '@/services/quickTasks';
 import { useUserRole } from '@/hooks/useUserRole';
 
+const PAGE_SIZE = 10;
+
 const QuickTasksCatalogPage = () => {
-  const { data: catalog = [], isLoading } = useQuickTaskCatalog();
   const deleteCatalogItem = useDeleteQuickTaskCatalog();
   const navigate = useNavigate();
   const location = useLocation();
   const { canManageQuickTasks } = useUserRole();
   const [query, setQuery] = useState<string>(new URLSearchParams(location.search).get('q') || '');
+  const [page, setPage] = useState(Number(new URLSearchParams(location.search).get('page') || 1));
+  const { data: catalogPage, isLoading } = useQuickTaskCatalogPage({
+    page,
+    pageSize: PAGE_SIZE,
+    q: query,
+  });
+  const items = catalogPage?.items ?? [];
+  const totalPages = catalogPage?.totalPages ?? 1;
 
   useEffect(() => {
     const id = setTimeout(() => {
       const params = new URLSearchParams(location.search);
       if (query) params.set('q', query);
       else params.delete('q');
+      if (page > 1) params.set('page', String(page));
+      else params.delete('page');
       navigate({ search: params.toString() }, { replace: true });
     }, 250);
     return () => clearTimeout(id);
-  }, [query, location.search, navigate]);
-
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return catalog;
-    return catalog.filter((item) => {
-      return (
-        item.nome?.toLowerCase().includes(q) ||
-        (item.descricao ?? '').toLowerCase().includes(q)
-      );
-    });
-  }, [catalog, query]);
-
-  const sorted = useMemo(() => {
-    return [...filtered].sort((a, b) =>
-      (a.nome ?? '').localeCompare(b.nome ?? '', 'pt-BR', { sensitivity: 'base' }),
-    );
-  }, [filtered]);
-
-  const [page, setPage] = useState(1);
-  const itemsPerPage = 10;
-  const totalPages = Math.ceil(sorted.length / itemsPerPage) || 1;
-  const paginated = sorted.slice((page - 1) * itemsPerPage, page * itemsPerPage);
+  }, [page, query, location.search, navigate]);
 
   useEffect(() => {
     setPage(1);
@@ -131,7 +120,7 @@ const QuickTasksCatalogPage = () => {
                       </TableCell>
                     </TableRow>
                   ))
-                : paginated.map((item) => (
+                : items.map((item) => (
                     <TableRow key={item.id} className="border-border">
                       <TableCell className="font-medium uppercase">{item.nome}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">
@@ -179,7 +168,7 @@ const QuickTasksCatalogPage = () => {
                       </TableCell>
                     </TableRow>
                   ))}
-              {!isLoading && sorted.length === 0 && (
+              {!isLoading && items.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={3} className="text-center py-12 text-muted-foreground">
                     <div className="flex flex-col items-center gap-3">
@@ -217,19 +206,19 @@ const QuickTasksCatalogPage = () => {
                   </PaginationItem>
                   {(() => {
                     const siblingCount = 1;
-                    const items: (number | 'ellipsis')[] = [];
+                    const entries: (number | 'ellipsis')[] = [];
                     if (totalPages <= 7) {
-                      for (let p = 1; p <= totalPages; p++) items.push(p);
+                      for (let p = 1; p <= totalPages; p++) entries.push(p);
                     } else {
-                      items.push(1);
+                      entries.push(1);
                       const start = Math.max(2, page - siblingCount);
                       const end = Math.min(totalPages - 1, page + siblingCount);
-                      if (start > 2) items.push('ellipsis');
-                      for (let p = start; p <= end; p++) items.push(p);
-                      if (end < totalPages - 1) items.push('ellipsis');
-                      items.push(totalPages);
+                      if (start > 2) entries.push('ellipsis');
+                      for (let p = start; p <= end; p++) entries.push(p);
+                      if (end < totalPages - 1) entries.push('ellipsis');
+                      entries.push(totalPages);
                     }
-                    return items.map((entry, idx) =>
+                    return entries.map((entry, idx) =>
                       entry === 'ellipsis' ? (
                         <PaginationItem key={`ellipsis-${idx}`}>
                           <PaginationEllipsis />
@@ -271,4 +260,3 @@ const QuickTasksCatalogPage = () => {
 };
 
 export default QuickTasksCatalogPage;
-

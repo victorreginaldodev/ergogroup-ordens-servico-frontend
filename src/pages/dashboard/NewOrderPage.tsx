@@ -177,6 +177,7 @@ const NewOrderPage = () => {
       const serviceName = svc?.name ?? catName;
       return {
         id: `${Date.now()}-${idx}`,
+        persistedId: s.id,
         serviceId,
         serviceName,
         quantity: 1,
@@ -292,6 +293,7 @@ const NewOrderPage = () => {
     const payload: any = {
       id,
       servicos: orderServices.map(s => ({
+        ...(s.persistedId ? { id: s.persistedId } : {}),
         repositorio_id: Number(s.serviceId),
         descricao: s.note || '',
       })),

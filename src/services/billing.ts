@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from './api';
+import { isPaginatedResponse, PageResult, toPageResult } from './pagination';
 
 export type BillingServiceOrder = {
   id: number;
@@ -25,6 +26,50 @@ export const useBillingServiceOrders = () => {
     queryFn: async () => {
       const { data } = await api.get<BillingServiceOrder[]>('/api/ordens-servico/faturamento/');
       return data ?? [];
+    },
+  });
+};
+
+export type BillingOrdersPageParams = {
+  page?: number;
+  pageSize?: number;
+  q?: string;
+  status?: string;
+  billing?: string;
+};
+
+export const useBillingServiceOrdersPage = (params: BillingOrdersPageParams) => {
+  return useQuery<PageResult<BillingServiceOrder>>({
+    queryKey: ['billing-service-orders-page', params],
+    queryFn: async () => {
+      const page = params.page ?? 1;
+      const pageSize = params.pageSize ?? 20;
+      const queryParams: Record<string, string | number> = {
+        page,
+        page_size: pageSize,
+      };
+      if (params.q) queryParams.q = params.q;
+      if (params.status && params.status !== 'all') queryParams.status = params.status;
+      if (params.billing && params.billing !== 'all') queryParams.billing = params.billing;
+
+      const { data } = await api.get('/api/ordens-servico/faturamento/', { params: queryParams });
+      if (isPaginatedResponse<BillingServiceOrder>(data)) {
+        return {
+          ...toPageResult(data, page, pageSize),
+          items: data.results,
+        };
+      }
+
+      const items = Array.isArray(data) ? (data as BillingServiceOrder[]) : [];
+      return {
+        items,
+        count: items.length,
+        page,
+        pageSize,
+        totalPages: Math.max(1, Math.ceil(items.length / pageSize)),
+        next: null,
+        previous: null,
+      };
     },
   });
 };
@@ -83,6 +128,48 @@ export const useMiniOs = () => {
   });
 };
 
+export type MiniOsPageParams = {
+  page?: number;
+  pageSize?: number;
+  q?: string;
+  billing?: string;
+};
+
+export const useMiniOsPage = (params: MiniOsPageParams) => {
+  return useQuery<PageResult<MiniOsItem>>({
+    queryKey: ['mini-os-page', params],
+    queryFn: async () => {
+      const page = params.page ?? 1;
+      const pageSize = params.pageSize ?? 20;
+      const queryParams: Record<string, string | number> = {
+        page,
+        page_size: pageSize,
+      };
+      if (params.q) queryParams.q = params.q;
+      if (params.billing && params.billing !== 'all') queryParams.billing = params.billing;
+
+      const { data } = await api.get('/api/minios/os-rapidas/', { params: queryParams });
+      if (isPaginatedResponse<MiniOsItem>(data)) {
+        return {
+          ...toPageResult(data, page, pageSize),
+          items: data.results,
+        };
+      }
+
+      const items = Array.isArray(data) ? (data as MiniOsItem[]) : [];
+      return {
+        items,
+        count: items.length,
+        page,
+        pageSize,
+        totalPages: Math.max(1, Math.ceil(items.length / pageSize)),
+        next: null,
+        previous: null,
+      };
+    },
+  });
+};
+
 export type MiniOsDetail = MiniOsItem;
 
 export const useMiniOsDetail = (id?: number | string) => {
@@ -112,6 +199,7 @@ export const useUpdateMiniOs = () => {
     onSuccess: async (_data, { id }) => {
       await Promise.all([
         qc.invalidateQueries({ queryKey: ['mini-os'] }),
+        qc.invalidateQueries({ queryKey: ['mini-os-page'] }),
         qc.invalidateQueries({ queryKey: ['mini-os-detail', id] }),
       ]);
     },

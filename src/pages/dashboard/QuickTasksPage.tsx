@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { useMinioRepositories, useRepoMinioServices, useMinioById, useDeleteQuickTask, useUpdateQuickTask } from '@/services/quickTasks';
-import { getStatusColor, getStatusLabel } from '@/data/mockData';
+import { useMinioRepositoriesPage, useRepoMinioServices, useMinioById, useDeleteQuickTask, useUpdateQuickTask, useCreateQuickTask } from '@/services/quickTasks';
+import { getStatusColor } from '@/data/mockData';
 import { MoreVertical, Pencil, Trash } from 'lucide-react';
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious, PaginationEllipsis } from '@/components/ui/pagination';
 import { Separator } from '@/components/ui/separator';
@@ -15,19 +15,27 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { useClients } from '@/services/clients';
 import { useUsers } from '@/services/users';
-import { useCreateQuickTask } from '@/services/quickTasks';
 import { useQueryClient } from '@tanstack/react-query';
 import { useUserRole } from '@/hooks/useUserRole';
 import { Switch } from '@/components/ui/switch';
 
+const PAGE_SIZE = 20;
+
 const QuickTasksPage = () => {
-  const { data: items = [], isLoading, error } = useMinioRepositories();
   const [page, setPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'in_progress' | 'completed'>('all');
   const [createOpen, setCreateOpen] = useState(false);
   const [isEdit, setIsEdit] = useState(false);
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const { data: itemsPage, isLoading, error } = useMinioRepositoriesPage({
+    page,
+    pageSize: PAGE_SIZE,
+    q: searchTerm,
+    status: statusFilter,
+  });
+  const items = itemsPage?.items ?? [];
+  const totalPages = itemsPage?.totalPages ?? 1;
   const { data: clients = [] } = useClients();
   const { data: profiles = [] } = useUsers();
   const { data: servicesMinio = [] } = useRepoMinioServices();
@@ -71,54 +79,23 @@ const QuickTasksPage = () => {
     }
   }, [isEdit, minioDetail]);
 
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm, statusFilter]);
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages);
+    }
+  }, [page, totalPages]);
+
   const mapStatus = (s: string) => {
     const n = String(s || '').toLowerCase();
     if (n === 'finalizada' || n === 'concluida' || n === 'concluído' || n === 'concluido' || n === 'completed') return 'completed';
     if (n === 'em_andamento' || n === 'in_progress') return 'in_progress';
-    if (n === 'nao_iniciada' || n === 'não iniciada' || n === 'pendente' || n === 'pending' || n === '') return 'pending';
+    if (n === 'nao_iniciada' || n === 'não iniciada' || n === 'nao_iniciado' || n === 'pendente' || n === 'pending' || n === '') return 'pending';
     return 'pending';
   };
-
-  const filtered = useMemo(() => {
-    const term = searchTerm.toLowerCase();
-    return items.filter((t: any) => {
-      const client = String(t?.cliente?.nome || t?.cliente_nome || '').toLowerCase();
-      const service = String(t?.servico?.nome || t?.repositorio_nome || t?.nome_servico || '').toLowerCase();
-      const matchesSearch = !term || client.includes(term) || service.includes(term);
-      const s = mapStatus(t?.status);
-      const matchesStatus = statusFilter === 'all' || s === statusFilter;
-      return matchesSearch && matchesStatus;
-    });
-  }, [items, searchTerm, statusFilter]);
-
-  const ordered = useMemo(() => {
-    const order: Record<'pending' | 'in_progress' | 'completed', number> = { pending: 0, in_progress: 1, completed: 2 };
-    return [...filtered].sort((a: any, b: any) => {
-      // Ordenação primária: Status
-      const statusA = order[mapStatus(a?.status)];
-      const statusB = order[mapStatus(b?.status)];
-      
-      const diff = statusA - statusB;
-      if (diff !== 0) return diff;
-      
-      // Ordenação secundária: Data de recebimento (mais recente primeiro)
-      const dateA = new Date(a?.data_recebimento || 0).getTime();
-      const dateB = new Date(b?.data_recebimento || 0).getTime();
-      
-      if (dateA !== dateB) return dateB - dateA;
-      
-      // Fallback para ID
-      return (b?.id || 0) - (a?.id || 0);
-    });
-  }, [filtered]);
-
-  const itemsPerPage = 100;
-  const totalPages = Math.ceil(ordered.length / itemsPerPage) || 1;
-  const paginated = ordered.slice((page - 1) * itemsPerPage, page * itemsPerPage);
-
-  useEffect(() => {
-    setPage(1);
-  }, [items, searchTerm, statusFilter]);
 
   if (error) {
     return <div className="text-destructive">Falha ao carregar tarefas rápidas.</div>;
@@ -168,7 +145,7 @@ const QuickTasksPage = () => {
               />
             </div>
             <div className="w-[200px]">
-              <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as any)}>
+              <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}>
                 <SelectTrigger className="bg-secondary border-border">
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
@@ -207,7 +184,7 @@ const QuickTasksPage = () => {
                       <TableCell><Skeleton className="h-8 w-8 rounded-md" /></TableCell>
                     </TableRow>
                   ))
-                : paginated.map((t: any) => {
+                : items.map((t: any) => {
                     const label = mapStatus(t?.status);
                     const statusText = {
                       pending: 'NÃO INICIADO',
@@ -237,13 +214,7 @@ const QuickTasksPage = () => {
                           <div className="flex items-center justify-end" onClick={(e) => e.stopPropagation()}>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8"
-                                  aria-label="Acoes"
-                                  disabled={!canManageQuickTasks}
-                                >
+                                <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Acoes" disabled={!canManageQuickTasks}>
                                   <MoreVertical className="w-4 h-4" />
                                 </Button>
                               </DropdownMenuTrigger>
@@ -269,6 +240,7 @@ const QuickTasksPage = () => {
                                       deleteQuickTask.mutate(id, {
                                         onSuccess: async () => {
                                           await qc.invalidateQueries({ queryKey: ['quickTasksMinioRepos'] });
+                                          await qc.invalidateQueries({ queryKey: ['quickTasksMinioReposPage'] });
                                         },
                                       });
                                     }
@@ -284,7 +256,7 @@ const QuickTasksPage = () => {
                       </TableRow>
                     );
                   })}
-              {!isLoading && ordered.length === 0 && (
+              {!isLoading && items.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
                     Nenhuma tarefa rápida encontrada
@@ -383,215 +355,177 @@ const QuickTasksPage = () => {
                 <Skeleton className="h-32 w-full" />
               </div>
             ) : (
-            <>
-            <div className="space-y-4">
-              <div>
-                <p className="text-xs text-muted-foreground mb-1">Cliente</p>
-                <Select
-                  value={String(form.cliente)}
-                  onValueChange={(v) => setForm({ ...form, cliente: Number(v) })}
-                >
-                  <SelectTrigger className="bg-background border-border">
-                    <SelectValue placeholder="Selecione o cliente" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {clients.map(c => (
-                      <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid sm:grid-cols-2 gap-4">
-                <div>
-                  <p className="text-xs text-muted-foreground mb-1">Serviço</p>
-                  <Select
-                    value={String(form.servico)}
-                    onValueChange={(v) => setForm({ ...form, servico: Number(v) })}
-                  >
-                    <SelectTrigger className="bg-background border-border">
-                      <SelectValue placeholder="Selecione o serviço" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {servicesMinio.map((s: any) => (
-                        <SelectItem key={String(s.id ?? s.pk ?? s.codigo ?? s.nome)} value={String(s.id ?? s.pk ?? s.codigo ?? 0)}>
-                          {String(s.nome ?? s.nome_repositorio ?? s.descricao ?? 'SERVIÇO')}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+              <>
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">Cliente</p>
+                    <Select value={String(form.cliente)} onValueChange={(v) => setForm({ ...form, cliente: Number(v) })}>
+                      <SelectTrigger className="bg-background border-border">
+                        <SelectValue placeholder="Selecione o cliente" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {clients.map(c => (
+                          <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-1">Serviço</p>
+                      <Select value={String(form.servico)} onValueChange={(v) => setForm({ ...form, servico: Number(v) })}>
+                        <SelectTrigger className="bg-background border-border">
+                          <SelectValue placeholder="Selecione o serviço" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {servicesMinio.map((s: any) => (
+                            <SelectItem key={String(s.id ?? s.pk ?? s.codigo ?? s.nome)} value={String(s.id ?? s.pk ?? s.codigo ?? 0)}>
+                              {String(s.nome ?? s.nome_repositorio ?? s.descricao ?? 'SERVIÇO')}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-1">Técnico</p>
+                      <Select value={String(form.profile)} onValueChange={(v) => setForm({ ...form, profile: Number(v) })}>
+                        <SelectTrigger className="bg-background border-border">
+                          <SelectValue placeholder="Selecione o técnico" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {profiles.filter(p => p.tipo_usuario === 'tecnico').map(p => (
+                            <SelectItem key={p.id} value={String(p.id)}>
+                              {p.user.username}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-xs text-muted-foreground mb-1">Técnico</p>
-                  <Select
-                    value={String(form.profile)}
-                    onValueChange={(v) => setForm({ ...form, profile: Number(v) })}
-                  >
-                    <SelectTrigger className="bg-background border-border">
-                      <SelectValue placeholder="Selecione o técnico" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {profiles
-                        .filter(p => p.tipo_usuario === 'tecnico')
-                        .map(p => (
-                          <SelectItem key={p.id} value={String(p.id)}>
-                            {p.user.username}
-                          </SelectItem>
-                        ))
-                      }
-                    </SelectContent>
-                  </Select>
+                <div className="grid sm:grid-cols-3 gap-4">
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">Quantidade</p>
+                    <Input type="number" value={form.quantidade} onChange={(e) => setForm({ ...form, quantidade: Number(e.target.value) || 0 })} className="bg-background border-border" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">Recebimento</p>
+                    <Input type="date" value={form.data_recebimento} onChange={(e) => setForm({ ...form, data_recebimento: e.target.value })} className="bg-background border-border" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">Status</p>
+                    <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v })}>
+                      <SelectTrigger className="bg-background border-border">
+                        <SelectValue placeholder="Selecione o status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="nao_iniciado">NÃO INICIADO</SelectItem>
+                        <SelectItem value="em_andamento">EM ANDAMENTO</SelectItem>
+                        <SelectItem value="finalizada">FINALIZADA</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
-              </div>
-            </div>
-            <div className="grid sm:grid-cols-3 gap-4">
-              <div>
-                <p className="text-xs text-muted-foreground mb-1">Quantidade</p>
-                <Input
-                  type="number"
-                  value={form.quantidade}
-                  onChange={(e) => setForm({ ...form, quantidade: Number(e.target.value) || 0 })}
-                  className="bg-background border-border"
-                />
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground mb-1">Recebimento</p>
-                <Input
-                  type="date"
-                  value={form.data_recebimento}
-                  onChange={(e) => setForm({ ...form, data_recebimento: e.target.value })}
-                  className="bg-background border-border"
-                />
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground mb-1">Status</p>
-                <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v })}>
-                  <SelectTrigger className="bg-background border-border">
-                    <SelectValue placeholder="Selecione o status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="nao_iniciado">NÃO INICIADO</SelectItem>
-                    <SelectItem value="em_andamento">EM ANDAMENTO</SelectItem>
-                    <SelectItem value="finalizada">FINALIZADA</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="grid sm:grid-cols-3 gap-4">
-              <div>
-                <p className="text-xs text-muted-foreground mb-1">Revisão do cliente</p>
-                <div className="flex items-center gap-2 py-2">
-                  <Switch
-                    checked={form.revisao_cliente}
-                    onCheckedChange={(v) => setForm({ ...form, revisao_cliente: Boolean(v) })}
-                  />
-                  <span className="text-xs text-muted-foreground">
-                    {form.revisao_cliente ? 'Sim' : 'Não'}
-                  </span>
+                <div className="grid sm:grid-cols-3 gap-4">
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">Revisão do cliente</p>
+                    <div className="flex items-center gap-2 py-2">
+                      <Switch checked={form.revisao_cliente} onCheckedChange={(v) => setForm({ ...form, revisao_cliente: Boolean(v) })} />
+                      <span className="text-xs text-muted-foreground">
+                        {form.revisao_cliente ? 'Sim' : 'Não'}
+                      </span>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
-            <div className="grid sm:grid-cols-3 gap-4">
-              <div>
-                <p className="text-xs text-muted-foreground mb-1">Início</p>
-                <Input
-                  type="date"
-                  value={form.data_inicio}
-                  onChange={(e) => setForm({ ...form, data_inicio: e.target.value })}
-                  className="bg-background border-border"
-                />
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground mb-1">Término</p>
-                <Input
-                  type="date"
-                  value={form.data_termino}
-                  onChange={(e) => setForm({ ...form, data_termino: e.target.value })}
-                  className="bg-background border-border"
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <p className="text-xs text-muted-foreground">Descrição</p>
-              <Textarea
-                value={form.descricao}
-                onChange={(e) => setForm({ ...form, descricao: e.target.value })}
-                className="bg-background border-border min-h-24 resize-y"
-              />
-            </div>
-            <div className="flex justify-end gap-2">
-              {isEdit && selectedId ? (
-                <Button
-                  variant="hero"
-                  disabled={!canManageQuickTasks || updateQuickTask.isPending}
-                  onClick={() => {
-                    if (!canManageQuickTasks || updateQuickTask.isPending) return;
-                    const id = selectedId!;
-                    const payload = {
-                      quantidade: form.quantidade,
-                      descricao: form.descricao,
-                      data_recebimento: form.data_recebimento,
-                      data_inicio: form.data_inicio || null,
-                      data_termino: form.data_termino || null,
-                      status: form.status,
-                      revisao_cliente: form.revisao_cliente,
-                      cliente: form.cliente,
-                      servico: form.servico,
-                      profile: form.profile,
-                    };
-                    updateQuickTask.mutate({ id, payload }, {
-                      onSuccess: async () => {
-                        await qc.invalidateQueries({ queryKey: ['quickTasksMinioRepos'] });
-                        setCreateOpen(false);
-                        setSelectedId(null);
-                      },
-                    });
-                  }}
-                >
-                  {updateQuickTask.isPending ? 'Salvando...' : 'Salvar alterações'}
-                </Button>
-              ) : (
-                <Button
-                  variant="hero"
-                  disabled={!canManageQuickTasks || !isValid || createQuickTask.isPending}
-                  onClick={() => {
-                    if (!canManageQuickTasks || !isValid || createQuickTask.isPending) return;
-                    const payload = {
-                      quantidade: form.quantidade,
-                      descricao: form.descricao,
-                      data_recebimento: form.data_recebimento,
-                      data_inicio: form.data_inicio || null,
-                      data_termino: form.data_termino || null,
-                      status: form.status || 'nao_iniciado',
-                      revisao_cliente: form.revisao_cliente,
-                      cliente: form.cliente,
-                      servico: form.servico,
-                      profile: form.profile,
-                    };
-                    createQuickTask.mutate(payload, {
-                      onSuccess: async () => {
-                        await qc.invalidateQueries({ queryKey: ['quickTasksMinioRepos'] });
-                        setCreateOpen(false);
-                        setForm({
-                          quantidade: 1,
-                          descricao: '',
-                          data_recebimento: '',
-                          data_inicio: '',
-                          data_termino: '',
-                          status: 'nao_iniciado',
-                          revisao_cliente: false,
-                          cliente: 0,
-                          servico: 0,
-                          profile: 0,
+                <div className="grid sm:grid-cols-3 gap-4">
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">Início</p>
+                    <Input type="date" value={form.data_inicio} onChange={(e) => setForm({ ...form, data_inicio: e.target.value })} className="bg-background border-border" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">Término</p>
+                    <Input type="date" value={form.data_termino} onChange={(e) => setForm({ ...form, data_termino: e.target.value })} className="bg-background border-border" />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <p className="text-xs text-muted-foreground">Descrição</p>
+                  <Textarea value={form.descricao} onChange={(e) => setForm({ ...form, descricao: e.target.value })} className="bg-background border-border min-h-24 resize-y" />
+                </div>
+                <div className="flex justify-end gap-2">
+                  {isEdit && selectedId ? (
+                    <Button
+                      variant="hero"
+                      disabled={!canManageQuickTasks || updateQuickTask.isPending}
+                      onClick={() => {
+                        if (!canManageQuickTasks || updateQuickTask.isPending) return;
+                        const payload = {
+                          quantidade: form.quantidade,
+                          descricao: form.descricao,
+                          data_recebimento: form.data_recebimento,
+                          data_inicio: form.data_inicio || null,
+                          data_termino: form.data_termino || null,
+                          status: form.status,
+                          revisao_cliente: form.revisao_cliente,
+                          cliente: form.cliente,
+                          servico: form.servico,
+                          profile: form.profile,
+                        };
+                        updateQuickTask.mutate({ id: selectedId, payload }, {
+                          onSuccess: async () => {
+                            await qc.invalidateQueries({ queryKey: ['quickTasksMinioRepos'] });
+                            await qc.invalidateQueries({ queryKey: ['quickTasksMinioReposPage'] });
+                            setCreateOpen(false);
+                            setSelectedId(null);
+                          },
                         });
-                      },
-                    });
-                  }}
-                >
-                  {createQuickTask.isPending ? 'Criando...' : 'Criar'}
-                </Button>
-              )}
-            </div>
-            </>
+                      }}
+                    >
+                      {updateQuickTask.isPending ? 'Salvando...' : 'Salvar alterações'}
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="hero"
+                      disabled={!canManageQuickTasks || !isValid || createQuickTask.isPending}
+                      onClick={() => {
+                        if (!canManageQuickTasks || !isValid || createQuickTask.isPending) return;
+                        const payload = {
+                          quantidade: form.quantidade,
+                          descricao: form.descricao,
+                          data_recebimento: form.data_recebimento,
+                          data_inicio: form.data_inicio || null,
+                          data_termino: form.data_termino || null,
+                          status: form.status || 'nao_iniciado',
+                          revisao_cliente: form.revisao_cliente,
+                          cliente: form.cliente,
+                          servico: form.servico,
+                          profile: form.profile,
+                        };
+                        createQuickTask.mutate(payload, {
+                          onSuccess: async () => {
+                            await qc.invalidateQueries({ queryKey: ['quickTasksMinioRepos'] });
+                            await qc.invalidateQueries({ queryKey: ['quickTasksMinioReposPage'] });
+                            setCreateOpen(false);
+                            setForm({
+                              quantidade: 1,
+                              descricao: '',
+                              data_recebimento: '',
+                              data_inicio: '',
+                              data_termino: '',
+                              status: 'nao_iniciado',
+                              revisao_cliente: false,
+                              cliente: 0,
+                              servico: 0,
+                              profile: 0,
+                            });
+                          },
+                        });
+                      }}
+                    >
+                      {createQuickTask.isPending ? 'Criando...' : 'Criar'}
+                    </Button>
+                  )}
+                </div>
+              </>
             )}
           </div>
         </DialogContent>

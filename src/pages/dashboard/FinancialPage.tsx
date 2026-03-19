@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FileText, Lock, PencilLine, Search } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -24,24 +24,21 @@ import {
 } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Pagination, PaginationContent, PaginationEllipsis, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination';
 import { formatCurrency } from '@/data/mockData';
-import { useBillingKpis, useBillingServiceOrders, useMiniOs, useMiniOsDetail, useUpdateMiniOs } from '@/services/billing';
+import { useBillingKpis, useBillingServiceOrdersPage, useMiniOsDetail, useMiniOsPage, useUpdateMiniOs } from '@/services/billing';
 import { useServiceOrder, useUpdateServiceOrderBilling } from '@/services/orders';
 import { useUserRole } from '@/hooks/useUserRole';
 
+const PAGE_SIZE = 20;
+
 const FinancialPage = () => {
   const navigate = useNavigate();
-  const { data: orders = [], isLoading, isError } = useBillingServiceOrders();
   const {
     data: kpis,
     isLoading: isKpiLoading,
     isError: isKpiError,
   } = useBillingKpis();
-  const {
-    data: miniOs = [],
-    isLoading: isMiniOsLoading,
-    isError: isMiniOsError,
-  } = useMiniOs();
   const [miniOsSearch, setMiniOsSearch] = useState('');
   const [miniOsBillingFilter, setMiniOsBillingFilter] = useState<'all' | 'faturada' | 'nao_faturada'>('all');
   const [isMiniDialogOpen, setIsMiniDialogOpen] = useState(false);
@@ -57,6 +54,33 @@ const FinancialPage = () => {
   const [statusFilter, setStatusFilter] = useState<'all' | 'concluida' | 'andamento'>('all');
   const [billingFilter, setBillingFilter] = useState<'all' | 'faturada' | 'nao_faturada'>('all');
   const [activeView, setActiveView] = useState<'os' | 'minios'>('os');
+  const [ordersPage, setOrdersPage] = useState(1);
+  const [miniPage, setMiniPage] = useState(1);
+  const {
+    data: ordersPageData,
+    isLoading,
+    isError,
+  } = useBillingServiceOrdersPage({
+    page: ordersPage,
+    pageSize: PAGE_SIZE,
+    q: searchTerm,
+    status: statusFilter,
+    billing: billingFilter,
+  });
+  const orders = ordersPageData?.items ?? [];
+  const ordersTotalPages = ordersPageData?.totalPages ?? 1;
+  const {
+    data: miniOsPageData,
+    isLoading: isMiniOsLoading,
+    isError: isMiniOsError,
+  } = useMiniOsPage({
+    page: miniPage,
+    pageSize: PAGE_SIZE,
+    q: miniOsSearch,
+    billing: miniOsBillingFilter,
+  });
+  const miniOs = miniOsPageData?.items ?? [];
+  const miniOsTotalPages = miniOsPageData?.totalPages ?? 1;
 
   const selectedOrderIdString = selectedOrderId ? String(selectedOrderId) : undefined;
   const {
@@ -79,60 +103,25 @@ const FinancialPage = () => {
     </Badge>
   );
 
-  const filteredOrders = useMemo(() => {
-    const normalizedSearch = searchTerm.trim().toLowerCase();
-    return orders.filter((order) => {
-      const concludedRaw = (order.concluida ?? '').toLowerCase();
-      const billedRaw = (order.faturamento ?? '').toLowerCase();
-      const concluded = concludedRaw === 'sim';
-      const billed = billedRaw === 'sim';
+  useEffect(() => {
+    setOrdersPage(1);
+  }, [searchTerm, statusFilter, billingFilter]);
 
-      const matchesSearch =
-        normalizedSearch.length === 0 ||
-        order.cliente_nome.toLowerCase().includes(normalizedSearch) ||
-        String(order.numero_os).toLowerCase().includes(normalizedSearch);
+  useEffect(() => {
+    setMiniPage(1);
+  }, [miniOsSearch, miniOsBillingFilter]);
 
-      const matchesStatus =
-        statusFilter === 'all' ||
-        (statusFilter === 'concluida' && concluded) ||
-        (statusFilter === 'andamento' && !concluded);
+  useEffect(() => {
+    if (ordersPage > ordersTotalPages) {
+      setOrdersPage(ordersTotalPages);
+    }
+  }, [ordersPage, ordersTotalPages]);
 
-      const matchesBilling =
-        billingFilter === 'all' ||
-        (billingFilter === 'faturada' && billed) ||
-        (billingFilter === 'nao_faturada' && !billed);
-
-      return matchesSearch && matchesStatus && matchesBilling;
-    });
-  }, [orders, searchTerm, statusFilter, billingFilter]);
-
-  const sortedOrders = useMemo(() => {
-    return [...filteredOrders].sort((a, b) => {
-      const billedA = (a.faturamento ?? '').toLowerCase() === 'sim';
-      const billedB = (b.faturamento ?? '').toLowerCase() === 'sim';
-      return Number(billedA) - Number(billedB);
-    });
-  }, [filteredOrders]);
-
-  const filteredMiniOs = useMemo(() => {
-    const normalizedSearch = miniOsSearch.trim().toLowerCase();
-    return miniOs.filter((mini) => {
-      const billedRaw = (mini.faturamento ?? '').toLowerCase();
-      const billed = billedRaw === 'sim';
-
-      const matchesSearch =
-        normalizedSearch.length === 0 ||
-        (mini.cliente?.nome ?? '').toLowerCase().includes(normalizedSearch) ||
-        String(mini.id).includes(normalizedSearch);
-
-      const matchesBilling =
-        miniOsBillingFilter === 'all' ||
-        (miniOsBillingFilter === 'faturada' && billed) ||
-        (miniOsBillingFilter === 'nao_faturada' && !billed);
-
-      return matchesSearch && matchesBilling;
-    });
-  }, [miniOs, miniOsSearch, miniOsBillingFilter]);
+  useEffect(() => {
+    if (miniPage > miniOsTotalPages) {
+      setMiniPage(miniOsTotalPages);
+    }
+  }, [miniPage, miniOsTotalPages]);
 
   useEffect(() => {
     if (!orderDetail) {
@@ -229,6 +218,71 @@ const FinancialPage = () => {
     } catch (error) {
       console.error('Erro ao atualizar Mini OS', error);
     }
+  };
+
+  const renderPager = (page: number, totalPages: number, setPage: (value: number) => void) => {
+    if (totalPages <= 1) return null;
+
+    const siblingCount = 1;
+    const items: (number | 'ellipsis')[] = [];
+    if (totalPages <= 7) {
+      for (let p = 1; p <= totalPages; p++) items.push(p);
+    } else {
+      items.push(1);
+      const start = Math.max(2, page - siblingCount);
+      const end = Math.min(totalPages - 1, page + siblingCount);
+      if (start > 2) items.push('ellipsis');
+      for (let p = start; p <= end; p++) items.push(p);
+      if (end < totalPages - 1) items.push('ellipsis');
+      items.push(totalPages);
+    }
+
+    return (
+      <div className="pt-4">
+        <Pagination>
+          <PaginationContent>
+            <PaginationItem>
+              <PaginationPrevious
+                href="#"
+                onClick={(e) => {
+                  e.preventDefault();
+                  if (page > 1) setPage(page - 1);
+                }}
+                className={page === 1 ? 'pointer-events-none opacity-50' : ''}
+              />
+            </PaginationItem>
+            {items.map((item, idx) => (
+              <PaginationItem key={`${item}-${idx}`}>
+                {item === 'ellipsis' ? (
+                  <PaginationEllipsis />
+                ) : (
+                  <PaginationLink
+                    href="#"
+                    isActive={item === page}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setPage(item);
+                    }}
+                  >
+                    {item}
+                  </PaginationLink>
+                )}
+              </PaginationItem>
+            ))}
+            <PaginationItem>
+              <PaginationNext
+                href="#"
+                onClick={(e) => {
+                  e.preventDefault();
+                  if (page < totalPages) setPage(page + 1);
+                }}
+                className={page === totalPages ? 'pointer-events-none opacity-50' : ''}
+              />
+            </PaginationItem>
+          </PaginationContent>
+        </Pagination>
+      </div>
+    );
   };
 
   if (!canAccessFinancials) {
@@ -418,7 +472,7 @@ const FinancialPage = () => {
                     </TableRow>
                   )}
 
-                  {!isLoading && !isError && sortedOrders.length === 0 && (
+                  {!isLoading && !isError && orders.length === 0 && (
                     <TableRow className="border-border">
                       <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
                         Nenhuma ordem de serviço disponível para faturamento.
@@ -426,7 +480,7 @@ const FinancialPage = () => {
                     </TableRow>
                   )}
 
-                  {!isLoading && !isError && sortedOrders.map((order) => {
+                  {!isLoading && !isError && orders.map((order) => {
                     const concluded = (order.concluida ?? '').toLowerCase() === 'sim';
                     const billed = (order.faturamento ?? '').toLowerCase() === 'sim';
 
@@ -465,6 +519,7 @@ const FinancialPage = () => {
                   })}
                 </TableBody>
               </Table>
+              {renderPager(ordersPage, ordersTotalPages, setOrdersPage)}
             </>
           ) : (
             <>
@@ -523,7 +578,7 @@ const FinancialPage = () => {
                     </TableRow>
                   )}
 
-                  {!isMiniOsLoading && !isMiniOsError && filteredMiniOs.length === 0 && (
+                  {!isMiniOsLoading && !isMiniOsError && miniOs.length === 0 && (
                     <TableRow className="border-border">
                       <TableCell colSpan={4} className="py-8 text-center text-muted-foreground">
                         Nenhuma mini OS encontrada.
@@ -531,7 +586,7 @@ const FinancialPage = () => {
                     </TableRow>
                   )}
 
-                  {!isMiniOsLoading && !isMiniOsError && filteredMiniOs.map((mini) => {
+                  {!isMiniOsLoading && !isMiniOsError && miniOs.map((mini) => {
                     const billed = (mini.faturamento ?? '').toLowerCase() === 'sim';
                     return (
                       <TableRow key={mini.id} className="border-border">
@@ -557,6 +612,7 @@ const FinancialPage = () => {
                   })}
                 </TableBody>
               </Table>
+              {renderPager(miniPage, miniOsTotalPages, setMiniPage)}
             </>
           )}
         </CardContent>

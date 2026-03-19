@@ -1,12 +1,12 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
-import { MoreVertical } from 'lucide-react';
-import { useTasksList } from '@/services/tasks';
+import { MoreVertical, Edit } from 'lucide-react';
+import { useTaskById, useTasksListPage, useUpdateTask } from '@/services/tasks';
 import { getStatusColor, getStatusLabel } from '@/data/mockData';
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious, PaginationEllipsis } from '@/components/ui/pagination';
 import { Separator } from '@/components/ui/separator';
@@ -14,14 +14,12 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@
 import { useUserRole } from '@/hooks/useUserRole';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { Edit } from 'lucide-react';
-import { useTaskById } from '@/services/tasks';
-import { useUpdateTask } from '@/services/tasks';
 import { useQueryClient } from '@tanstack/react-query';
+
+const PAGE_SIZE = 20;
 
 const TasksPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
-  const { data: tasks = [], isLoading, error } = useTasksList();
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const { role, canManageTasks } = useUserRole();
@@ -30,6 +28,14 @@ const TasksPage = () => {
   const showActions = canManageTasks;
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const { data: tasksPage, isLoading, error } = useTasksListPage({
+    page,
+    pageSize: PAGE_SIZE,
+    q: searchTerm,
+    status: statusFilter,
+  });
+  const tasks = tasksPage?.items ?? [];
+  const totalPages = tasksPage?.totalPages ?? 1;
   const { data: detail, isLoading: loadingDetail } = useTaskById(selectedId ?? undefined);
   const updateTask = useUpdateTask();
   const qc = useQueryClient();
@@ -47,51 +53,15 @@ const TasksPage = () => {
     }
   }, [detail]);
 
-  const items = useMemo(() => {
-    const filtered = tasks.filter(t => {
-      const term = searchTerm.toLowerCase();
-      const matchesSearch = (
-        String(t.cliente_nome || '').toLowerCase().includes(term) ||
-        String(t.repositorio_nome || '').toLowerCase().includes(term) ||
-        String(t.usuario_nome || '').toLowerCase().includes(term)
-      );
-      const s = String(t.status || '').toLowerCase();
-      const normalized = s === 'concluida' ? 'completed' : s === 'em_andamento' ? 'in_progress' : 'pending';
-      const matchesStatus = statusFilter === 'all' || normalized === statusFilter;
-      return matchesSearch && matchesStatus;
-    });
-    const order: Record<'pending' | 'in_progress' | 'completed', number> = {
-      pending: 0,
-      in_progress: 1,
-      completed: 2,
-    };
-    return filtered.sort((a, b) => {
-      const sa = String(a.status || '').toLowerCase();
-      const sb = String(b.status || '').toLowerCase();
-      const na = sa === 'concluida' ? 'completed' : sa === 'em_andamento' ? 'in_progress' : 'pending';
-      const nb = sb === 'concluida' ? 'completed' : sb === 'em_andamento' ? 'in_progress' : 'pending';
-      
-      const statusDiff = order[na] - order[nb];
-      if (statusDiff !== 0) return statusDiff;
-
-      // Ordenação secundária: Data de criação (mais recente primeiro)
-      // Usa data_criacao ou created_at se disponível
-      const dateA = a.data_criacao || a.created_at ? new Date(a.data_criacao || a.created_at || '').getTime() : 0;
-      const dateB = b.data_criacao || b.created_at ? new Date(b.data_criacao || b.created_at || '').getTime() : 0;
-      
-      if (dateA !== dateB) return dateB - dateA;
-      
-      // Fallback para ID (maior ID = mais recente)
-      return b.id - a.id;
-    });
-  }, [tasks, searchTerm, statusFilter]);
-  const itemsPerPage = 100;
-  const totalPages = Math.ceil(items.length / itemsPerPage) || 1;
-  const paginated = items.slice((page - 1) * itemsPerPage, page * itemsPerPage);
-
   useEffect(() => {
     setPage(1);
   }, [searchTerm, statusFilter]);
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages);
+    }
+  }, [page, totalPages]);
 
   if (error) {
     return <div className="text-destructive">Falha ao carregar tarefas.</div>;
@@ -157,7 +127,7 @@ const TasksPage = () => {
                       {showActions && <TableCell><Skeleton className="h-8 w-8 rounded-md" /></TableCell>}
                     </TableRow>
                   ))
-                : paginated.map((t) => {
+                : tasks.map((t) => {
                     const s = (t.status || '').toLowerCase();
                     const label = s === 'concluida' ? 'completed' : s === 'em_andamento' ? 'in_progress' : 'pending';
                     return (
@@ -184,12 +154,7 @@ const TasksPage = () => {
                             <div className="flex items-center justify-end" onClick={(e) => e.stopPropagation()}>
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8"
-                                    aria-label="Acoes da tarefa"
-                                  >
+                                  <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Acoes da tarefa">
                                     <MoreVertical className="w-4 h-4" />
                                   </Button>
                                 </DropdownMenuTrigger>
@@ -206,7 +171,7 @@ const TasksPage = () => {
                       </TableRow>
                     );
                   })}
-              {!isLoading && items.length === 0 && (
+              {!isLoading && tasks.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={4 + (showUserColumn ? 1 : 0) + (showActions ? 1 : 0)} className="text-center text-muted-foreground py-8">
                     Nenhuma tarefa encontrada
@@ -323,17 +288,14 @@ const TasksPage = () => {
                 </div>
               </div>
 
-              {(() => {
-                const serviceDesc = detail?.servico_descricao || tasks.find(t => t.id === selectedId)?.servico_descricao;
-                return serviceDesc ? (
-                  <div className="space-y-2">
-                    <p className="text-xs text-muted-foreground">Descrição do Serviço (Feita pela área comercial)</p>
-                    <div className="bg-secondary/10 p-3 rounded-md border border-border/50 text-sm font-medium">
-                      {serviceDesc}
-                    </div>
+              {detail?.servico_descricao ? (
+                <div className="space-y-2">
+                  <p className="text-xs text-muted-foreground">Descrição do Serviço (Feita pela área comercial)</p>
+                  <div className="bg-secondary/10 p-3 rounded-md border border-border/50 text-sm font-medium">
+                    {detail.servico_descricao}
                   </div>
-                ) : null;
-              })()}
+                </div>
+              ) : null}
 
               <div className="space-y-2">
                 <p className="text-xs text-muted-foreground">Descrição da Tarefa</p>
@@ -382,21 +344,11 @@ const TasksPage = () => {
                 <div className="grid sm:grid-cols-3 gap-4">
                   <div>
                     <p className="text-xs text-muted-foreground mb-1">Início</p>
-                    <Input
-                      type="date"
-                      value={editStart}
-                      onChange={(e) => setEditStart(e.target.value)}
-                      className="bg-background border-border"
-                    />
+                    <Input type="date" value={editStart} onChange={(e) => setEditStart(e.target.value)} className="bg-background border-border" />
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground mb-1">Término</p>
-                    <Input
-                      type="date"
-                      value={editEnd}
-                      onChange={(e) => setEditEnd(e.target.value)}
-                      className="bg-background border-border"
-                    />
+                    <Input type="date" value={editEnd} onChange={(e) => setEditEnd(e.target.value)} className="bg-background border-border" />
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground mb-1">Status</p>
@@ -431,6 +383,7 @@ const TasksPage = () => {
                           onSuccess: async () => {
                             await qc.invalidateQueries({ queryKey: ['taskDetail', selectedId] });
                             await qc.invalidateQueries({ queryKey: ['tasksList'] });
+                            await qc.invalidateQueries({ queryKey: ['tasksListPage'] });
                             setDetailsOpen(false);
                             setSelectedId(null);
                           },

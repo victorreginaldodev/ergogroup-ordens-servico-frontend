@@ -30,8 +30,7 @@ import { Pagination, PaginationContent, PaginationItem, PaginationLink, Paginati
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatCurrency, formatDate, getStatusLabel, getStatusColor } from '@/data/mockData';
-import { useServiceOrders, useDeleteServiceOrder } from '@/services/orders';
-import { useClients } from '@/services/clients';
+import { useServiceOrdersPage, useDeleteServiceOrder } from '@/services/orders';
 import { ServiceStatus } from '@/types';
 import { useUserRole } from '@/hooks/useUserRole';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -42,34 +41,17 @@ const OrdersPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [page, setPage] = useState(1);
   const [dateRange, setDateRange] = useState<{ from?: Date; to?: Date }>({});
-  const { data: orders = [], isLoading } = useServiceOrders();
-  const { data: clients = [] } = useClients();
+  const { data: ordersPage, isLoading } = useServiceOrdersPage({
+    page,
+    pageSize: 10,
+    q: searchTerm || undefined,
+    dateFrom: dateRange.from?.toISOString().slice(0, 10),
+    dateTo: dateRange.to?.toISOString().slice(0, 10),
+  });
   const del = useDeleteServiceOrder();
   const { canViewOrderValues, canManageOrders } = useUserRole();
-
-  const getClientName = (id: string) => clients.find(c => c.id === id)?.name || id;
-
-  const filteredOrders = orders.filter(order => {
-    const matchesText = getClientName(order.clientName).toLowerCase().includes(searchTerm.toLowerCase());
-    const created = order.createdAt instanceof Date ? order.createdAt : new Date(order.createdAt);
-    if (!dateRange.from && !dateRange.to) return matchesText;
-    const start = dateRange.from ? new Date(dateRange.from.getFullYear(), dateRange.from.getMonth(), dateRange.from.getDate(), 0, 0, 0, 0) : undefined;
-    const end = dateRange.to ? new Date(dateRange.to.getFullYear(), dateRange.to.getMonth(), dateRange.to.getDate(), 23, 59, 59, 999) : undefined;
-    const inRange =
-      (!start || created >= start) &&
-      (!end || created <= end);
-    return matchesText && inRange;
-  });
-
-  const sortedOrders = [...filteredOrders].sort((a, b) => {
-    const ta = a.createdAt instanceof Date ? a.createdAt.getTime() : new Date(a.createdAt).getTime();
-    const tb = b.createdAt instanceof Date ? b.createdAt.getTime() : new Date(b.createdAt).getTime();
-    return tb - ta;
-  });
-
-  const itemsPerPage = 10;
-  const totalPages = Math.ceil(sortedOrders.length / itemsPerPage);
-  const paginatedOrders = sortedOrders.slice((page - 1) * itemsPerPage, page * itemsPerPage);
+  const orders = ordersPage?.items ?? [];
+  const totalPages = ordersPage?.totalPages ?? 1;
 
   useEffect(() => {
     setPage(1);
@@ -192,14 +174,14 @@ const OrdersPage = () => {
                       </TableCell>
                     </TableRow>
                   ))
-                : paginatedOrders.map((order) => (
+                : orders.map((order) => (
                     <TableRow key={order.id} className="border-border">
                       <TableCell>
                         <span className="font-medium uppercase">{order.id}</span>
                       </TableCell>
                       <TableCell>
                         <div>
-                          <p className="font-medium uppercase">{getClientName(order.clientName)}</p>
+                          <p className="font-medium uppercase">{order.clientName}</p>
                           <p className="text-sm text-muted-foreground hidden sm:block">{order.clientEmail}</p>
                         </div>
                       </TableCell>
@@ -326,7 +308,7 @@ const OrdersPage = () => {
             </div>
           )}
 
-          {!isLoading && filteredOrders.length === 0 && (
+          {!isLoading && orders.length === 0 && (
             <div className="text-center py-12">
               <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
               <h3 className="text-lg font-semibold mb-2">Nenhuma ordem encontrada</h3>

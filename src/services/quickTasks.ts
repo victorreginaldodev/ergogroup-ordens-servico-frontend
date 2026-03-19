@@ -1,5 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+
 import api from './api';
+import { isPaginatedResponse, PageResult, toPageResult } from './pagination';
 
 const endpoint = '/api/tarefas-rapidas/';
 const quickTaskCatalogEndpoint = '/api/repositorios-minios/';
@@ -122,6 +124,48 @@ export const useMinioRepositories = () => {
   });
 };
 
+export type QuickTasksPageParams = {
+  page?: number;
+  pageSize?: number;
+  q?: string;
+  status?: string;
+};
+
+export const useMinioRepositoriesPage = (params: QuickTasksPageParams) => {
+  return useQuery<PageResult<any>>({
+    queryKey: ['quickTasksMinioReposPage', params],
+    queryFn: async () => {
+      const page = params.page ?? 1;
+      const pageSize = params.pageSize ?? 20;
+      const queryParams: Record<string, string | number> = {
+        page,
+        page_size: pageSize,
+      };
+      if (params.q) queryParams.q = params.q;
+      if (params.status && params.status !== 'all') queryParams.status = params.status;
+
+      const { data } = await api.get('/api/minios/', { params: queryParams });
+      if (isPaginatedResponse<any>(data)) {
+        return {
+          ...toPageResult(data, page, pageSize),
+          items: data.results,
+        };
+      }
+
+      const items = Array.isArray(data) ? data : [];
+      return {
+        items,
+        count: items.length,
+        page,
+        pageSize,
+        totalPages: Math.max(1, Math.ceil(items.length / pageSize)),
+        next: null,
+        previous: null,
+      };
+    },
+  });
+};
+
 export const useRepoMinioServices = () => {
   return useQuery<QuickTaskCatalogItem[]>({
     queryKey: ['quickTasksCatalog'],
@@ -135,6 +179,7 @@ export const useCreateQuickTask = () => {
     mutationFn: quickTasksService.create,
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ['quickTasksMinioRepos'] });
+      await qc.invalidateQueries({ queryKey: ['quickTasksMinioReposPage'] });
     },
   });
 };
@@ -156,6 +201,7 @@ export const useDeleteQuickTask = () => {
     mutationFn: (id: number) => quickTasksService.remove(id),
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ['quickTasksMinioRepos'] });
+      await qc.invalidateQueries({ queryKey: ['quickTasksMinioReposPage'] });
     },
   });
 };
@@ -166,6 +212,7 @@ export const useUpdateQuickTask = () => {
     mutationFn: ({ id, payload }: { id: number; payload: any }) => quickTasksService.update(id, payload),
     onSuccess: async (_, vars) => {
       await qc.invalidateQueries({ queryKey: ['quickTasksMinioRepos'] });
+      await qc.invalidateQueries({ queryKey: ['quickTasksMinioReposPage'] });
       await qc.invalidateQueries({ queryKey: ['quickTaskMinioDetail', vars.id] });
     },
   });
@@ -175,6 +222,46 @@ export const useQuickTaskCatalog = () => {
   return useQuery<QuickTaskCatalogItem[]>({
     queryKey: ['quickTasksCatalog'],
     queryFn: () => quickTasksService.listRepoMinios(),
+  });
+};
+
+export type QuickTaskCatalogPageParams = {
+  page?: number;
+  pageSize?: number;
+  q?: string;
+};
+
+export const useQuickTaskCatalogPage = (params: QuickTaskCatalogPageParams) => {
+  return useQuery<PageResult<QuickTaskCatalogItem>>({
+    queryKey: ['quickTasksCatalogPage', params],
+    queryFn: async () => {
+      const page = params.page ?? 1;
+      const pageSize = params.pageSize ?? 10;
+      const queryParams: Record<string, string | number> = {
+        page,
+        page_size: pageSize,
+      };
+      if (params.q) queryParams.q = params.q;
+
+      const { data } = await api.get(quickTaskCatalogEndpoint, { params: queryParams });
+      if (isPaginatedResponse<QuickTaskCatalogItem>(data)) {
+        return {
+          ...toPageResult(data, page, pageSize),
+          items: data.results,
+        };
+      }
+
+      const items = Array.isArray(data) ? (data as QuickTaskCatalogItem[]) : [];
+      return {
+        items,
+        count: items.length,
+        page,
+        pageSize,
+        totalPages: Math.max(1, Math.ceil(items.length / pageSize)),
+        next: null,
+        previous: null,
+      };
+    },
   });
 };
 
@@ -200,6 +287,7 @@ export const useUpsertQuickTaskCatalog = () => {
     },
     onSuccess: async (_data, variables) => {
       await qc.invalidateQueries({ queryKey: ['quickTasksCatalog'] });
+      await qc.invalidateQueries({ queryKey: ['quickTasksCatalogPage'] });
       if (variables.id !== undefined) {
         await qc.invalidateQueries({ queryKey: ['quickTasksCatalog', variables.id] });
       }
@@ -213,6 +301,7 @@ export const useDeleteQuickTaskCatalog = () => {
     mutationFn: async (id: number | string) => quickTasksService.removeRepoMinio(id),
     onSuccess: async (_data, id) => {
       await qc.invalidateQueries({ queryKey: ['quickTasksCatalog'] });
+      await qc.invalidateQueries({ queryKey: ['quickTasksCatalogPage'] });
       await qc.invalidateQueries({ queryKey: ['quickTasksCatalog', id] });
     },
   });

@@ -1,6 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+
 import api from '@/services/api';
 import { RepositoryItem } from '@/types';
+
+import { isPaginatedResponse, PageResult, toPageResult } from './pagination';
 
 type RepositorioDTO = {
   id: number | string;
@@ -31,6 +34,46 @@ export const useRepositories = () => {
   });
 };
 
+export type RepositoriesPageParams = {
+  page?: number;
+  pageSize?: number;
+  q?: string;
+};
+
+export const useRepositoriesPage = (params: RepositoriesPageParams) => {
+  return useQuery<PageResult<RepositoryItem>>({
+    queryKey: ['repositoriesPage', params],
+    queryFn: async () => {
+      const page = params.page ?? 1;
+      const pageSize = params.pageSize ?? 10;
+      const queryParams: Record<string, string | number> = {
+        page,
+        page_size: pageSize,
+      };
+      if (params.q) queryParams.q = params.q;
+
+      const { data } = await api.get(endpoint, { params: queryParams });
+      if (isPaginatedResponse<RepositorioDTO>(data)) {
+        return {
+          ...toPageResult(data, page, pageSize),
+          items: data.results.map(toFrontend),
+        };
+      }
+
+      const items = (Array.isArray(data) ? data : []).map(toFrontend);
+      return {
+        items,
+        count: items.length,
+        page,
+        pageSize,
+        totalPages: Math.max(1, Math.ceil(items.length / pageSize)),
+        next: null,
+        previous: null,
+      };
+    },
+  });
+};
+
 export const useRepository = (id?: string) => {
   return useQuery<RepositoryItem>({
     queryKey: ['repository', id],
@@ -56,6 +99,7 @@ export const useUpsertRepository = () => {
     },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ['repositories'] });
+      await qc.invalidateQueries({ queryKey: ['repositoriesPage'] });
     },
   });
 };
@@ -69,6 +113,7 @@ export const useDeleteRepository = () => {
     },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ['repositories'] });
+      await qc.invalidateQueries({ queryKey: ['repositoriesPage'] });
     },
   });
 };

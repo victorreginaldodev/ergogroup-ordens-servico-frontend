@@ -1,6 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+
 import { Client } from '@/types';
+
 import api from './api';
+import { isPaginatedResponse, PageResult, toPageResult } from './pagination';
 
 const endpoint = '/api/clientes/';
 
@@ -20,6 +23,14 @@ type ClienteApi = {
   setor_representante?: string;
   email_representante?: string;
   contato_representante?: string;
+  endereco?: {
+    rua?: string;
+    numero?: string;
+    bairro?: string;
+    cidade?: string;
+    uf?: string;
+    cep?: string;
+  };
 };
 
 export type ClienteApiInput = Omit<ClienteApi, 'id'>;
@@ -57,6 +68,7 @@ const toClient = (c: ClienteApi): Client => {
     phone: c.telefone_institucional,
     document: c.numero_inscricao,
     tipo_inscricao: c.tipo_inscricao,
+    address,
     active: (c.cliente_ativo || '').toLowerCase() === 'sim',
     chargeRevisionChange: !!c.cobranca_revisao_alteracao,
     tipoCliente: c.tipo_cliente,
@@ -72,14 +84,58 @@ const toClient = (c: ClienteApi): Client => {
 export const getClients = async (): Promise<Client[]> => {
   const { data } = await api.get<ClienteApi[]>(endpoint);
   return (data || [])
-  .map(toClient)
-  .sort((a, b) => a.name.localeCompare(b.name));
+    .map(toClient)
+    .sort((a, b) => a.name.localeCompare(b.name));
 };
 
 export const useClients = () => {
   return useQuery<Client[]>({
     queryKey: ['clients'],
     queryFn: async () => getClients(),
+  });
+};
+
+export type ClientsPageParams = {
+  page?: number;
+  pageSize?: number;
+  q?: string;
+};
+
+export const getClientsPage = async (
+  params: ClientsPageParams = {},
+): Promise<PageResult<Client>> => {
+  const page = params.page ?? 1;
+  const pageSize = params.pageSize ?? 10;
+  const queryParams: Record<string, string | number> = {
+    page,
+    page_size: pageSize,
+  };
+  if (params.q) queryParams.q = params.q;
+
+  const { data } = await api.get(endpoint, { params: queryParams });
+  if (isPaginatedResponse<ClienteApi>(data)) {
+    return {
+      ...toPageResult(data, page, pageSize),
+      items: data.results.map(toClient),
+    };
+  }
+
+  const items = (Array.isArray(data) ? data : []).map(toClient);
+  return {
+    items,
+    count: items.length,
+    page,
+    pageSize,
+    totalPages: Math.max(1, Math.ceil(items.length / pageSize)),
+    next: null,
+    previous: null,
+  };
+};
+
+export const useClientsPage = (params: ClientsPageParams) => {
+  return useQuery<PageResult<Client>>({
+    queryKey: ['clientsPage', params],
+    queryFn: () => getClientsPage(params),
   });
 };
 
@@ -113,6 +169,7 @@ export const useUpsertClient = () => {
     },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ['clients'] });
+      await qc.invalidateQueries({ queryKey: ['clientsPage'] });
     },
   });
 };
@@ -126,6 +183,7 @@ export const useDeleteClient = () => {
     },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ['clients'] });
+      await qc.invalidateQueries({ queryKey: ['clientsPage'] });
     },
   });
 };

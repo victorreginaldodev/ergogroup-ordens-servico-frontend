@@ -16,6 +16,7 @@ export interface RepositoryItem {
 
 export interface ServiceItem {
   id: string;
+  persistedId?: number;
   serviceId: string;
   serviceName: string;
   quantity: number;

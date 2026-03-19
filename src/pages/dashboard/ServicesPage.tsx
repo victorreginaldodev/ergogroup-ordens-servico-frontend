@@ -1,9 +1,27 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, Edit } from 'lucide-react';
+import { Edit, Search } from 'lucide-react';
+
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from '@/components/ui/pagination';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Separator } from '@/components/ui/separator';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Table,
   TableBody,
@@ -12,25 +30,11 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-
-import { getStatusLabel, getStatusColor } from '@/data/mockData';
+import { Input } from '@/components/ui/input';
+import { getStatusColor, getStatusLabel } from '@/data/mockData';
+import { useServiceListPage } from '@/services/serviceList';
 import { ServiceStatus } from '@/types';
- 
-import { useServiceList } from '@/services/serviceList';
-import { useServiceOrders } from '@/services/orders';
-import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious, PaginationEllipsis } from '@/components/ui/pagination';
-import { Separator } from '@/components/ui/separator';
-import { Skeleton } from '@/components/ui/skeleton';
 import { useUserRole } from '@/hooks/useUserRole';
-
-
 
 const ServicesPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -38,97 +42,52 @@ const ServicesPage = () => {
   const [tasksFilter, setTasksFilter] = useState<string>('all');
   const [page, setPage] = useState(1);
 
-  const { data: services = [], isLoading, error } = useServiceList();
-  
+  const { data, isLoading, error } = useServiceListPage({
+    page,
+    pageSize: 20,
+    q: searchTerm || undefined,
+    status: statusFilter !== 'all' ? statusFilter : undefined,
+    hasTasks:
+      tasksFilter === 'with_tasks'
+        ? 'true'
+        : tasksFilter === 'without_tasks'
+          ? 'false'
+          : undefined,
+  });
   const { canManageServices } = useUserRole();
-  const { data: orders = [] } = useServiceOrders();
-  const ordersMap = useMemo(() => {
-    const m = new Map<string, string>();
-    orders.forEach(o => m.set(String(o.id), o.clientName));
-    return m;
-  }, [orders]);
 
-  const allServiceItems = useMemo(() => {
-    return services.map(item => {
-      let status: ServiceStatus = 'pending';
-      const s = (item.status || '').toLowerCase();
-      if (s === 'nao_iniciado' || s === 'em_espera') status = 'pending';
-      else if (s === 'em_andamento') status = 'in_progress';
-      else if (s === 'concluida' || s === 'concluido') status = 'completed';
-      const orderId = String(item.ordem_servico ?? '');
-      const clientName = ordersMap.get(orderId) || '';
-      return {
-        id: String(item.id),
-        serviceName: String(item.servico_catalogo_nome ?? ''),
-        status,
-        orderId,
-        clientName,
-        tem_tarefas: item.tem_tarefas,
-        data_criacao: item.data_criacao,
-      };
-    });
-  }, [services, ordersMap]);
+  const items = (data?.items ?? []).map((item) => {
+    let status: ServiceStatus = 'pending';
+    const raw = (item.status || '').toLowerCase();
+    if (raw === 'em_andamento') status = 'in_progress';
+    else if (raw === 'concluida' || raw === 'concluido') status = 'completed';
 
-  const statusOrder: Record<ServiceStatus, number> = {
-    pending: 0,
-    in_progress: 1,
-    completed: 2,
-    cancelled: 3,
-  };
+    return {
+      id: String(item.id),
+      serviceName: String(item.servico_catalogo_nome ?? ''),
+      status,
+      orderId: String(item.ordem_servico ?? ''),
+      clientName: item.cliente_nome ?? '',
+      tem_tarefas: item.tem_tarefas,
+    };
+  });
 
-  const filteredServiceItems = allServiceItems
-    .filter(item => {
-      const term = searchTerm.toLowerCase();
-      const matchesSearch = 
-        String(item.serviceName ?? '').toLowerCase().includes(term) ||
-        String(item.clientName ?? '').toLowerCase().includes(term);
-      
-      const matchesStatus = 
-        statusFilter === 'all' || 
-        item.status === statusFilter;
-
-      const matchesTasks =
-        tasksFilter === 'all' ||
-        (tasksFilter === 'with_tasks' && item.tem_tarefas) ||
-        (tasksFilter === 'without_tasks' && !item.tem_tarefas);
-
-      return matchesSearch && matchesStatus && matchesTasks;
-    })
-    .sort((a, b) => {
-      // Ordenação primária: Status
-      const statusDiff = statusOrder[a.status] - statusOrder[b.status];
-      if (statusDiff !== 0) return statusDiff;
-      
-      // Ordenação secundária: Data de criação (mais recente primeiro)
-      // Se não tiver data, usa o ID como proxy (maior ID = mais recente)
-      const dateA = a.data_criacao ? new Date(a.data_criacao).getTime() : 0;
-      const dateB = b.data_criacao ? new Date(b.data_criacao).getTime() : 0;
-      
-      if (dateA !== dateB) return dateB - dateA;
-      
-      return Number(b.id) - Number(a.id);
-    });
-
-  const itemsPerPage = 100;
-  const totalPages = Math.ceil(filteredServiceItems.length / itemsPerPage) || 1;
-  const paginatedServiceItems = filteredServiceItems.slice((page - 1) * itemsPerPage, page * itemsPerPage);
+  const totalPages = data?.totalPages ?? 1;
 
   useEffect(() => {
     setPage(1);
   }, [searchTerm, statusFilter, tasksFilter]);
 
   useEffect(() => {
-    if (page > totalPages) {
-      setPage(totalPages);
-    }
-  }, [totalPages]);
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
+
   if (error) {
     return <div className="text-destructive">Falha ao carregar serviços.</div>;
   }
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">Serviços</h1>
@@ -136,7 +95,6 @@ const ServicesPage = () => {
         </div>
       </div>
 
-      {/* View Toggle & Search */}
       <Card className="bg-card border-border">
         <CardContent className="p-4">
           <div className="flex flex-col gap-4">
@@ -173,7 +131,6 @@ const ServicesPage = () => {
                   </SelectContent>
                 </Select>
               </div>
-              
             </div>
           </div>
         </CardContent>
@@ -196,31 +153,18 @@ const ServicesPage = () => {
               {isLoading
                 ? Array.from({ length: 10 }).map((_, idx) => (
                     <TableRow key={`skeleton-${idx}`} className="border-border">
-                      <TableCell>
-                        <Skeleton className="h-4 w-16" />
-                      </TableCell>
-                      <TableCell>
-                        <Skeleton className="h-4 w-40" />
-                      </TableCell>
-                      <TableCell>
-                        <Skeleton className="h-4 w-48" />
-                      </TableCell>
-                      <TableCell className="w-48">
-                        <Skeleton className="h-5 w-24 rounded-full" />
-                      </TableCell>
-                      <TableCell>
-                        <Skeleton className="h-8 w-8 rounded-md" />
-                      </TableCell>
+                      <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-40" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-48" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-24 rounded-full" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+                      <TableCell><Skeleton className="h-8 w-8 rounded-md" /></TableCell>
                     </TableRow>
                   ))
-                : paginatedServiceItems.map((item, index) => (
-                    <TableRow key={`${item.id}-${index}`} className="border-border">
+                : items.map((item) => (
+                    <TableRow key={item.id} className="border-border">
                       <TableCell className="font-medium uppercase w-12">{item.orderId}</TableCell>
-                      <TableCell>
-                        <div className="text-muted-foreground uppercase">
-                          {item.clientName}
-                        </div>
-                      </TableCell>
+                      <TableCell className="text-muted-foreground uppercase">{item.clientName}</TableCell>
                       <TableCell className="font-semibold uppercase">{item.serviceName}</TableCell>
                       <TableCell className="w-48">
                         <span className={`text-xs px-2 py-0.5 rounded whitespace-nowrap inline-flex uppercase ${getStatusColor(item.status)}`}>
@@ -234,24 +178,24 @@ const ServicesPage = () => {
                           <span className="text-xs font-medium text-muted-foreground bg-muted/50 px-2 py-0.5 rounded uppercase">Não</span>
                         )}
                       </TableCell>
-                  <TableCell>
-                    {canManageServices ? (
-                      <Button asChild variant="ghost" className="h-8 px-2" aria-label="Gerenciar serviço">
-                        <Link to={`/dashboard/services/manage/${item.orderId || ''}/${item.id}`} className="flex items-center">
-                          <Edit className="w-4 h-4" />
-                        </Link>
-                      </Button>
-                    ) : (
-                      <Button variant="ghost" className="h-8 px-2" disabled aria-label="Gerenciar serviço">
-                        <Edit className="w-4 h-4 text-muted-foreground" />
-                      </Button>
-                    )}
-                  </TableCell>
+                      <TableCell>
+                        {canManageServices ? (
+                          <Button asChild variant="ghost" className="h-8 px-2" aria-label="Gerenciar serviço">
+                            <Link to={`/dashboard/services/manage/${item.orderId || ''}/${item.id}`} className="flex items-center">
+                              <Edit className="w-4 h-4" />
+                            </Link>
+                          </Button>
+                        ) : (
+                          <Button variant="ghost" className="h-8 px-2" disabled aria-label="Gerenciar serviço">
+                            <Edit className="w-4 h-4 text-muted-foreground" />
+                          </Button>
+                        )}
+                      </TableCell>
                     </TableRow>
                   ))}
-              {!isLoading && filteredServiceItems.length === 0 && (
+              {!isLoading && items.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
                     Nenhum serviço encontrado
                   </TableCell>
                 </TableRow>
@@ -277,19 +221,19 @@ const ServicesPage = () => {
                   </PaginationItem>
                   {(() => {
                     const siblingCount = 1;
-                    const items: (number | 'ellipsis')[] = [];
+                    const pages: (number | 'ellipsis')[] = [];
                     if (totalPages <= 7) {
-                      for (let p = 1; p <= totalPages; p++) items.push(p);
+                      for (let p = 1; p <= totalPages; p++) pages.push(p);
                     } else {
-                      items.push(1);
+                      pages.push(1);
                       const left = Math.max(page - siblingCount, 2);
                       const right = Math.min(page + siblingCount, totalPages - 1);
-                      if (left > 2) items.push('ellipsis');
-                      for (let p = left; p <= right; p++) items.push(p);
-                      if (right < totalPages - 1) items.push('ellipsis');
-                      items.push(totalPages);
+                      if (left > 2) pages.push('ellipsis');
+                      for (let p = left; p <= right; p++) pages.push(p);
+                      if (right < totalPages - 1) pages.push('ellipsis');
+                      pages.push(totalPages);
                     }
-                    return items.map((it, idx) => (
+                    return pages.map((it, idx) => (
                       <PaginationItem key={`${it}-${idx}`}>
                         {it === 'ellipsis' ? (
                           <PaginationEllipsis />
@@ -324,9 +268,6 @@ const ServicesPage = () => {
           )}
         </CardContent>
       </Card>
-
- 
-      
     </div>
   );
 };

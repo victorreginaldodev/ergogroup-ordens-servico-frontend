@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from './api';
 import { ServiceItem, ServiceOrder } from '@/types';
+import { isPaginatedResponse, PageResult, toPageResult } from './pagination';
 
 const endpoint = '/api/ordens-servico/';
 
@@ -82,6 +83,7 @@ export interface OrdemServicoDetailNew {
 
 export type OrdemServicoInput = {
   servicos: {
+    id?: number;
     repositorio_id: number;
     descricao: string;
   }[];
@@ -95,6 +97,14 @@ export type OrdemServicoInput = {
   contato_envio_nf: string;
   observacao?: string;
   cliente: number;
+};
+
+export type OrdersPageParams = {
+  page?: number;
+  pageSize?: number;
+  q?: string;
+  dateFrom?: string;
+  dateTo?: string;
 };
 
 // Lista simples para página de listagem
@@ -167,6 +177,10 @@ const toFrontend = (dto: OrdemServicoDTO): ServiceOrder => {
 export const getServiceOrders = async (): Promise<ServiceOrder[]> => {
   const { data } = await api.get<(OrdemServicoDTO | OrdemServicoListItemDTO)[]>(endpoint);
   const list = Array.isArray(data) ? data : [];
+  return mapServiceOrders(list);
+};
+
+const mapServiceOrders = (list: (OrdemServicoDTO | OrdemServicoListItemDTO | any)[]): ServiceOrder[] => {
   if (list.length === 0) return [];
   // Detecta formato da lista simples pela presença de 'cliente_nome'
   const first: any = list[0] as any;
@@ -237,6 +251,44 @@ export const useServiceOrders = () => {
   });
 };
 
+export const getServiceOrdersPage = async (params: OrdersPageParams = {}): Promise<PageResult<ServiceOrder>> => {
+  const page = params.page ?? 1;
+  const pageSize = params.pageSize ?? 10;
+  const queryParams: Record<string, string | number> = {
+    page,
+    page_size: pageSize,
+  };
+
+  if (params.q) queryParams.q = params.q;
+  if (params.dateFrom) queryParams.date_from = params.dateFrom;
+  if (params.dateTo) queryParams.date_to = params.dateTo;
+
+  const { data } = await api.get(endpoint, { params: queryParams });
+  if (isPaginatedResponse<any>(data)) {
+    return {
+      ...toPageResult(data, page, pageSize),
+      items: mapServiceOrders(data.results),
+    };
+  }
+  const items = mapServiceOrders(Array.isArray(data) ? data : []);
+  return {
+    items,
+    count: items.length,
+    page,
+    pageSize,
+    totalPages: Math.max(1, Math.ceil(items.length / pageSize)),
+    next: null,
+    previous: null,
+  };
+};
+
+export const useServiceOrdersPage = (params: OrdersPageParams) => {
+  return useQuery<PageResult<ServiceOrder>>({
+    queryKey: ['serviceOrdersPage', params],
+    queryFn: () => getServiceOrdersPage(params),
+  });
+};
+
 export const getServiceOrder = async (id: string): Promise<OrdemServicoDetailNew> => {
   const { data } = await api.get<OrdemServicoDetailNew>(`${endpoint}${id}/`);
   return data;
@@ -270,6 +322,7 @@ export const useUpdateServiceOrderBilling = () => {
       await Promise.all([
         qc.invalidateQueries({ queryKey: ['serviceOrder', String(id)] }),
         qc.invalidateQueries({ queryKey: ['billing-service-orders'] }),
+        qc.invalidateQueries({ queryKey: ['billing-service-orders-page'] }),
       ]);
     },
   });
