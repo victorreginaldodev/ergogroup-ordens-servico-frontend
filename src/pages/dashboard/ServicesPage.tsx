@@ -40,6 +40,8 @@ const ServicesPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [tasksFilter, setTasksFilter] = useState<string>('all');
+  const [dateFrom, setDateFrom] = useState<string>('');
+  const [dateTo, setDateTo] = useState<string>('');
   const [page, setPage] = useState(1);
   const { data = [], isLoading, error } = useServiceList();
   const { canManageServices } = useUserRole();
@@ -68,14 +70,22 @@ const ServicesPage = () => {
         const matchesSearch = !term || item.serviceName.toLowerCase().includes(term) || item.clientName.toLowerCase().includes(term);
         const matchesStatus = statusFilter === 'all' || item.status === statusFilter;
         const matchesTasks = tasksFilter === 'all' || (tasksFilter === 'with_tasks' ? item.tem_tarefas : !item.tem_tarefas);
-        return matchesSearch && matchesStatus && matchesTasks;
+        const matchesDate = (() => {
+          if (!dateFrom && !dateTo) return true;
+          const d = item.dataCriacao ? new Date(item.dataCriacao).getTime() : null;
+          if (!d) return false;
+          if (dateFrom && d < new Date(dateFrom).getTime()) return false;
+          if (dateTo && d > new Date(dateTo + 'T23:59:59').getTime()) return false;
+          return true;
+        })();
+        return matchesSearch && matchesStatus && matchesTasks && matchesDate;
       })
       .sort((a, b) => {
         const da = a.dataCriacao ? new Date(a.dataCriacao).getTime() : 0;
         const db = b.dataCriacao ? new Date(b.dataCriacao).getTime() : 0;
         return db - da;
       });
-  }, [data, searchTerm, statusFilter, tasksFilter]);
+  }, [data, searchTerm, statusFilter, tasksFilter, dateFrom, dateTo]);
 
   const itemsPerPage = 20;
   const totalPages = Math.ceil(items.length / itemsPerPage) || 1;
@@ -83,7 +93,7 @@ const ServicesPage = () => {
 
   useEffect(() => {
     setPage(1);
-  }, [searchTerm, statusFilter, tasksFilter]);
+  }, [searchTerm, statusFilter, tasksFilter, dateFrom, dateTo]);
 
   useEffect(() => {
     if (page > totalPages) setPage(totalPages);
@@ -129,6 +139,36 @@ const ServicesPage = () => {
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground uppercase whitespace-nowrap">De</span>
+                <Input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  className="w-44 bg-secondary border-border"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground uppercase whitespace-nowrap">Até</span>
+                <Input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  className="w-44 bg-secondary border-border"
+                />
+              </div>
+              {(dateFrom || dateTo) && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => { setDateFrom(''); setDateTo(''); }}
+                  className="text-muted-foreground hover:text-foreground uppercase text-xs"
+                >
+                  Limpar datas
+                </Button>
+              )}
             </div>
           </div>
         </CardContent>
