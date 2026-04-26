@@ -8,9 +8,9 @@ import { useServiceExecutionById, useUpdateServiceStatus } from '@/services/serv
 import { getStatusColor, getStatusLabel, formatCurrency, formatDate } from '@/data/mockData';
 import { useUsers } from '@/services/users';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
-import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { useCreateTask, useUpdateTask, useDeleteTask } from '@/services/tasks';
+import { useCreateTask, useUpdateTask, useDeleteTask, useServiceTasks } from '@/services/tasks';
+import { useOrdemServicoDetail } from '@/services/orders';
 import { useQueryClient } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
 import { Pencil, Trash2, Save, X } from 'lucide-react';
@@ -21,8 +21,12 @@ import { useUserRole } from '@/hooks/useUserRole';
 const ServiceManagementPage = () => {
   const { itemId } = useParams();
   const navigate = useNavigate();
-  const { data, isLoading } = useServiceExecutionById(String(itemId || ''));
-  const { data: profiles = [] } = useUsers();
+  const { data: service, isLoading: isLoadingService } = useServiceExecutionById(String(itemId || ''));
+  const { data: order, isLoading: isLoadingOrder } = useOrdemServicoDetail(
+    service?.ordem_servico ? String(service.ordem_servico) : undefined,
+  );
+  const { data: tasks = [] } = useServiceTasks(itemId);
+  const { data: users = [] } = useUsers();
   const qc = useQueryClient();
   const createTask = useCreateTask();
   const updateTask = useUpdateTask();
@@ -31,15 +35,15 @@ const ServiceManagementPage = () => {
   const { canManageServices } = useUserRole();
   const updateStatus = useUpdateServiceStatus();
   const [newTaskOpen, setNewTaskOpen] = useState(false);
-  const [taskProfileId, setTaskProfileId] = useState<string>('');
+  const [taskUserId, setTaskUserId] = useState<string>('');
   const [taskDescription, setTaskDescription] = useState('');
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [editingProfileId, setEditingProfileId] = useState<string>('');
+  const [editingUserId, setEditingUserId] = useState<string>('');
   const [editingDescription, setEditingDescription] = useState('');
   const statusLabel =
-    data?.status === 'concluida' ? 'completed' :
-    data?.status === 'em_andamento' ? 'in_progress' :
-    data?.status === 'em_espera' ? 'pending' :
+    service?.status === 'concluida' ? 'completed' :
+    service?.status === 'em_andamento' ? 'in_progress' :
+    service?.status === 'em_espera' ? 'pending' :
     'pending';
   const statusClass = getStatusColor(statusLabel);
   const statusText = getStatusLabel(statusLabel);
@@ -59,16 +63,21 @@ const ServiceManagementPage = () => {
     return null;
   }
 
-  if (isLoading) {
+  if (isLoadingService || isLoadingOrder) {
     return <div className="p-8">Carregando serviço...</div>;
   }
+
+  const invalidateTasks = () => {
+    qc.invalidateQueries({ queryKey: ['serviceTasks', itemId] });
+    qc.invalidateQueries({ queryKey: ['serviceExecution', String(itemId)] });
+  };
 
   return (
     <div className="space-y-6 animate-fade-in p-4">
       <div className="flex items-center justify-between">
         <div className="space-y-1">
           <h1 className="text-2xl font-bold">Gerenciamento de Serviço</h1>
-          <p className="text-muted-foreground uppercase">{data?.repositorio?.nome || ''}</p>
+          <p className="text-muted-foreground uppercase">{service?.repositorio_detail?.nome || ''}</p>
         </div>
         <BackButton to="/dashboard/services" />
       </div>
@@ -80,30 +89,30 @@ const ServiceManagementPage = () => {
         <CardContent className="grid sm:grid-cols-4 gap-6">
           <div>
             <p className="text-xs text-muted-foreground">OS</p>
-            <p className="font-mono">{data?.ordem_servico_detail?.id ?? '-'}</p>
+            <p className="font-mono">{order?.id ?? '-'}</p>
           </div>
           <div>
             <p className="text-xs text-muted-foreground">Valor</p>
             <p className="font-semibold">
-              {typeof data?.ordem_servico_detail?.valor === 'number'
-                ? formatCurrency(data?.ordem_servico_detail?.valor)
+              {typeof order?.valor === 'number' || typeof order?.valor === 'string'
+                ? formatCurrency(Number(order.valor))
                 : '-'}
             </p>
           </div>
           <div>
             <p className="text-xs text-muted-foreground">Conclusão</p>
             <p className="font-medium">
-              {data?.data_conclusao ? formatDate(new Date(data.data_conclusao)) : '-'}
+              {service?.data_conclusao ? formatDate(new Date(service.data_conclusao)) : '-'}
             </p>
           </div>
           <div>
             <p className="text-xs text-muted-foreground mb-2">Status</p>
             <Select
-              value={data?.status}
+              value={service?.status}
               onValueChange={(val) => {
-                if (data?.id) {
+                if (service?.id) {
                   updateStatus.mutate(
-                    { id: data.id, status: val },
+                    { id: service.id, status: val },
                     {
                       onSuccess: () => {
                         toast({
@@ -142,23 +151,23 @@ const ServiceManagementPage = () => {
         <CardContent className="grid sm:grid-cols-2 gap-6">
           <div>
             <p className="text-xs text-muted-foreground">Nome</p>
-            <p className="font-medium uppercase">{data?.ordem_servico_detail?.cliente?.nome || '-'}</p>
+            <p className="font-medium uppercase">{order?.cliente_detail?.nome || '-'}</p>
           </div>
           <div>
             <p className="text-xs text-muted-foreground">Representante</p>
-            <p className="font-medium">{data?.ordem_servico_detail?.cliente?.nome_representante || '-'}</p>
+            <p className="font-medium">{order?.cliente_detail?.nome_representante || '-'}</p>
           </div>
           <div>
             <p className="text-xs text-muted-foreground">Setor</p>
-            <p className="font-medium">{data?.ordem_servico_detail?.cliente?.setor_representante || '-'}</p>
+            <p className="font-medium">{order?.cliente_detail?.setor_representante || '-'}</p>
           </div>
           <div>
             <p className="text-xs text-muted-foreground">E-mail</p>
-            <p className="font-medium">{data?.ordem_servico_detail?.cliente?.email_representante || '-'}</p>
+            <p className="font-medium">{order?.cliente_detail?.email_representante || '-'}</p>
           </div>
           <div>
             <p className="text-xs text-muted-foreground">Contato</p>
-            <p className="font-medium">{data?.ordem_servico_detail?.cliente?.contato_representante || '-'}</p>
+            <p className="font-medium">{order?.cliente_detail?.contato_representante || '-'}</p>
           </div>
         </CardContent>
       </Card>
@@ -169,7 +178,7 @@ const ServiceManagementPage = () => {
         </CardHeader>
         <CardContent>
           <div className="bg-secondary/30 p-4 rounded-md border border-border/50 leading-relaxed text-sm">
-            {data?.descricao || '-'}
+            {service?.descricao || '-'}
           </div>
         </CardContent>
       </Card>
@@ -194,15 +203,15 @@ const ServiceManagementPage = () => {
             <div className="mt-2 p-4 rounded-md border bg-secondary/40 space-y-3">
               <div className="grid sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <p className="text-xs text-muted-foreground">Executor (profile)</p>
-                  <Select value={taskProfileId} onValueChange={setTaskProfileId}>
+                  <p className="text-xs text-muted-foreground">Executor</p>
+                  <Select value={taskUserId} onValueChange={setTaskUserId}>
                     <SelectTrigger className="bg-secondary border-border">
                       <SelectValue placeholder="Selecione um executor" />
                     </SelectTrigger>
                     <SelectContent>
-                      {profiles.map(p => (
-                        <SelectItem key={p.id} value={String(p.id)}>
-                          {p.user.username}
+                      {users.map(u => (
+                        <SelectItem key={u.id} value={String(u.id)}>
+                          {u.nome_completo || u.username}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -223,19 +232,19 @@ const ServiceManagementPage = () => {
                   variant="hero"
                   disabled={createTask.isPending}
                   onClick={() => {
-                    if (!taskProfileId || !taskDescription.trim() || !itemId || createTask.isPending) return;
+                    if (!taskUserId || !taskDescription.trim() || !itemId || createTask.isPending) return;
                     setNewTaskOpen(false);
                     createTask.mutate(
                       {
-                        profile_id: Number(taskProfileId),
-                        servico_id: Number(itemId),
+                        responsavel: Number(taskUserId),
+                        servico: Number(itemId),
                         descricao: taskDescription.trim(),
                       },
                       {
                         onSuccess: () => {
-                          setTaskProfileId('');
+                          setTaskUserId('');
                           setTaskDescription('');
-                          qc.invalidateQueries({ queryKey: ['serviceExecution', String(itemId)] });
+                          invalidateTasks();
                         },
                       }
                     );
@@ -248,28 +257,28 @@ const ServiceManagementPage = () => {
             </div>
           )}
           <Separator />
-          {(data?.tarefas || []).length === 0 ? (
+          {tasks.length === 0 ? (
             <div className="text-muted-foreground">Nenhuma tarefa registrada</div>
           ) : (
-            (data?.tarefas || []).map((t, idx) => {
+            tasks.map((t, idx) => {
               const tLabel =
                 t.status === 'concluida' ? 'completed' :
                 t.status === 'em_andamento' ? 'in_progress' :
                 'pending';
               return (
                 <div key={t.id ?? idx} className="p-3 rounded-md border bg-secondary">
-                  {editingId === (t.id as number) ? (
+                  {editingId === t.id ? (
                     <div className="flex flex-wrap gap-4 items-end">
                       <div className="min-w-[220px] flex-1">
-                        <p className="text-xs text-muted-foreground">Executor (profile)</p>
-                        <Select value={editingProfileId} onValueChange={setEditingProfileId}>
+                        <p className="text-xs text-muted-foreground">Executor</p>
+                        <Select value={editingUserId} onValueChange={setEditingUserId}>
                           <SelectTrigger className="bg-background border-border">
-                            <SelectValue placeholder={t.profile?.user_name || 'Selecionar'} />
+                            <SelectValue placeholder={t.responsavel_nome || 'Selecionar'} />
                           </SelectTrigger>
                           <SelectContent>
-                            {profiles.map(p => (
-                              <SelectItem key={p.id} value={String(p.id)}>
-                                {p.user.username}
+                            {users.map(u => (
+                              <SelectItem key={u.id} value={String(u.id)}>
+                                {u.nome_completo || u.username}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -288,25 +297,24 @@ const ServiceManagementPage = () => {
                           variant="hero"
                           disabled={updateTask.isPending}
                           onClick={() => {
-                            const tid = Number(t.id ?? (t as any)?.task_id ?? (t as any)?.id_tarefa);
-                            if (!Number.isFinite(tid) || updateTask.isPending) {
+                            if (!Number.isFinite(t.id) || updateTask.isPending) {
                               toast({ title: 'Sem ID da tarefa', description: 'Não foi possível identificar a tarefa para edição.', variant: 'destructive' });
                               return;
                             }
                             updateTask.mutate(
                               {
-                                id: tid,
+                                id: t.id,
                                 payload: {
                                   descricao: editingDescription.trim() || undefined,
-                                  profile_id: editingProfileId ? Number(editingProfileId) : undefined,
+                                  responsavel: editingUserId ? Number(editingUserId) : undefined,
                                 },
                               },
                               {
                                 onSuccess: () => {
                                   setEditingId(null);
-                                  setEditingProfileId('');
+                                  setEditingUserId('');
                                   setEditingDescription('');
-                                  qc.invalidateQueries({ queryKey: ['serviceExecution', String(itemId)] });
+                                  invalidateTasks();
                                 },
                               }
                             );
@@ -319,7 +327,7 @@ const ServiceManagementPage = () => {
                           variant="ghost"
                           onClick={() => {
                             setEditingId(null);
-                            setEditingProfileId('');
+                            setEditingUserId('');
                             setEditingDescription('');
                           }}
                         >
@@ -332,7 +340,7 @@ const ServiceManagementPage = () => {
                       <div className="flex flex-wrap gap-6 items-center">
                         <div>
                           <p className="text-xs text-muted-foreground">Executor</p>
-                          <p className="font-medium">{t.profile?.user_name || '-'}</p>
+                          <p className="font-medium">{t.responsavel_nome || '-'}</p>
                         </div>
                         <div>
                           <p className="text-xs text-muted-foreground">Início</p>
@@ -349,9 +357,9 @@ const ServiceManagementPage = () => {
                           variant="ghost"
                           className="h-8 px-2"
                           onClick={() => {
-                            setEditingId(t.id as number);
-                            setEditingProfileId('');
-                            setEditingDescription(((t as any)?.descricao as string) || '');
+                            setEditingId(t.id);
+                            setEditingUserId('');
+                            setEditingDescription(t.descricao || '');
                           }}
                         >
                           <Pencil className="h-4 w-4" />
@@ -361,14 +369,13 @@ const ServiceManagementPage = () => {
                           className="h-8 px-2 text-destructive"
                           disabled={deleteTask.isPending}
                           onClick={() => {
-                            const tid = Number(t.id ?? (t as any)?.task_id ?? (t as any)?.id_tarefa);
-                            if (!Number.isFinite(tid) || deleteTask.isPending) {
+                            if (!Number.isFinite(t.id) || deleteTask.isPending) {
                               toast({ title: 'Sem ID da tarefa', description: 'Não foi possível identificar a tarefa para exclusão.', variant: 'destructive' });
                               return;
                             }
-                            deleteTask.mutate(tid, {
+                            deleteTask.mutate(t.id, {
                               onSuccess: () => {
-                                qc.invalidateQueries({ queryKey: ['serviceExecution', String(itemId)] });
+                                invalidateTasks();
                               },
                             });
                           }}
@@ -377,7 +384,7 @@ const ServiceManagementPage = () => {
                         </Button>
                       </div>
                       <div className="w-full bg-background border border-border/60 rounded-md p-3 leading-relaxed">
-                        {(t as any)?.descricao || '-'}
+                        {t.descricao || '-'}
                       </div>
                     </div>
                   )}

@@ -217,26 +217,13 @@ export interface OrdemServicoDetails {
 
 export interface ServiceExecution {
   id: number;
-  executores?: {
-    id: number;
-    nome: string;
-    status_execucao: StatusExecucao;
-    data_inicio: string | null;
-    data_termino: string | null;
-  }[];
-  catalogo_servico_details?: CatalogoServicoDetails;
-  ordem_servico_details?: OrdemServicoDetails;
+  ordem_servico: number;
+  repositorio: number | null;
+  repositorio_detail: { id: number; nome: string; descricao?: string } | null;
+  descricao: string;
   status: string;
+  status_display: string;
   data_conclusao: string | null;
-  descricao: string | null;
-  quantidade: number;
-  valor: string;
-  ordem_servico?: number;
-  catalogo_servico?: number;
-  nome_cliente?: string;
-  email_cliente?: string;
-  telefone_cliente?: string;
-  nome_servico?: string;
 }
 
 export interface ServiceListItem {

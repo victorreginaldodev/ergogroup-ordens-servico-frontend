@@ -1,167 +1,96 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from './api';
-import { UserDetail, UserProfile } from './auth';
 
 export type TipoUsuarioKey =
   | 'diretor'
-  | 'administrativo'
-  | 'lider_tecnico'
-  | 'sub_lider_tecnico'
+  | 'gestor_comercial'
+  | 'comercial'
+  | 'gestor_tecnico'
+  | 'sub_gestor_tecnico'
   | 'tecnico'
-  | 'gestor_comercial';
-
-export const NIVEL_USUARIO_OPTIONS = [
-  { value: 'super_admin', label: 'Super Admin' },
-  { value: 'admin', label: 'Admin' },
-  { value: 'normal', label: 'Normal' },
-];
+  | 'gestor_financeiro'
+  | 'financeiro'
+  | 'gestor_administrativo'
+  | 'administrativo';
 
 export const TIPO_USUARIO_OPTIONS: Array<{ value: TipoUsuarioKey; label: string }> = [
-  { value: 'diretor', label: 'Diretor' },
-  { value: 'administrativo', label: 'Administrativo' },
-  { value: 'lider_tecnico', label: 'Líder Técnico' },
-  { value: 'sub_lider_tecnico', label: 'Sub-Líder Técnico' },
-  { value: 'tecnico', label: 'Técnico' },
-  { value: 'gestor_comercial', label: 'Gestor Comercial' },
+  { value: 'diretor',               label: 'Diretor' },
+  { value: 'gestor_comercial',      label: 'Gestor Comercial' },
+  { value: 'comercial',             label: 'Comercial' },
+  { value: 'gestor_tecnico',        label: 'Líder Técnico' },
+  { value: 'sub_gestor_tecnico',    label: 'Sub-Líder Técnico' },
+  { value: 'tecnico',               label: 'Técnico' },
+  { value: 'gestor_financeiro',     label: 'Gestor Financeiro' },
+  { value: 'financeiro',            label: 'Financeiro' },
+  { value: 'gestor_administrativo', label: 'Gestor Administrativo' },
+  { value: 'administrativo',        label: 'Administrativo' },
 ];
 
-export interface CreateUserPayload {
-  username: string;
-  password: string;
+const endpoint = '/api/contas/usuarios/';
+
+export interface UsuarioApi {
+  id: number;
   email: string;
-  roleId: number;
+  username: string;
+  nome_completo: string;
+  tipo_usuario: TipoUsuarioKey;
+  tipo_usuario_display: string;
   ativo: boolean;
+  is_staff: boolean;
+  is_superuser: boolean;
+  data_criacao?: string;
+  last_login?: string | null;
+}
+
+export interface CreateUserPayload {
+  email: string;
+  username: string;
+  nome_completo: string;
+  tipo_usuario: TipoUsuarioKey;
+  ativo: boolean;
+  password: string;
+  password_confirmacao: string;
 }
 
 export interface UpdateUserPayload {
-  username?: string;
-  password?: string;
   email?: string;
-  roleId?: number;
+  username?: string;
+  nome_completo?: string;
+  tipo_usuario?: TipoUsuarioKey;
   ativo?: boolean;
 }
 
-const endpoint = '/api/usuarios/';
-const profilesEndpoint = '/api/profiles/';
-
-export interface ProfileApi {
-  id: number;
-  user: UserDetail;
-  role: string | number;
-  cpf: string;
-  created: string;
-  token: string | null;
-  profile_picture: string | null;
-  active: boolean;
-}
-
-interface ProfileUpsertPayload {
-  user: {
-    username: string;
-    email: string;
-    password?: string;
-  };
-  role: number;
-  active: boolean;
-}
-
-const ROLE_ID_MAP: Record<TipoUsuarioKey, number> = {
-  diretor: 1,
-  administrativo: 2,
-  lider_tecnico: 3,
-  sub_lider_tecnico: 4,
-  tecnico: 5,
-  gestor_comercial: 6,
-};
-const ID_TO_ROLE_KEY: Record<number, TipoUsuarioKey> = {
-  1: 'diretor',
-  2: 'administrativo',
-  3: 'lider_tecnico',
-  4: 'sub_lider_tecnico',
-  5: 'tecnico',
-  6: 'gestor_comercial',
-};
-
-const toRoleId = (key: TipoUsuarioKey) => ROLE_ID_MAP[key] ?? ROLE_ID_MAP.operacional;
-
-const normalize = (s: string) =>
-  s
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/-/g, ' ')
-    .trim();
-const labelToKey = (label: string): TipoUsuarioKey => {
-  const n = normalize(label);
-  const map: Record<string, TipoUsuarioKey> = {
-    'diretor': 'diretor',
-    'gestor comercial': 'gestor_comercial',
-    'administrativo': 'administrativo',
-    'lider tecnico': 'lider_tecnico',
-    'sub lider tecnico': 'sub_lider_tecnico',
-    'tecnico': 'tecnico',
-  };
-  return map[n] ?? 'tecnico';
-};
-
-const mapProfileApiToUserProfile = (p: ProfileApi): UserProfile => {
-  const tipo =
-    typeof p.role === 'number'
-      ? ID_TO_ROLE_KEY[p.role] ?? 'tecnico'
-      : labelToKey(String(p.role));
-  return {
-    id: p.id,
-    user: p.user,
-    tipo_usuario: tipo,
-    nivel_usuario: 'normal',
-    foto_perfil: p.profile_picture,
-    ativo: p.active,
-    criado_em: p.created,
-    criado_por: null,
-    cpf: p.cpf,
-    token: p.token,
-  };
-};
-
 export const usersService = {
-  list: async (): Promise<UserProfile[]> => {
-    const res = await api.get<ProfileApi[]>(profilesEndpoint);
-    const items = res.data;
-    return items.map(mapProfileApiToUserProfile);
+  list: async (): Promise<UsuarioApi[]> => {
+    const res = await api.get<UsuarioApi[]>(endpoint);
+    return Array.isArray(res.data) ? res.data : [];
   },
-  create: async (payload: CreateUserPayload): Promise<UserProfile> => {
-    const body: ProfileUpsertPayload = {
-      user: {
-        username: payload.username,
-        email: payload.email,
-        password: payload.password,
-      },
-      role: payload.roleId ?? 5,
-      active: payload.ativo,
-    };
-    const res = await api.post<ProfileApi>(profilesEndpoint, body);
-    return mapProfileApiToUserProfile(res.data);
+  getById: async (id: number): Promise<UsuarioApi> => {
+    const res = await api.get<UsuarioApi>(`${endpoint}${id}/`);
+    return res.data;
   },
-  update: async (id: number, payload: UpdateUserPayload): Promise<UserProfile> => {
-    const body: ProfileUpsertPayload = {
-      user: {
-        username: payload.username ?? '',
-        email: payload.email ?? '',
-        ...(payload.password ? { password: payload.password } : {}),
-      },
-      role: payload.roleId ?? 5,
-      active: payload.ativo ?? true,
-    };
-    const res = await api.patch<ProfileApi>(`${profilesEndpoint}${id}/`, body);
-    return mapProfileApiToUserProfile(res.data);
+  create: async (payload: CreateUserPayload): Promise<UsuarioApi> => {
+    const res = await api.post<UsuarioApi>(endpoint, payload);
+    return res.data;
+  },
+  update: async (id: number, payload: UpdateUserPayload): Promise<UsuarioApi> => {
+    const res = await api.patch<UsuarioApi>(`${endpoint}${id}/`, payload);
+    return res.data;
   },
   remove: async (id: number): Promise<void> => {
-    await api.delete(`${profilesEndpoint}${id}/`);
+    await api.delete(`${endpoint}${id}/`);
+  },
+  alterarSenha: async (
+    id: number,
+    payload: { senha_atual: string; nova_senha: string; nova_senha_confirmacao: string },
+  ) => {
+    const res = await api.patch(`${endpoint}${id}/alterar-senha/`, payload);
+    return res.data;
   },
 };
 
 export const useUsers = () => {
-  return useQuery<UserProfile[]>({
+  return useQuery<UsuarioApi[]>({
     queryKey: ['usuarios'],
     queryFn: () => usersService.list(),
   });
@@ -170,14 +99,14 @@ export const useUsers = () => {
 export const useUpsertUser = () => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: (CreateUserPayload & { id?: number }) | (UpdateUserPayload & { id: number })) => {
+    mutationFn: async (
+      payload: (CreateUserPayload & { id?: number }) | (UpdateUserPayload & { id: number }),
+    ) => {
       if ('id' in payload && payload.id !== undefined) {
-        const id = payload.id;
-        const { id: _, ...rest } = payload as UpdateUserPayload & { id: number };
+        const { id, ...rest } = payload as UpdateUserPayload & { id: number };
         return usersService.update(id, rest);
       }
-      const createPayload = payload as CreateUserPayload;
-      return usersService.create(createPayload);
+      return usersService.create(payload as CreateUserPayload);
     },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ['usuarios'] });

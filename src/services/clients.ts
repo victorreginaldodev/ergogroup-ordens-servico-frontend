@@ -5,16 +5,14 @@ import { Client } from '@/types';
 import api from './api';
 import { isPaginatedResponse, PageResult, toPageResult } from './pagination';
 
-const endpoint = '/api/clientes/';
+const endpoint = '/api/clientes/clientes/';
 
 type ClienteApi = {
   id: string | number;
   nome: string;
   tipo_inscricao: 'cnpj' | 'cpf' | 'cei' | 'cno' | 'caepf' | 'outro';
   numero_inscricao: string;
-  telefone_institucional?: string;
-  email_institucional?: string;
-  cliente_ativo?: string;
+  ativo?: boolean;
   cobranca_revisao_alteracao?: boolean;
   tipo_cliente?: string;
   observacao?: string | null;
@@ -23,14 +21,6 @@ type ClienteApi = {
   setor_representante?: string;
   email_representante?: string;
   contato_representante?: string;
-  endereco?: {
-    rua?: string;
-    numero?: string;
-    bairro?: string;
-    cidade?: string;
-    uf?: string;
-    cep?: string;
-  };
 };
 
 export type ClienteApiInput = Omit<ClienteApi, 'id'>;
@@ -46,40 +36,26 @@ export type ClienteUpsertPayload = {
   setor_representante?: string;
   email_representante?: string;
   contato_representante?: string;
-  cliente_ativo?: 'sim' | 'nao';
+  ativo?: boolean;
   cobranca_revisao_alteracao?: boolean;
 };
 
-const toClient = (c: ClienteApi): Client => {
-  const id = String(c.id);
-  const address = [
-    c.endereco?.rua,
-    c.endereco?.numero ? `, ${c.endereco.numero}` : '',
-    c.endereco?.bairro ? ` - ${c.endereco.bairro}` : '',
-    c.endereco?.cidade && c.endereco?.uf ? `, ${c.endereco.cidade}/${c.endereco.uf}` : '',
-    c.endereco?.cep ? `, ${c.endereco.cep}` : '',
-  ]
-    .filter(Boolean)
-    .join('');
-  return {
-    id,
-    name: c.nome.toUpperCase(),
-    email: c.email_institucional,
-    phone: c.telefone_institucional,
-    document: c.numero_inscricao,
-    tipo_inscricao: c.tipo_inscricao,
-    address,
-    active: (c.cliente_ativo || '').toLowerCase() === 'sim',
-    chargeRevisionChange: !!c.cobranca_revisao_alteracao,
-    tipoCliente: c.tipo_cliente,
-    notes: c.observacao || undefined,
-    createdAt: c.data_criacao,
-    representativeName: c.nome_representante,
-    representativeSector: c.setor_representante,
-    representativeEmail: c.email_representante,
-    representativeContact: c.contato_representante,
-  };
-};
+const toClient = (c: ClienteApi): Client => ({
+  id: String(c.id),
+  name: (c.nome || '').toUpperCase(),
+  document: c.numero_inscricao,
+  tipo_inscricao: c.tipo_inscricao,
+  address: '',
+  active: !!c.ativo,
+  chargeRevisionChange: !!c.cobranca_revisao_alteracao,
+  tipoCliente: c.tipo_cliente,
+  notes: c.observacao || undefined,
+  createdAt: c.data_criacao,
+  representativeName: c.nome_representante,
+  representativeSector: c.setor_representante,
+  representativeEmail: c.email_representante,
+  representativeContact: c.contato_representante,
+});
 
 export const getClients = async (): Promise<Client[]> => {
   const { data } = await api.get<ClienteApi[]>(endpoint);
@@ -161,7 +137,7 @@ export const useUpsertClient = () => {
     mutationFn: async (payload: ClienteUpsertPayload) => {
       if (payload.id) {
         const { id, ...body } = payload;
-        const { data } = await api.put<ClienteApi>(`${endpoint}${id}/`, body);
+        const { data } = await api.patch<ClienteApi>(`${endpoint}${id}/`, body);
         return toClient(data);
       }
       const { data } = await api.post<ClienteApi>(endpoint, payload);

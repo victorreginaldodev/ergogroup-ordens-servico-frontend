@@ -9,13 +9,22 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { useDeleteUser, useUpsertUser, useUsers, TIPO_USUARIO_OPTIONS, CreateUserPayload, UpdateUserPayload, TipoUsuarioKey } from '@/services/users';
+import {
+  useDeleteUser,
+  useUpsertUser,
+  useUsers,
+  TIPO_USUARIO_OPTIONS,
+  CreateUserPayload,
+  UpdateUserPayload,
+  TipoUsuarioKey,
+  UsuarioApi,
+} from '@/services/users';
 import { MoreVertical, Edit, Trash2, User as UserIcon, Plus, Search } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { authService, UserProfile } from '@/services/auth';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { authService } from '@/services/auth';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
   Pagination,
   PaginationContent,
@@ -26,13 +35,16 @@ import {
   PaginationEllipsis,
 } from '@/components/ui/pagination';
 
+const TIPO_USUARIO_VALUES = TIPO_USUARIO_OPTIONS.map(o => o.value) as [TipoUsuarioKey, ...TipoUsuarioKey[]];
+
 const schema = z
   .object({
     id: z.number().optional(),
     username: z.string().min(2, 'Username muito curto'),
+    nome_completo: z.string().min(1, 'Nome completo é obrigatório'),
     password: z.string().min(6, 'Senha deve ter ao menos 6 caracteres').optional().or(z.literal('')),
     email: z.string().email('E-mail inválido'),
-    roleId: z.number().int().min(1).max(6),
+    tipo_usuario: z.enum(TIPO_USUARIO_VALUES),
     ativo: z.boolean(),
   })
   .superRefine((val, ctx) => {
@@ -47,57 +59,44 @@ const schema = z
 
 type FormValues = z.infer<typeof schema>;
 
+const defaultValues: FormValues = {
+  username: '',
+  nome_completo: '',
+  password: '',
+  email: '',
+  tipo_usuario: 'tecnico',
+  ativo: true,
+};
+
 const UsersManagementPage = () => {
   const { data: users = [] } = useUsers();
   const upsert = useUpsertUser();
   const del = useDeleteUser();
-  const [editing, setEditing] = useState<UserProfile | null>(null);
+  const [editing, setEditing] = useState<UsuarioApi | null>(null);
   const [open, setOpen] = useState(false);
   const currentUser = authService.getCurrentUser();
   const canManageUsers = !!currentUser && currentUser.tipo_usuario !== 'tecnico';
-  
-  // Filtros
+
   const [search, setSearch] = useState('');
-  const [filterTipo, setFilterTipo] = useState<string>('all');
-  const [filterNivel, setFilterNivel] = useState<string>('all');
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: {
-      username: '',
-      password: '',
-      email: '',
-      roleId: 5,
-      ativo: true,
-    },
+    defaultValues,
   });
 
   useEffect(() => {
     if (editing) {
-      const ROLE_ID_MAP: Record<string, number> = {
-        diretor: 1,
-        administrativo: 2,
-        lider_tecnico: 3,
-        sub_lider_tecnico: 4,
-        tecnico: 5,
-        gestor_comercial: 6,
-      };
       form.reset({
         id: editing.id,
-        username: editing.user.username,
-        email: editing.user.email,
-        roleId: ROLE_ID_MAP[editing.tipo_usuario] ?? 5,
+        username: editing.username,
+        nome_completo: editing.nome_completo,
+        email: editing.email,
+        tipo_usuario: editing.tipo_usuario,
         ativo: editing.ativo ?? true,
         password: '',
       });
     } else {
-      form.reset({
-        username: '',
-        password: '',
-        email: '',
-        roleId: 5,
-        ativo: true,
-      });
+      form.reset(defaultValues);
     }
   }, [editing]);
 
@@ -108,93 +107,68 @@ const UsersManagementPage = () => {
       const payload: UpdateUserPayload & { id: number } = {
         id: values.id,
         username: values.username,
+        nome_completo: values.nome_completo,
         email: values.email,
-        roleId: values.roleId,
+        tipo_usuario: values.tipo_usuario,
         ativo: values.ativo,
-        password: values.password || undefined,
       };
-
       upsert.mutate(payload, {
         onSuccess: () => {
           setEditing(null);
-          form.reset({
-            username: '',
-            password: '',
-            email: '',
-            roleId: 5,
-            ativo: true,
-          });
+          form.reset(defaultValues);
           setOpen(false);
         },
       });
     } else {
       const payload: CreateUserPayload = {
         username: values.username,
-        password: values.password || '', // Password is required for creation
+        nome_completo: values.nome_completo,
+        password: values.password || '',
+        password_confirmacao: values.password || '',
         email: values.email,
-        roleId: values.roleId,
+        tipo_usuario: values.tipo_usuario,
         ativo: values.ativo,
       };
-
       upsert.mutate(payload, {
         onSuccess: () => {
           setEditing(null);
-          form.reset({
-            username: '',
-            password: '',
-            email: '',
-            roleId: 5,
-            ativo: true,
-          });
+          form.reset(defaultValues);
           setOpen(false);
         },
       });
     }
   };
 
-  const tipoLabel = (key: string) => {
-    const found = TIPO_USUARIO_OPTIONS.find(o => o.value === key)?.label || key;
-    const base = (found || '').toString();
-    return base ? base[0].toUpperCase() + base.slice(1).toLowerCase() : '';
-  };
+  const tipoLabel = (key: string) =>
+    TIPO_USUARIO_OPTIONS.find(o => o.value === key)?.label || key;
 
-  const fullName = (u: UserProfile) => {
-    const fn = u.user.first_name?.trim() || '';
-    const ln = u.user.last_name?.trim() || '';
-    const n = `${fn} ${ln}`.trim();
-    return n || u.user.username;
-  };
-
-  const avatarUrl = (u: UserProfile) => u.foto_perfil || '';
+  const displayName = (u: UsuarioApi) => u.nome_completo?.trim() || u.username;
 
   const filteredUsers = users.filter(u => {
     const s = search.toLowerCase();
-    const matchesSearch = s === '' || 
-      u.user.username.toLowerCase().includes(s) ||
-      u.user.email.toLowerCase().includes(s) ||
-      fullName(u).toLowerCase().includes(s);
-    
-    const matchesTipo = filterTipo === 'all' || u.tipo_usuario === filterTipo;
-    const matchesNivel = filterNivel === 'all' || u.nivel_usuario === filterNivel;
-    
-    return matchesSearch && matchesTipo && matchesNivel;
+    return (
+      s === '' ||
+      (u.username || '').toLowerCase().includes(s) ||
+      (u.email || '').toLowerCase().includes(s) ||
+      (u.nome_completo || '').toLowerCase().includes(s)
+    );
   });
 
   const [page, setPage] = useState(1);
   const pageSize = 10;
   const sortedUsers = [...filteredUsers].sort((a, b) =>
-    fullName(a).localeCompare(fullName(b), 'pt-BR', { sensitivity: 'base' })
+    displayName(a).localeCompare(displayName(b), 'pt-BR', { sensitivity: 'base' }),
   );
   const totalPages = Math.max(1, Math.ceil(sortedUsers.length / pageSize));
   const startIndex = (page - 1) * pageSize;
-  const endIndex = startIndex + pageSize;
-  const pageUsers = sortedUsers.slice(startIndex, endIndex);
+  const pageUsers = sortedUsers.slice(startIndex, startIndex + pageSize);
 
   useEffect(() => {
     const tp = Math.max(1, Math.ceil(sortedUsers.length / pageSize));
     if (page > tp) setPage(tp);
     if (page < 1) setPage(1);
   }, [sortedUsers.length]);
+
   return (
     <div className="space-y-6">
       <div>
@@ -205,13 +179,7 @@ const UsersManagementPage = () => {
             onClick={() => {
               if (!canManageUsers) return;
               setEditing(null);
-              form.reset({
-                username: '',
-                password: '',
-                email: '',
-                roleId: 5,
-                ativo: true,
-              });
+              form.reset(defaultValues);
               setOpen(true);
             }}
             variant="hero"
@@ -227,7 +195,7 @@ const UsersManagementPage = () => {
         <div className="relative flex-1">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Buscar por nome de usuário..."
+            placeholder="Buscar por nome, username ou e-mail..."
             className="pl-8"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -241,7 +209,11 @@ const UsersManagementPage = () => {
             <DialogTitle>{editing ? 'Editar Usuário' : 'Adicionar Usuário'}</DialogTitle>
           </DialogHeader>
           <Form {...form}>
-            <form className="grid grid-cols-1 sm:grid-cols-2 gap-4" onSubmit={form.handleSubmit(onSubmit)} autoComplete="off">
+            <form
+              className="grid grid-cols-1 sm:grid-cols-2 gap-4"
+              onSubmit={form.handleSubmit(onSubmit)}
+              autoComplete="off"
+            >
               <FormField
                 control={form.control}
                 name="username"
@@ -257,12 +229,12 @@ const UsersManagementPage = () => {
               />
               <FormField
                 control={form.control}
-                name="password"
+                name="nome_completo"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Senha {editing ? '(opcional)' : ''}</FormLabel>
+                    <FormLabel>Nome completo</FormLabel>
                     <FormControl>
-                      <Input type="password" placeholder="••••••••" autoComplete="new-password" {...field} />
+                      <Input placeholder="João Silva" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -275,7 +247,13 @@ const UsersManagementPage = () => {
                   <FormItem className="sm:col-span-2">
                     <FormLabel>E-mail</FormLabel>
                     <FormControl>
-                      <Input type="email" placeholder="email@dominio.com" autoComplete="off" autoCapitalize="none" {...field} />
+                      <Input
+                        type="email"
+                        placeholder="email@dominio.com"
+                        autoComplete="off"
+                        autoCapitalize="none"
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -283,22 +261,39 @@ const UsersManagementPage = () => {
               />
               <FormField
                 control={form.control}
-                name="roleId"
+                name="password"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Senha {editing ? '(opcional)' : ''}</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="password"
+                        placeholder="••••••••"
+                        autoComplete="new-password"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="tipo_usuario"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Tipo de Usuário</FormLabel>
                     <FormControl>
-                      <Select value={String(field.value)} onValueChange={(v) => field.onChange(Number(v))}>
+                      <Select value={field.value} onValueChange={field.onChange}>
                         <SelectTrigger>
                           <SelectValue placeholder="Selecione" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="1">Diretor</SelectItem>
-                          <SelectItem value="2">Administrativo</SelectItem>
-                          <SelectItem value="3">Líder Técnico</SelectItem>
-                          <SelectItem value="4">Sub-Líder Técnico</SelectItem>
-                          <SelectItem value="5">Técnico</SelectItem>
-                          <SelectItem value="6">Gestor Comercial</SelectItem>
+                          {TIPO_USUARIO_OPTIONS.map(opt => (
+                            <SelectItem key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </FormControl>
@@ -325,7 +320,9 @@ const UsersManagementPage = () => {
                 <Button type="button" variant="outline" onClick={() => setOpen(false)}>
                   Cancelar
                 </Button>
-                <Button type="submit" className="min-w-32" disabled={!canManageUsers}>{editing ? 'Salvar' : 'Adicionar'}</Button>
+                <Button type="submit" className="min-w-32" disabled={!canManageUsers}>
+                  {editing ? 'Salvar' : 'Adicionar'}
+                </Button>
               </DialogFooter>
             </form>
           </Form>
@@ -337,7 +334,7 @@ const UsersManagementPage = () => {
           <Table>
             <TableHeader>
               <TableRow className="border-border hover:bg-transparent">
-                <TableHead>Nome de usuário</TableHead>
+                <TableHead>Usuário</TableHead>
                 <TableHead>Tipo de usuário</TableHead>
                 <TableHead>Status</TableHead>
                 {canManageUsers && <TableHead className="w-12"></TableHead>}
@@ -348,25 +345,14 @@ const UsersManagementPage = () => {
                 <TableRow key={u.id} className="border-border">
                   <TableCell>
                     <div className="flex items-center gap-3">
-                      <span className="inline-flex items-center justify-center">
-                        {avatarUrl(u) ? (
-                          <Avatar className="w-10 h-10">
-                            <AvatarImage src={avatarUrl(u)} alt={fullName(u)} />
-                            <AvatarFallback>
-                              <UserIcon className="w-6 h-6 text-muted-foreground" />
-                            </AvatarFallback>
-                          </Avatar>
-                        ) : (
-                          <Avatar className="w-10 h-10">
-                            <AvatarFallback>
-                              <UserIcon className="w-6 h-6 text-muted-foreground" />
-                            </AvatarFallback>
-                          </Avatar>
-                        )}
-                      </span>
+                      <Avatar className="w-10 h-10">
+                        <AvatarFallback>
+                          <UserIcon className="w-6 h-6 text-muted-foreground" />
+                        </AvatarFallback>
+                      </Avatar>
                       <div>
-                        <p className="font-medium">{u.user.username}</p>
-                        <p className="text-sm text-muted-foreground">{u.user.email}</p>
+                        <p className="font-medium">{displayName(u)}</p>
+                        <p className="text-sm text-muted-foreground">{u.email}</p>
                       </div>
                     </div>
                   </TableCell>
@@ -374,7 +360,9 @@ const UsersManagementPage = () => {
                     <Badge variant="secondary">{tipoLabel(u.tipo_usuario)}</Badge>
                   </TableCell>
                   <TableCell>
-                    <Badge className={`${u.ativo ? 'bg-green-600 text-primary-foreground' : 'bg-muted text-muted-foreground'} border-0`}>
+                    <Badge
+                      className={`${u.ativo ? 'bg-green-600 text-primary-foreground' : 'bg-muted text-muted-foreground'} border-0`}
+                    >
                       {u.ativo ? 'Ativo' : 'Inativo'}
                     </Badge>
                   </TableCell>
@@ -391,7 +379,10 @@ const UsersManagementPage = () => {
                             <Edit className="w-4 h-4 mr-2" />
                             Editar
                           </DropdownMenuItem>
-                          <DropdownMenuItem className="text-destructive" onClick={() => del.mutate(u.id)}>
+                          <DropdownMenuItem
+                            className="text-destructive"
+                            onClick={() => del.mutate(u.id)}
+                          >
                             <Trash2 className="w-4 h-4 mr-2" />
                             Excluir
                           </DropdownMenuItem>
@@ -476,15 +467,9 @@ const UsersManagementPage = () => {
                 onClick={() => {
                   if (!canManageUsers) return;
                   setEditing(null);
-              form.reset({
-                username: '',
-                password: '',
-                email: '',
-                roleId: 5,
-                ativo: true,
-              });
-              setOpen(true);
-            }}
+                  form.reset(defaultValues);
+                  setOpen(true);
+                }}
                 disabled={!canManageUsers}
               >
                 <Plus className="w-4 h-4 mr-2" />

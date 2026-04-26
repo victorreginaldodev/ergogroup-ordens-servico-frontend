@@ -3,8 +3,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from './api';
 import { isPaginatedResponse, PageResult, toPageResult } from './pagination';
 
-const endpoint = '/api/tarefas-rapidas/';
-const quickTaskCatalogEndpoint = '/api/repositorios-minios/';
+const endpoint = '/api/tarefas/mini-os/';
+const quickTaskCatalogEndpoint = '/api/tarefas/repositorios/';
 
 export type QuickTaskItem = {
   id: number;
@@ -14,25 +14,24 @@ export type QuickTaskItem = {
   data_inicio: string | null;
   data_termino: string | null;
   status: string;
-  revisao_cliente?: boolean;
-  faturamento: string;
-  n_nf: string;
-  cliente: {
+  status_display: string;
+  revisao_cliente: boolean;
+  faturada: boolean;
+  numero_nf: string | null;
+  cliente: number;
+  cliente_detail?: {
     id: number;
     nome: string;
-    tipo_cliente: string;
-    cliente_ativo: string;
+    tipo_cliente: string | null;
   };
-  servico: {
+  servico: number;
+  servico_detail?: {
     id: number;
     nome: string;
     descricao: string | null;
   };
-  profile: {
-    id: number;
-    username: string;
-    role: number;
-  };
+  responsavel: number;
+  responsavel_nome: string;
 };
 
 export type QuickTaskCatalogItem = {
@@ -47,11 +46,11 @@ export const quickTasksService = {
     return Array.isArray(data) ? data : [];
   },
   getById: async (id: number) => {
-    const { data } = await api.get(`/api/minios/${id}/`);
+    const { data } = await api.get(`${endpoint}${id}/`);
     return data;
   },
-  listMinioRepos: async (): Promise<any[]> => {
-    const { data } = await api.get('/api/minios/');
+  listMiniOs: async (): Promise<any[]> => {
+    const { data } = await api.get(endpoint);
     return Array.isArray(data) ? data : [];
   },
   listRepoMinios: async (): Promise<QuickTaskCatalogItem[]> => {
@@ -84,9 +83,9 @@ export const quickTasksService = {
     revisao_cliente?: boolean;
     cliente: number;
     servico: number;
-    profile: number;
+    responsavel: number;
   }) => {
-    const { data } = await api.post('/api/minios/', payload);
+    const { data } = await api.post(endpoint, payload);
     return data;
   },
   update: async (id: number, payload: {
@@ -99,13 +98,15 @@ export const quickTasksService = {
     revisao_cliente?: boolean;
     cliente?: number;
     servico?: number;
-    profile?: number;
+    responsavel?: number;
+    faturada?: boolean;
+    numero_nf?: string | null;
   }) => {
-    const { data } = await api.patch(`/api/minios/${id}/`, payload);
+    const { data } = await api.patch(`${endpoint}${id}/`, payload);
     return data;
   },
   remove: async (id: number) => {
-    await api.delete(`/api/minios/${id}/`);
+    await api.delete(`${endpoint}${id}/`);
     return id;
   },
 };
@@ -113,14 +114,14 @@ export const quickTasksService = {
 export const useQuickTasksList = () => {
   return useQuery<QuickTaskItem[]>({
     queryKey: ['quickTasksList'],
-    queryFn: async () => quickTasksService.list(),
+    queryFn: () => quickTasksService.list(),
   });
 };
 
 export const useMinioRepositories = () => {
   return useQuery<any[]>({
     queryKey: ['quickTasksMinioRepos'],
-    queryFn: async () => quickTasksService.listMinioRepos(),
+    queryFn: () => quickTasksService.listMiniOs(),
   });
 };
 
@@ -129,6 +130,9 @@ export type QuickTasksPageParams = {
   pageSize?: number;
   q?: string;
   status?: string;
+  faturada?: boolean;
+  responsavel?: number;
+  cliente?: number;
 };
 
 export const useMinioRepositoriesPage = (params: QuickTasksPageParams) => {
@@ -137,21 +141,17 @@ export const useMinioRepositoriesPage = (params: QuickTasksPageParams) => {
     queryFn: async () => {
       const page = params.page ?? 1;
       const pageSize = params.pageSize ?? 20;
-      const queryParams: Record<string, string | number> = {
-        page,
-        page_size: pageSize,
-      };
+      const queryParams: Record<string, string | number> = { page, page_size: pageSize };
       if (params.q) queryParams.q = params.q;
       if (params.status && params.status !== 'all') queryParams.status = params.status;
+      if (params.faturada !== undefined) queryParams.faturada = String(params.faturada);
+      if (params.responsavel) queryParams.responsavel = params.responsavel;
+      if (params.cliente) queryParams.cliente = params.cliente;
 
-      const { data } = await api.get('/api/minios/', { params: queryParams });
+      const { data } = await api.get(endpoint, { params: queryParams });
       if (isPaginatedResponse<any>(data)) {
-        return {
-          ...toPageResult(data, page, pageSize),
-          items: data.results,
-        };
+        return { ...toPageResult(data, page, pageSize), items: data.results };
       }
-
       const items = Array.isArray(data) ? data : [];
       return {
         items,
@@ -169,7 +169,7 @@ export const useMinioRepositoriesPage = (params: QuickTasksPageParams) => {
 export const useRepoMinioServices = () => {
   return useQuery<QuickTaskCatalogItem[]>({
     queryKey: ['quickTasksCatalog'],
-    queryFn: async () => quickTasksService.listRepoMinios(),
+    queryFn: () => quickTasksService.listRepoMinios(),
   });
 };
 
@@ -209,7 +209,8 @@ export const useDeleteQuickTask = () => {
 export const useUpdateQuickTask = () => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, payload }: { id: number; payload: any }) => quickTasksService.update(id, payload),
+    mutationFn: ({ id, payload }: { id: number; payload: Parameters<typeof quickTasksService.update>[1] }) =>
+      quickTasksService.update(id, payload),
     onSuccess: async (_, vars) => {
       await qc.invalidateQueries({ queryKey: ['quickTasksMinioRepos'] });
       await qc.invalidateQueries({ queryKey: ['quickTasksMinioReposPage'] });
@@ -237,20 +238,13 @@ export const useQuickTaskCatalogPage = (params: QuickTaskCatalogPageParams) => {
     queryFn: async () => {
       const page = params.page ?? 1;
       const pageSize = params.pageSize ?? 10;
-      const queryParams: Record<string, string | number> = {
-        page,
-        page_size: pageSize,
-      };
+      const queryParams: Record<string, string | number> = { page, page_size: pageSize };
       if (params.q) queryParams.q = params.q;
 
       const { data } = await api.get(quickTaskCatalogEndpoint, { params: queryParams });
       if (isPaginatedResponse<QuickTaskCatalogItem>(data)) {
-        return {
-          ...toPageResult(data, page, pageSize),
-          items: data.results,
-        };
+        return { ...toPageResult(data, page, pageSize), items: data.results };
       }
-
       const items = Array.isArray(data) ? (data as QuickTaskCatalogItem[]) : [];
       return {
         items,
@@ -280,9 +274,7 @@ export const useUpsertQuickTaskCatalog = () => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, payload }: { id?: number | string; payload: { nome: string; descricao?: string | null } }) => {
-      if (typeof id === 'undefined') {
-        return quickTasksService.createRepoMinio(payload);
-      }
+      if (typeof id === 'undefined') return quickTasksService.createRepoMinio(payload);
       return quickTasksService.updateRepoMinio(id, payload);
     },
     onSuccess: async (_data, variables) => {
@@ -298,7 +290,7 @@ export const useUpsertQuickTaskCatalog = () => {
 export const useDeleteQuickTaskCatalog = () => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (id: number | string) => quickTasksService.removeRepoMinio(id),
+    mutationFn: (id: number | string) => quickTasksService.removeRepoMinio(id),
     onSuccess: async (_data, id) => {
       await qc.invalidateQueries({ queryKey: ['quickTasksCatalog'] });
       await qc.invalidateQueries({ queryKey: ['quickTasksCatalogPage'] });

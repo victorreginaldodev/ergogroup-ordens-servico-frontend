@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import api from './api';
 
-const endpoint = '/api/analise-dados/';
+const endpoint = '/api/analise/dados/';
 
 export interface DashboardOrdersSummary {
   total?: number;

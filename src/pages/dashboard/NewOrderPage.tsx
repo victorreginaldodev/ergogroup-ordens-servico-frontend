@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { ArrowLeft, Plus, Trash2, Save, Edit, Check, ChevronsUpDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -119,7 +119,7 @@ const NewOrderPage = () => {
     clientId: '',
     createdAt: new Date().toISOString().slice(0, 10),
     amount: 0,
-    paymentMethod: '' as '' | 'pix' | 'credito' | 'debto' | 'boleto' | 'transferencia' | 'dinheiro' | 'check' | 'outro',
+    paymentMethod: '' as '' | 'pix' | 'credito' | 'debito' | 'boleto' | 'transferencia' | 'dinheiro' | 'cheque' | 'outro',
     installments: 1 as 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12,
     immediateCharge: '' as '' | 'sim' | 'nao',
     billingDate1: '',
@@ -131,6 +131,7 @@ const NewOrderPage = () => {
   const [orderServices, setOrderServices] = useState<ServiceItem[]>([]);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<ServiceItem | undefined>(undefined);
+  const originalServiceIds = useRef<number[]>([]);
 
   useEffect(() => {
     // Restringe o preenchimento apenas para o modo de edição (quando há ID)
@@ -161,7 +162,9 @@ const NewOrderPage = () => {
       amount: Number(sourceData.valor ?? 0),
       paymentMethod: (sourceData.forma_pagamento || '').toLowerCase() as any,
       installments: (sourceData.quantidade_parcelas as any) ?? 1,
-      immediateCharge: (sourceData.cobranca_imediata || '').toLowerCase() as any,
+      immediateCharge: typeof sourceData.cobranca_imediata === 'boolean'
+          ? (sourceData.cobranca_imediata ? 'sim' : 'nao')
+          : '' as any,
       billingDate1: sourceData.faturamento_1 || '',
       invoiceContactName: sourceData.nome_contato_envio_nf || '',
       invoiceContactEmail: sourceData.contato_envio_nf || '',
@@ -188,6 +191,9 @@ const NewOrderPage = () => {
       } as ServiceItem;
     });
     setOrderServices(items);
+    originalServiceIds.current = items
+      .filter(item => item.persistedId !== undefined)
+      .map(item => item.persistedId as number);
   }, [orderData, servicesData, clientsData, id]);
 
 
@@ -290,6 +296,12 @@ const NewOrderPage = () => {
       formData.clientId ||
       (typeof orderData?.cliente === 'object' ? orderData?.cliente?.id : orderData?.cliente ?? '')
     );
+    const currentPersistedIds = orderServices
+      .filter(s => s.persistedId !== undefined)
+      .map(s => s.persistedId as number);
+    const servicosToDelete = originalServiceIds.current.filter(
+      sid => !currentPersistedIds.includes(sid),
+    );
     const payload: any = {
       id,
       servicos: orderServices.map(s => ({
@@ -297,6 +309,7 @@ const NewOrderPage = () => {
         repositorio_id: Number(s.serviceId),
         descricao: s.note || '',
       })),
+      servicosToDelete,
       data_criacao: formData.createdAt,
       valor: Number(formData.amount || 0),
       forma_pagamento: formData.paymentMethod as any,
@@ -306,8 +319,7 @@ const NewOrderPage = () => {
     };
     if (!payload.cliente || isNaN(payload.cliente)) payload.cliente = clientIdNum;
     if (formData.installments) payload.quantidade_parcelas = formData.installments as any;
-    if (formData.immediateCharge) payload.cobranca_imediata = formData.immediateCharge as any;
-    if (formData.billingDate1) payload.faturamento_1 = formData.billingDate1;
+    if (formData.immediateCharge) payload.cobranca_imediata = formData.immediateCharge === 'sim';
     if (formData.observation) payload.observacao = formData.observation;
 
     upsert.mutate(payload as any, {
@@ -442,11 +454,11 @@ const NewOrderPage = () => {
                   <SelectContent>
                     <SelectItem value="pix">Pix</SelectItem>
                     <SelectItem value="credito">Crédito</SelectItem>
-                    <SelectItem value="debto">Débto</SelectItem>
+                    <SelectItem value="debito">Débito</SelectItem>
                     <SelectItem value="boleto">Boleto</SelectItem>
                     <SelectItem value="transferencia">Transferência</SelectItem>
                     <SelectItem value="dinheiro">Dinheiro</SelectItem>
-                    <SelectItem value="check">Check</SelectItem>
+                    <SelectItem value="cheque">Cheque</SelectItem>
                     <SelectItem value="outro">Outro</SelectItem>
                   </SelectContent>
                 </Select>
@@ -467,16 +479,6 @@ const NewOrderPage = () => {
             </div>
             <div className="grid sm:grid-cols-3 gap-4">
               <div className="space-y-2 sm:max-w-[280px] w-full">
-                <Label htmlFor="billingDate1">Faturamento 1</Label>
-                <Input
-                  id="billingDate1"
-                  type="date"
-                  value={formData.billingDate1}
-                  onChange={(e) => setFormData({ ...formData, billingDate1: e.target.value })}
-                  className="bg-secondary border-border w-full"
-                />
-              </div>
-              <div className="space-y-2 sm:max-w-[280px] w-full">
                 <Label>Cobrança imediata</Label>
                 <Select value={formData.immediateCharge} onValueChange={(v) => setFormData({ ...formData, immediateCharge: v as any })}>
                   <SelectTrigger className="bg-secondary border-border w-full">
@@ -488,7 +490,6 @@ const NewOrderPage = () => {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="hidden sm:block"></div>
             </div>
             <div className="grid sm:grid-cols-2 gap-4">
               <div className="space-y-2">

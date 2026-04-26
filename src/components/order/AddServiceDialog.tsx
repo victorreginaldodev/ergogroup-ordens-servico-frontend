@@ -70,6 +70,7 @@ export default function AddServiceDialog({ open, onOpenChange, services, existin
     if (isDuplicate) return;
     const payload: ServiceItem = {
       id: itemToEdit ? itemToEdit.id : `${Date.now()}`,
+      persistedId: itemToEdit?.persistedId,
       serviceId: String(selected.id),
       serviceName: selected.name,
       quantity: 1,

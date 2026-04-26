@@ -11,7 +11,7 @@ type RepositorioDTO = {
   descricao: string;
 };
 
-const endpoint = '/api/repositorios/';
+const endpoint = '/api/servicos/repositorios/';
 
 const toFrontend = (dto: RepositorioDTO): RepositoryItem => ({
   id: String(dto.id),

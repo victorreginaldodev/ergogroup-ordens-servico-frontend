@@ -100,7 +100,7 @@ const ServicesPage = () => {
   }, [page, totalPages]);
 
   if (error) {
-    return <div className="text-destructive">Falha ao carregar servi?os.</div>;
+    return <div className="text-destructive">Falha ao carregar serviços.</div>;
   }
 
   return (
@@ -119,13 +119,13 @@ const ServicesPage = () => {
               <div className="flex w-full items-center gap-3">
                 <div className="relative w-full">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input placeholder="Buscar por servi?o ou cliente..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10 bg-secondary border-border uppercase" />
+                  <Input placeholder="Buscar por serviço ou cliente..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10 bg-secondary border-border uppercase" />
                 </div>
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
                   <SelectTrigger className="w-[220px] bg-secondary border-border"><SelectValue placeholder="Status" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Todos os status</SelectItem>
-                    <SelectItem value="pending">N?o iniciado</SelectItem>
+                    <SelectItem value="pending">Não iniciado</SelectItem>
                     <SelectItem value="in_progress">Em andamento</SelectItem>
                     <SelectItem value="completed">Conclu?do</SelectItem>
                   </SelectContent>
@@ -205,11 +205,11 @@ const ServicesPage = () => {
                       <TableCell className="text-muted-foreground uppercase">{item.clientName}</TableCell>
                       <TableCell className="font-semibold uppercase">{item.serviceName}</TableCell>
                       <TableCell className="w-48"><span className={`text-xs px-2 py-0.5 rounded whitespace-nowrap inline-flex uppercase ${getStatusColor(item.status)}`}>{getStatusLabel(item.status)}</span></TableCell>
-                      <TableCell className="text-center">{item.tem_tarefas ? <span className="text-xs font-medium text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded uppercase">Sim</span> : <span className="text-xs font-medium text-muted-foreground bg-muted/50 px-2 py-0.5 rounded uppercase">N?o</span>}</TableCell>
-                      <TableCell>{canManageServices ? <Button asChild variant="ghost" className="h-8 px-2" aria-label="Gerenciar servi?o"><Link to={`/dashboard/services/manage/${item.orderId || ''}/${item.id}`} className="flex items-center"><Edit className="w-4 h-4" /></Link></Button> : <Button variant="ghost" className="h-8 px-2" disabled aria-label="Gerenciar servi?o"><Edit className="w-4 h-4 text-muted-foreground" /></Button>}</TableCell>
+                      <TableCell className="text-center">{item.tem_tarefas ? <span className="text-xs font-medium text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded uppercase">Sim</span> : <span className="text-xs font-medium text-muted-foreground bg-muted/50 px-2 py-0.5 rounded uppercase">Não</span>}</TableCell>
+                      <TableCell>{canManageServices ? <Button asChild variant="ghost" className="h-8 px-2" aria-label="Gerenciar serviço"><Link to={`/dashboard/services/manage/${item.orderId || ''}/${item.id}`} className="flex items-center"><Edit className="w-4 h-4" /></Link></Button> : <Button variant="ghost" className="h-8 px-2" disabled aria-label="Gerenciar serviço"><Edit className="w-4 h-4 text-muted-foreground" /></Button>}</TableCell>
                     </TableRow>
                   ))}
-              {!isLoading && items.length === 0 && <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">Nenhum servi?o encontrado</TableCell></TableRow>}
+              {!isLoading && items.length === 0 && <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">Nenhum serviço encontrado</TableCell></TableRow>}
             </TableBody>
           </Table>
           <div className="px-4"><Separator /></div>

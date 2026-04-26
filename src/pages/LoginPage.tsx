@@ -9,7 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { authService } from '@/services/auth';
 
 const LoginPage = () => {
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
@@ -20,7 +20,7 @@ const LoginPage = () => {
     setIsLoading(true);
 
     try {
-      await authService.login({ username, password });
+      await authService.login({ email, password });
       toast({
         title: "Login realizado com sucesso!",
         description: "Redirecionando para a lista de ordens de serviço...",
@@ -56,15 +56,15 @@ const LoginPage = () => {
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="space-y-2">
-                <Label htmlFor="username">Username</Label>
+                <Label htmlFor="email">E-mail</Label>
                 <div className="relative">
                   <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                   <Input
-                    id="username"
-                    type="text"
-                    placeholder="seu.username"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
+                    id="email"
+                    type="email"
+                    placeholder="seu@email.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
                     className="pl-10 h-10 bg-secondary border-border"
                   />
                 </div>

@@ -31,7 +31,6 @@ import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatCurrency, formatDate, getStatusLabel, getStatusColor } from '@/data/mockData';
 import { useServiceOrders, useDeleteServiceOrder } from '@/services/orders';
-import { useClients } from '@/services/clients';
 import { useUserRole } from '@/hooks/useUserRole';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
@@ -42,14 +41,11 @@ const OrdersPage = () => {
   const [page, setPage] = useState(1);
   const [dateRange, setDateRange] = useState<{ from?: Date; to?: Date }>({});
   const { data: orders = [], isLoading } = useServiceOrders();
-  const { data: clients = [] } = useClients();
   const del = useDeleteServiceOrder();
   const { canViewOrderValues, canManageOrders } = useUserRole();
 
-  const getClientName = (id: string) => clients.find(c => c.id === id)?.name || id;
-
   const filteredOrders = orders.filter(order => {
-    const matchesText = getClientName(order.clientName).toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesText = order.clientName.toLowerCase().includes(searchTerm.toLowerCase());
     const created = order.createdAt instanceof Date ? order.createdAt : new Date(order.createdAt);
     if (!dateRange.from && !dateRange.to) return matchesText;
     const start = dateRange.from ? new Date(dateRange.from.getFullYear(), dateRange.from.getMonth(), dateRange.from.getDate(), 0, 0, 0, 0) : undefined;
@@ -171,13 +167,13 @@ const OrdersPage = () => {
                       <TableCell><span className="font-medium uppercase">{order.id}</span></TableCell>
                       <TableCell>
                         <div>
-                          <p className="font-medium uppercase">{getClientName(order.clientName)}</p>
+                          <p className="font-medium uppercase">{order.clientName}</p>
                           <p className="text-sm text-muted-foreground hidden sm:block">{order.clientEmail}</p>
                         </div>
                       </TableCell>
                       {canViewOrderValues && <TableCell><span className="font-semibold">{formatCurrency(order.totalAmount)}</span></TableCell>}
                       <TableCell className="w-40"><Badge className={`${getStatusColor(order.status)} border-0 uppercase`}>{getStatusLabel(order.status)}</Badge></TableCell>
-                      <TableCell className="w-40"><Badge className={`border-0 uppercase ${order.isPaid ? 'bg-green-600 text-white' : 'bg-muted text-foreground'}`}>{order.isPaid ? 'Faturado' : 'N?o faturado'}</Badge></TableCell>
+                      <TableCell className="w-40"><Badge className={`border-0 uppercase ${order.isPaid ? 'bg-green-600 text-white' : 'bg-muted text-foreground'}`}>{order.isPaid ? 'Faturado' : 'Não faturado'}</Badge></TableCell>
                       <TableCell className="hidden sm:table-cell text-muted-foreground">{formatDate(order.createdAt)}</TableCell>
                       <TableCell>
                         {canManageOrders ? (

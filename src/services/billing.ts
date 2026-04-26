@@ -2,30 +2,34 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from './api';
 import { isPaginatedResponse, PageResult, toPageResult } from './pagination';
 
+const ordensEndpoint = '/api/ordem-servico/ordens/';
+const miniOsEndpoint = '/api/tarefas/mini-os/';
+
 export type BillingServiceOrder = {
   id: number;
-  numero_os: number;
-  cliente_nome: string;
-  valor: number;
+  cliente: { id: number; nome: string };
+  valor: number | string;
   forma_pagamento: string | null;
   quantidade_parcelas: number | null;
-  cobranca_imediata: string | null;
-  faturamento_1: string | null;
+  cobranca_imediata: boolean;
   nome_contato_envio_nf: string | null;
   contato_envio_nf: string | null;
   observacao: string | null;
-  faturamento: string | null;
+  faturada: boolean;
   data_faturamento: string | null;
   numero_nf: number | null;
-  concluida: string | null;
+  concluida: boolean;
+  data_criacao: string;
 };
 
 export const useBillingServiceOrders = () => {
   return useQuery({
     queryKey: ['billing-service-orders'],
     queryFn: async () => {
-      const { data } = await api.get<BillingServiceOrder[]>('/api/ordens-servico/faturamento/');
-      return data ?? [];
+      const { data } = await api.get<BillingServiceOrder[]>(ordensEndpoint, {
+        params: { faturada: 'false' },
+      });
+      return Array.isArray(data) ? data : [];
     },
   });
 };
@@ -35,7 +39,7 @@ export type BillingOrdersPageParams = {
   pageSize?: number;
   q?: string;
   status?: string;
-  billing?: string;
+  faturada?: string;
 };
 
 export const useBillingServiceOrdersPage = (params: BillingOrdersPageParams) => {
@@ -44,22 +48,15 @@ export const useBillingServiceOrdersPage = (params: BillingOrdersPageParams) => 
     queryFn: async () => {
       const page = params.page ?? 1;
       const pageSize = params.pageSize ?? 20;
-      const queryParams: Record<string, string | number> = {
-        page,
-        page_size: pageSize,
-      };
+      const queryParams: Record<string, string | number> = { page, page_size: pageSize };
       if (params.q) queryParams.q = params.q;
-      if (params.status && params.status !== 'all') queryParams.status = params.status;
-      if (params.billing && params.billing !== 'all') queryParams.billing = params.billing;
+      if (params.faturada && params.faturada !== 'all') queryParams.faturada = params.faturada;
+      else if (!params.faturada) queryParams.faturada = 'false';
 
-      const { data } = await api.get('/api/ordens-servico/faturamento/', { params: queryParams });
+      const { data } = await api.get(ordensEndpoint, { params: queryParams });
       if (isPaginatedResponse<BillingServiceOrder>(data)) {
-        return {
-          ...toPageResult(data, page, pageSize),
-          items: data.results,
-        };
+        return { ...toPageResult(data, page, pageSize), items: data.results };
       }
-
       const items = Array.isArray(data) ? (data as BillingServiceOrder[]) : [];
       return {
         items,
@@ -84,7 +81,7 @@ export const useBillingKpis = () => {
   return useQuery({
     queryKey: ['billing-kpis'],
     queryFn: async () => {
-      const { data } = await api.get<BillingKpis>('/api/financeiro/kpis/');
+      const { data } = await api.get<BillingKpis>('/api/analise/financeiro/kpis/');
       return data;
     },
   });
@@ -93,36 +90,29 @@ export const useBillingKpis = () => {
 export type MiniOsItem = {
   id: number;
   quantidade: number;
-  descricao: string;
+  descricao: string | null;
   data_recebimento: string | null;
   data_inicio: string | null;
   data_termino: string | null;
   status: string;
-  faturamento: string | null;
-  n_nf: string | null;
-  cliente: {
-    id: number;
-    nome: string;
-    tipo_cliente: string | null;
-    cliente_ativo: string | null;
-  } | null;
-  servico: {
-    id: number;
-    nome: string;
-    descricao: string | null;
-  } | null;
-  profile: {
-    id: number;
-    username: string;
-    role: number;
-  } | null;
+  status_display: string;
+  faturada: boolean;
+  numero_nf: string | null;
+  cliente: number;
+  cliente_detail?: { id: number; nome: string; tipo_cliente: string | null } | null;
+  servico: number;
+  servico_detail?: { id: number; nome: string; descricao: string | null } | null;
+  responsavel: number;
+  responsavel_nome: string;
 };
 
 export const useMiniOs = () => {
   return useQuery({
     queryKey: ['mini-os'],
     queryFn: async () => {
-      const { data } = await api.get<MiniOsItem[]>('/api/minios/os-rapidas/');
+      const { data } = await api.get<MiniOsItem[]>(miniOsEndpoint, {
+        params: { faturada: 'false' },
+      });
       return data ?? [];
     },
   });
@@ -132,7 +122,7 @@ export type MiniOsPageParams = {
   page?: number;
   pageSize?: number;
   q?: string;
-  billing?: string;
+  faturada?: string;
 };
 
 export const useMiniOsPage = (params: MiniOsPageParams) => {
@@ -141,21 +131,15 @@ export const useMiniOsPage = (params: MiniOsPageParams) => {
     queryFn: async () => {
       const page = params.page ?? 1;
       const pageSize = params.pageSize ?? 20;
-      const queryParams: Record<string, string | number> = {
-        page,
-        page_size: pageSize,
-      };
+      const queryParams: Record<string, string | number> = { page, page_size: pageSize };
       if (params.q) queryParams.q = params.q;
-      if (params.billing && params.billing !== 'all') queryParams.billing = params.billing;
+      if (params.faturada && params.faturada !== 'all') queryParams.faturada = params.faturada;
+      else if (!params.faturada) queryParams.faturada = 'false';
 
-      const { data } = await api.get('/api/minios/os-rapidas/', { params: queryParams });
+      const { data } = await api.get(miniOsEndpoint, { params: queryParams });
       if (isPaginatedResponse<MiniOsItem>(data)) {
-        return {
-          ...toPageResult(data, page, pageSize),
-          items: data.results,
-        };
+        return { ...toPageResult(data, page, pageSize), items: data.results };
       }
-
       const items = Array.isArray(data) ? (data as MiniOsItem[]) : [];
       return {
         items,
@@ -178,22 +162,22 @@ export const useMiniOsDetail = (id?: number | string) => {
     enabled: !!id,
     queryFn: async () => {
       if (!id) throw new Error('missing id');
-      const { data } = await api.get<MiniOsDetail>(`/api/minios/${id}/`);
+      const { data } = await api.get<MiniOsDetail>(`${miniOsEndpoint}${id}/`);
       return data;
     },
   });
 };
 
 export type MiniOsUpdatePayload = {
-  faturamento?: string | null;
-  n_nf?: string | null;
+  faturada?: boolean;
+  numero_nf?: string | null;
 };
 
 export const useUpdateMiniOs = () => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, payload }: { id: number | string; payload: MiniOsUpdatePayload }) => {
-      const { data } = await api.patch<MiniOsDetail>(`/api/minios/${id}/`, payload);
+      const { data } = await api.patch<MiniOsDetail>(`${miniOsEndpoint}${id}/`, payload);
       return data;
     },
     onSuccess: async (_data, { id }) => {

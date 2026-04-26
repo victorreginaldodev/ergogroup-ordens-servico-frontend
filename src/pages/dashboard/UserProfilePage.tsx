@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -13,119 +13,102 @@ import { useToast } from '@/hooks/use-toast';
 import { authService } from '@/services/auth';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { TIPO_USUARIO_OPTIONS, TipoUsuarioKey } from '@/services/users';
 import {
   profileResponseToUserProfile,
-  useProfileDetail,
+  useMyProfile,
   useUpdateProfile,
+  useAlterarSenha,
 } from '@/services/profile';
 
-const ROLE_OPTIONS = [
-  { value: '1', label: 'Diretor' },
-  { value: '2', label: 'Administrativo' },
-  { value: '3', label: 'Líder Técnico' },
-  { value: '4', label: 'Sub-Líder Técnico' },
-  { value: '5', label: 'Técnico' },
-  { value: '6', label: 'Gestor Comercial' },
+const TIPO_USUARIO_VALUES = TIPO_USUARIO_OPTIONS.map(o => o.value) as [TipoUsuarioKey, ...TipoUsuarioKey[]];
+
+const TIPOS_NAO_GESTORES: TipoUsuarioKey[] = [
+  'tecnico',
+  'sub_gestor_tecnico',
+  'comercial',
+  'financeiro',
+  'administrativo',
 ];
 
-const schema = z.object({
+const profileSchema = z.object({
   username: z.string().min(2, 'Username muito curto'),
+  nome_completo: z.string().min(1, 'Nome completo é obrigatório'),
   email: z.string().email('E-mail inválido'),
-  password: z
-    .string()
-    .optional()
-    .or(z.literal(''))
-    .refine((value) => !value || value.length >= 6, 'Senha deve ter no mínimo 6 caracteres'),
-  role: z.string().min(1, 'Selecione um papel'),
-  active: z.boolean(),
+  tipo_usuario: z.enum(TIPO_USUARIO_VALUES),
+  ativo: z.boolean(),
 });
 
-type FormValues = z.infer<typeof schema>;
+const senhaSchema = z
+  .object({
+    senha_atual: z.string().min(1, 'Informe a senha atual'),
+    nova_senha: z.string().min(6, 'Nova senha deve ter ao menos 6 caracteres'),
+    nova_senha_confirmacao: z.string().min(6, 'Confirmação deve ter ao menos 6 caracteres'),
+  })
+  .refine(v => v.nova_senha === v.nova_senha_confirmacao, {
+    path: ['nova_senha_confirmacao'],
+    message: 'As senhas não coincidem',
+  });
+
+type ProfileFormValues = z.infer<typeof profileSchema>;
+type SenhaFormValues = z.infer<typeof senhaSchema>;
 
 const UserProfilePage = () => {
-  const [profileId, setProfileId] = useState<number | null>(null);
   const { toast } = useToast();
-  const form = useForm<FormValues>({
-    resolver: zodResolver(schema),
-    defaultValues: { username: '', email: '', password: '', role: '1', active: true },
+
+  const { data: profile, isLoading, isError } = useMyProfile();
+  const updateProfile = useUpdateProfile();
+  const alterarSenha = useAlterarSenha();
+
+  const currentUser = authService.getCurrentUser();
+  const isNaoGestor = currentUser
+    ? TIPOS_NAO_GESTORES.includes(currentUser.tipo_usuario as TipoUsuarioKey)
+    : false;
+
+  const profileForm = useForm<ProfileFormValues>({
+    resolver: zodResolver(profileSchema),
+    defaultValues: {
+      username: '',
+      nome_completo: '',
+      email: '',
+      tipo_usuario: 'tecnico',
+      ativo: true,
+    },
+  });
+
+  const senhaForm = useForm<SenhaFormValues>({
+    resolver: zodResolver(senhaSchema),
+    defaultValues: { senha_atual: '', nova_senha: '', nova_senha_confirmacao: '' },
   });
 
   useEffect(() => {
-    const stored = authService.getCurrentUser();
-    if (stored?.id) {
-      setProfileId(stored.id);
-      return;
-    }
-    const raw = localStorage.getItem('auth_raw');
-    if (raw) {
-      try {
-        const parsed = JSON.parse(raw);
-        const idFromRaw = parsed?.profile?.id;
-        if (typeof idFromRaw === 'number') {
-          setProfileId(idFromRaw);
-        }
-      } catch {
-        // ignore parse errors
-      }
-    }
-  }, []);
-
-  const {
-    data: profile,
-    isLoading: isProfileLoading,
-    isError: isProfileError,
-  } = useProfileDetail(profileId);
-  const updateProfile = useUpdateProfile();
-
-  // Verifica se o usuário atual é técnico ou sub-líder técnico
-  const currentUser = authService.getCurrentUser();
-  const isTechnicianOrSubLead = currentUser?.tipo_usuario === 'tecnico' || currentUser?.tipo_usuario === 'sub_lider_tecnico';
-
-  useEffect(() => {
     if (profile) {
-      form.reset({
-        username: profile.user.username ?? '',
-        email: profile.user.email ?? '',
-        password: '',
-        role: String(profile.role ?? '1'),
-        active: profile.active ?? true,
+      profileForm.reset({
+        username: profile.username ?? '',
+        nome_completo: profile.nome_completo ?? '',
+        email: profile.email ?? '',
+        tipo_usuario: profile.tipo_usuario ?? 'tecnico',
+        ativo: profile.ativo ?? true,
       });
     }
-  }, [profile, form]);
+  }, [profile]);
 
-  const onSubmit = async (values: FormValues) => {
-    if (!profileId) return;
+  const onSubmitProfile = async (values: ProfileFormValues) => {
+    if (!profile) return;
     try {
-      // Se for técnico ou sub-líder técnico, mantém o role e active originais
-      const roleToUse = isTechnicianOrSubLead && profile ? profile.role : Number(values.role);
-      const activeToUse = isTechnicianOrSubLead && profile ? profile.active : values.active;
-      
       const payload = {
-        user: {
-          username: values.username,
-          email: values.email,
-          ...(values.password ? { password: values.password } : {}),
-        },
-        role: roleToUse,
-        active: activeToUse,
+        username: values.username,
+        nome_completo: values.nome_completo,
+        email: values.email,
+        tipo_usuario: isNaoGestor ? profile.tipo_usuario : values.tipo_usuario,
+        ativo: isNaoGestor ? profile.ativo : values.ativo,
       };
-      const updated = await updateProfile.mutateAsync({ id: profileId, payload });
-      toast({
-        title: 'Dados atualizados',
-        description: 'Seu perfil foi atualizado com sucesso.',
-      });
-      const normalized = profileResponseToUserProfile(updated);
-      authService.setCurrentUser(normalized);
+      const updated = await updateProfile.mutateAsync({ id: profile.id, payload });
+      toast({ title: 'Dados atualizados', description: 'Seu perfil foi atualizado com sucesso.' });
+      authService.setCurrentUser(profileResponseToUserProfile(updated));
       window.dispatchEvent(new Event('servix:auth-updated'));
-    } catch (error) {
-      console.error('Failed to update profile', error);
+    } catch {
       toast({
         title: 'Erro ao atualizar',
         description: 'Não foi possível salvar suas alterações.',
@@ -134,27 +117,43 @@ const UserProfilePage = () => {
     }
   };
 
-  const isLoading = isProfileLoading || profileId === null;
-  const roleValue = form.watch('role');
-  const rolePreviewLabel =
-    ROLE_OPTIONS.find((option) => option.value === roleValue)?.label ||
-    profile?.role_display ||
+  const onSubmitSenha = async (values: SenhaFormValues) => {
+    if (!profile) return;
+    try {
+      await alterarSenha.mutateAsync({ id: profile.id, payload: values });
+      toast({ title: 'Senha alterada', description: 'Sua senha foi atualizada com sucesso.' });
+      senhaForm.reset();
+    } catch {
+      toast({
+        title: 'Erro ao alterar senha',
+        description: 'Verifique se a senha atual está correta.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const tipoUsuarioLabel = profileForm.watch('tipo_usuario');
+  const tipoLabel =
+    TIPO_USUARIO_OPTIONS.find(o => o.value === tipoUsuarioLabel)?.label ||
+    profile?.tipo_usuario_display ||
     '';
-  const isActive = form.watch('active');
-  const usernamePreview = form.watch('username') || profile?.user.username || 'Usuário';
-  const emailPreview = form.watch('email') || profile?.user.email || '';
+  const isAtivo = profileForm.watch('ativo');
+  const usernamePreview = profileForm.watch('username') || profile?.username || 'Usuário';
+  const emailPreview = profileForm.watch('email') || profile?.email || '';
 
-  const initials = useMemo(() => {
-    return usernamePreview
-      .split(' ')
-      .filter(Boolean)
-      .map((part) => part[0])
-      .slice(0, 2)
-      .join('')
-      .toUpperCase() || 'U';
-  }, [usernamePreview]);
+  const initials = useMemo(
+    () =>
+      usernamePreview
+        .split(' ')
+        .filter(Boolean)
+        .map(part => part[0])
+        .slice(0, 2)
+        .join('')
+        .toUpperCase() || 'U',
+    [usernamePreview],
+  );
 
-  if (isProfileError) {
+  if (isError) {
     return (
       <div className="space-y-6">
         <div>
@@ -195,57 +194,62 @@ const UserProfilePage = () => {
           ) : (
             <div className="space-y-8">
               <div className="flex items-center gap-6">
-                <div className="flex flex-col items-center gap-3">
-                  <Avatar className="w-20 h-20">
-                    {null}
-                    <AvatarFallback>{initials}</AvatarFallback>
-                  </Avatar>
-                </div>
+                <Avatar className="w-20 h-20">
+                  <AvatarFallback>{initials}</AvatarFallback>
+                </Avatar>
                 <div className="w-full">
                   <h2 className="text-lg font-semibold">{usernamePreview}</h2>
                   <p className="text-sm text-muted-foreground">
                     {emailPreview ? `${emailPreview} • @${usernamePreview}` : `@${usernamePreview}`}
                   </p>
                   <div className="mt-2 flex flex-wrap items-center gap-2">
-                    {rolePreviewLabel && <Badge variant="secondary">{rolePreviewLabel}</Badge>}
+                    {tipoLabel && <Badge variant="secondary">{tipoLabel}</Badge>}
                     <Badge
-                      className={`${
-                        isActive ? 'bg-green-600 text-primary-foreground' : 'bg-muted text-muted-foreground'
-                      } border-0`}
+                      className={`${isAtivo ? 'bg-green-600 text-primary-foreground' : 'bg-muted text-muted-foreground'} border-0`}
                     >
-                      {isActive ? 'Ativo' : 'Inativo'}
+                      {isAtivo ? 'Ativo' : 'Inativo'}
                     </Badge>
                   </div>
                 </div>
               </div>
-              <Form {...form}>
-                <form className="space-y-8" onSubmit={form.handleSubmit(onSubmit)}>
+
+              <Form {...profileForm}>
+                <form className="space-y-8" onSubmit={profileForm.handleSubmit(onSubmitProfile)}>
                   <div className="space-y-4">
                     <h3 className="text-sm font-medium">Dados Pessoais</h3>
                     <Separator />
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <FormField
-                        control={form.control}
+                        control={profileForm.control}
                         name="username"
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel>Username</FormLabel>
                             <FormControl>
-                              <Input
-                                placeholder="seu.username"
-                                {...field}
-                                disabled={updateProfile.isPending}
-                              />
+                              <Input placeholder="seu.username" {...field} disabled={updateProfile.isPending} />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
                         )}
                       />
                       <FormField
-                        control={form.control}
-                        name="email"
+                        control={profileForm.control}
+                        name="nome_completo"
                         render={({ field }) => (
                           <FormItem>
+                            <FormLabel>Nome completo</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Seu Nome" {...field} disabled={updateProfile.isPending} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={profileForm.control}
+                        name="email"
+                        render={({ field }) => (
+                          <FormItem className="md:col-span-2">
                             <FormLabel>E-mail</FormLabel>
                             <FormControl>
                               <Input
@@ -260,33 +264,15 @@ const UserProfilePage = () => {
                         )}
                       />
                       <FormField
-                        control={form.control}
-                        name="password"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Nova senha</FormLabel>
-                            <FormControl>
-                              <Input
-                                type="password"
-                                placeholder="••••••"
-                                {...field}
-                                disabled={updateProfile.isPending}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="role"
+                        control={profileForm.control}
+                        name="tipo_usuario"
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel>Função</FormLabel>
                             <Select
                               value={field.value}
                               onValueChange={field.onChange}
-                              disabled={updateProfile.isPending || isTechnicianOrSubLead}
+                              disabled={updateProfile.isPending || isNaoGestor}
                             >
                               <FormControl>
                                 <SelectTrigger>
@@ -294,16 +280,16 @@ const UserProfilePage = () => {
                                 </SelectTrigger>
                               </FormControl>
                               <SelectContent>
-                                {ROLE_OPTIONS.map((option) => (
-                                  <SelectItem key={option.value} value={option.value}>
-                                    {option.label}
+                                {TIPO_USUARIO_OPTIONS.map(opt => (
+                                  <SelectItem key={opt.value} value={opt.value}>
+                                    {opt.label}
                                   </SelectItem>
                                 ))}
                               </SelectContent>
                             </Select>
-                            {isTechnicianOrSubLead && (
+                            {isNaoGestor && (
                               <p className="text-sm text-muted-foreground">
-                                Técnicos e Sub-Líderes Técnicos não podem alterar seu tipo de usuário.
+                                Apenas gestores podem alterar o tipo de usuário.
                               </p>
                             )}
                             <FormMessage />
@@ -311,16 +297,17 @@ const UserProfilePage = () => {
                         )}
                       />
                     </div>
+
                     <FormField
-                      control={form.control}
-                      name="active"
+                      control={profileForm.control}
+                      name="ativo"
                       render={({ field }) => (
                         <FormItem className="flex items-center justify-between rounded-lg border border-border px-4 py-3">
                           <div className="space-y-0.5">
                             <FormLabel>Status do usuário</FormLabel>
                             <p className="text-sm text-muted-foreground">
-                              {isTechnicianOrSubLead 
-                                ? 'Técnicos e Sub-Líderes Técnicos não podem alterar seu status.'
+                              {isNaoGestor
+                                ? 'Apenas gestores podem alterar o status.'
                                 : 'Defina se o usuário está ativo na plataforma.'}
                             </p>
                           </div>
@@ -328,7 +315,7 @@ const UserProfilePage = () => {
                             <Switch
                               checked={field.value}
                               onCheckedChange={field.onChange}
-                              disabled={updateProfile.isPending || isTechnicianOrSubLead}
+                              disabled={updateProfile.isPending || isNaoGestor}
                             />
                           </FormControl>
                         </FormItem>
@@ -336,7 +323,7 @@ const UserProfilePage = () => {
                     />
                   </div>
 
-                  <div className="flex justify-end gap-2">
+                  <div className="flex justify-end">
                     <Button type="submit" className="min-w-32" disabled={updateProfile.isPending}>
                       {updateProfile.isPending ? 'Salvando...' : 'Salvar'}
                     </Button>
@@ -345,6 +332,89 @@ const UserProfilePage = () => {
               </Form>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      <Card className="bg-card border-border">
+        <CardContent className="pt-6">
+          <div className="space-y-4">
+            <h3 className="text-sm font-medium">Alterar Senha</h3>
+            <Separator />
+            <Form {...senhaForm}>
+              <form
+                className="grid grid-cols-1 md:grid-cols-2 gap-4"
+                onSubmit={senhaForm.handleSubmit(onSubmitSenha)}
+              >
+                <FormField
+                  control={senhaForm.control}
+                  name="senha_atual"
+                  render={({ field }) => (
+                    <FormItem className="md:col-span-2">
+                      <FormLabel>Senha atual</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="password"
+                          placeholder="••••••••"
+                          autoComplete="current-password"
+                          {...field}
+                          disabled={alterarSenha.isPending}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={senhaForm.control}
+                  name="nova_senha"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Nova senha</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="password"
+                          placeholder="••••••••"
+                          autoComplete="new-password"
+                          {...field}
+                          disabled={alterarSenha.isPending}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={senhaForm.control}
+                  name="nova_senha_confirmacao"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Confirmar nova senha</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="password"
+                          placeholder="••••••••"
+                          autoComplete="new-password"
+                          {...field}
+                          disabled={alterarSenha.isPending}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <div className="md:col-span-2 flex justify-end">
+                  <Button
+                    type="submit"
+                    variant="outline"
+                    className="min-w-32"
+                    disabled={alterarSenha.isPending}
+                  >
+                    {alterarSenha.isPending ? 'Alterando...' : 'Alterar senha'}
+                  </Button>
+                </div>
+              </form>
+            </Form>
+          </div>
         </CardContent>
       </Card>
     </div>

@@ -4,6 +4,7 @@ export interface UserDetail {
   id: number;
   username: string;
   email: string;
+  nome_completo: string;
   first_name: string;
   last_name: string;
 }
@@ -21,93 +22,92 @@ export interface UserProfile {
   token?: string | null;
 }
 
+export interface UsuarioPayload {
+  id: number;
+  email: string;
+  username: string;
+  nome_completo: string;
+  tipo_usuario: string;
+  tipo_usuario_display: string;
+  ativo: boolean;
+  is_staff: boolean;
+  is_superuser: boolean;
+}
+
 export interface TokenLoginResponse {
   refresh: string;
   access: string;
-  user: UserDetail;
-  profile: {
-    id: number;
-    role: string;
-  };
+  usuario: UsuarioPayload;
 }
 
 export interface LoginCredentials {
-  username: string;
+  email: string;
   password: string;
 }
 
+const usuarioToUserProfile = (usuario: UsuarioPayload): UserProfile => ({
+  id: usuario.id,
+  user: {
+    id: usuario.id,
+    username: usuario.username,
+    email: usuario.email,
+    nome_completo: usuario.nome_completo,
+    first_name: '',
+    last_name: '',
+  },
+  tipo_usuario: usuario.tipo_usuario,
+  nivel_usuario: 'normal',
+  foto_perfil: null,
+  ativo: usuario.ativo,
+  criado_em: '',
+  criado_por: null,
+});
+
 export const authService = {
   login: async (credentials: LoginCredentials): Promise<TokenLoginResponse> => {
-    const response = await api.post<TokenLoginResponse>('/api/token/', {
-      username: credentials.username,
+    const response = await api.post<TokenLoginResponse>('/api/contas/auth/login/', {
+      email: credentials.email,
       password: credentials.password,
     });
-    
-    const data = response.data;
-    
-    const normalize = (s: string) =>
-      s
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .toLowerCase()
-        .replace(/-/g, ' ')
-        .trim();
-    const map: Record<string, string> = {
-      'diretor': 'diretor',
-      'gestor comercial': 'diretor',
-      'administrativo': 'administrativo',
-      'lider tecnico': 'lider_tecnico',
-      'sub lider tecnico': 'sub_lider_tecnico',
-      'tecnico': 'tecnico',
-    };
-    const tipoUsuario = map[normalize(data.profile.role)] ?? 'tecnico';
 
-    const mergedUserProfile: UserProfile = {
-      id: data.profile.id,
-      user: data.user,
-      tipo_usuario: tipoUsuario,
-      nivel_usuario: 'normal',
-      foto_perfil: null,
-      ativo: true,
-      criado_em: '',
-      criado_por: null,
-    };
+    const data = response.data;
+    const userProfile = usuarioToUserProfile(data.usuario);
 
     const compatibleAuthData = {
       refresh: data.refresh,
       access: data.access,
-      user: mergedUserProfile,
+      user: userProfile,
     };
 
     localStorage.setItem('auth_data', JSON.stringify(compatibleAuthData));
     localStorage.setItem('auth_raw', JSON.stringify(data));
     localStorage.setItem('access_token', data.access);
     localStorage.setItem('refresh_token', data.refresh);
-    
+
     return data;
   },
 
-  requestPasswordReset: async (email: string): Promise<void> => {
-    await api.post('/api/usuarios/password-reset/', { email });
-  },
-
-  resetPassword: async (token: string, newPassword: string): Promise<void> => {
-    await api.post('/api/usuarios/password-reset/confirm/', { token, new_password: newPassword });
-  },
-
-  logout: () => {
+  logout: async () => {
+    const refresh = localStorage.getItem('refresh_token');
+    if (refresh) {
+      try {
+        await api.post('/api/contas/auth/logout/', { refresh });
+      } catch {
+        // ignora erros de logout no backend
+      }
+    }
     localStorage.removeItem('auth_data');
     localStorage.removeItem('auth_raw');
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
   },
-  
+
   getCurrentUser: (): UserProfile | null => {
     const authData = localStorage.getItem('auth_data');
     if (authData) {
       try {
         return JSON.parse(authData).user;
-      } catch (e) {
+      } catch {
         return null;
       }
     }

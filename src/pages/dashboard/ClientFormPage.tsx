@@ -77,9 +77,18 @@ const ClientFormPage = () => {
 
   const onSubmit = (values: FormValues) => {
     const payload = {
-      ...values,
-      id: values.id,
-      cliente_ativo: values.cliente_ativo ? 'sim' : 'nao',
+      ...(values.id ? { id: values.id } : {}),
+      nome: values.nome,
+      tipo_inscricao: values.tipo_inscricao,
+      numero_inscricao: values.numero_inscricao,
+      tipo_cliente: values.tipo_cliente,
+      observacao: values.observacao,
+      nome_representante: values.nome_representante,
+      setor_representante: values.setor_representante,
+      email_representante: values.email_representante,
+      contato_representante: values.contato_representante,
+      ativo: values.cliente_ativo,
+      cobranca_revisao_alteracao: values.cobranca_revisao_alteracao,
     };
     upsert.mutate(payload, {
       onSuccess: () => {

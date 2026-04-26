@@ -144,7 +144,7 @@ const resolveMonthlyLabel = (entry: DashboardServiceMonthlyItem, index: number):
 const DashboardPage = () => {
   const { data: analytics, isLoading, isError } = useDashboardAnalytics();
   const [completedPeriodMonths, setCompletedPeriodMonths] = useState<string>('6');
-  const { canViewOrderValues, isRestricted } = useUserRole();
+  const { canViewOrderValues } = useUserRole();
 
   const stats = useMemo(() => {
     if (!analytics) return [];
@@ -508,12 +508,12 @@ const DashboardPage = () => {
                 <BarChart data={salesMonthlyChartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(222, 30%, 18%)" />
                   <XAxis dataKey="name" stroke="hsl(215, 20%, 55%)" fontSize={12} />
-                  <YAxis stroke="hsl(215, 20%, 55%)" fontSize={12} hide={isRestricted} />
+                  <YAxis stroke="hsl(215, 20%, 55%)" fontSize={12} hide={!canViewOrderValues} />
                   <Tooltip
                     contentStyle={tooltipContentStyle}
                     itemStyle={tooltipItemStyle}
                     labelStyle={tooltipLabelStyle}
-                    formatter={(value: number) => [isRestricted ? '—' : formatCurrency(value), 'Total de vendas']}
+                    formatter={(value: number) => [canViewOrderValues ? formatCurrency(value) : '—', 'Total de vendas']}
                   />
                   <Bar dataKey="value" fill="hsl(215, 85%, 60%)" />
                 </BarChart>
@@ -822,8 +822,8 @@ const DashboardPage = () => {
                           itemStyle={tooltipItemStyle}
                           labelStyle={tooltipLabelStyle}
                           formatter={(value: number) => [
-                            isRestricted ? '—' : formatCurrency(value),
-                            isRestricted ? 'Valor restrito' : 'Valor faturado',
+                            canViewOrderValues ? formatCurrency(value) : '—',
+                            canViewOrderValues ? 'Valor faturado' : 'Valor restrito',
                           ]}
                         />
                       </PieChart>
@@ -839,7 +839,7 @@ const DashboardPage = () => {
                     <TableHeader>
                       <TableRow>
                         <TableHead>Cliente</TableHead>
-                        {!isRestricted && <TableHead className="text-right">Valor faturado</TableHead>}
+                        {canViewOrderValues && <TableHead className="text-right">Valor faturado</TableHead>}
                         <TableHead className="text-right">% do total</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -856,7 +856,7 @@ const DashboardPage = () => {
                                   {item.name}
                                 </div>
                               </TableCell>
-                              {!isRestricted && (
+                              {canViewOrderValues && (
                                 <TableCell className="text-right">{formatCurrency(item.value)}</TableCell>
                               )}
                               <TableCell className="text-right">{pct.toFixed(1)}%</TableCell>
@@ -865,7 +865,7 @@ const DashboardPage = () => {
                         })
                       ) : (
                         <TableRow>
-                          <TableCell colSpan={isRestricted ? 2 : 3} className="text-center text-muted-foreground text-sm">
+                          <TableCell colSpan={canViewOrderValues ? 3 : 2} className="text-center text-muted-foreground text-sm">
                             {isLoading ? 'Carregando...' : 'Nenhum dado disponível.'}
                           </TableCell>
                         </TableRow>
@@ -906,8 +906,8 @@ const DashboardPage = () => {
                         itemStyle={tooltipItemStyle}
                         labelStyle={tooltipLabelStyle}
                         formatter={(value: number) => [
-                          isRestricted ? '—' : formatCurrency(value),
-                          isRestricted ? 'Valor restrito' : 'Valor vendido',
+                          canViewOrderValues ? formatCurrency(value) : '—',
+                          canViewOrderValues ? 'Valor vendido' : 'Valor restrito',
                         ]}
                       />
                     </PieChart>
@@ -923,7 +923,7 @@ const DashboardPage = () => {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Cliente</TableHead>
-                      {!isRestricted && <TableHead className="text-right">Valor vendido</TableHead>}
+                      {canViewOrderValues && <TableHead className="text-right">Valor vendido</TableHead>}
                       <TableHead className="text-right">% do total</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -940,7 +940,7 @@ const DashboardPage = () => {
                                 {item.name}
                               </div>
                             </TableCell>
-                            {!isRestricted && (
+                            {canViewOrderValues && (
                               <TableCell className="text-right">{formatCurrency(item.value)}</TableCell>
                             )}
                             <TableCell className="text-right">{pct.toFixed(1)}%</TableCell>
@@ -949,7 +949,7 @@ const DashboardPage = () => {
                       })
                     ) : (
                       <TableRow>
-                        <TableCell colSpan={isRestricted ? 2 : 3} className="text-center text-muted-foreground text-sm">
+                        <TableCell colSpan={canViewOrderValues ? 3 : 2} className="text-center text-muted-foreground text-sm">
                           {isLoading ? 'Carregando...' : 'Nenhum dado disponível.'}
                         </TableCell>
                       </TableRow>
