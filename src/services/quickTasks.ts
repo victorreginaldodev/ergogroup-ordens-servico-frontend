@@ -6,8 +6,30 @@ import { isPaginatedResponse, PageResult, toPageResult } from './pagination';
 const endpoint = '/api/tarefas/mini-os/';
 const quickTaskCatalogEndpoint = '/api/tarefas/repositorios/';
 
+// Campos retornados pelo MiniOSListSerializer (endpoint de lista)
 export type QuickTaskItem = {
   id: number;
+  cliente: number;
+  cliente_nome: string;
+  servico: number;
+  servico_nome: string;
+  responsavel: number;
+  responsavel_nome: string;
+  status: string;
+  status_display: string;
+  faturada: boolean;
+  data_recebimento: string | null;
+};
+
+// Campos retornados pelo MiniOSSerializer (endpoint de detalhe)
+export type QuickTaskDetail = {
+  id: number;
+  cliente: number;
+  cliente_detail?: { id: number; nome: string; tipo_cliente: string | null } | null;
+  servico: number;
+  servico_detail?: { id: number; nome: string; descricao: string | null } | null;
+  responsavel: number;
+  responsavel_nome: string;
   quantidade: number;
   descricao: string | null;
   data_recebimento: string | null;
@@ -18,20 +40,6 @@ export type QuickTaskItem = {
   revisao_cliente: boolean;
   faturada: boolean;
   numero_nf: string | null;
-  cliente: number;
-  cliente_detail?: {
-    id: number;
-    nome: string;
-    tipo_cliente: string | null;
-  };
-  servico: number;
-  servico_detail?: {
-    id: number;
-    nome: string;
-    descricao: string | null;
-  };
-  responsavel: number;
-  responsavel_nome: string;
 };
 
 export type QuickTaskCatalogItem = {
@@ -45,11 +53,11 @@ export const quickTasksService = {
     const { data } = await api.get(endpoint);
     return Array.isArray(data) ? data : [];
   },
-  getById: async (id: number) => {
-    const { data } = await api.get(`${endpoint}${id}/`);
+  getById: async (id: number): Promise<QuickTaskDetail> => {
+    const { data } = await api.get<QuickTaskDetail>(`${endpoint}${id}/`);
     return data;
   },
-  listMiniOs: async (): Promise<any[]> => {
+  listMiniOs: async (): Promise<QuickTaskItem[]> => {
     const { data } = await api.get(endpoint);
     return Array.isArray(data) ? data : [];
   },
@@ -119,7 +127,7 @@ export const useQuickTasksList = () => {
 };
 
 export const useMinioRepositories = () => {
-  return useQuery<any[]>({
+  return useQuery<QuickTaskItem[]>({
     queryKey: ['quickTasksMinioRepos'],
     queryFn: () => quickTasksService.listMiniOs(),
   });
@@ -185,7 +193,7 @@ export const useCreateQuickTask = () => {
 };
 
 export const useMinioById = (id?: number) => {
-  return useQuery({
+  return useQuery<QuickTaskDetail | null>({
     queryKey: ['quickTaskMinioDetail', id],
     queryFn: async () => {
       if (!id) return null;

@@ -70,6 +70,8 @@ export type TaskListItem = {
   servico: number;
   responsavel: number;
   responsavel_nome: string;
+  cliente_nome: string | null;
+  repositorio_nome: string | null;
   status: string;
   status_display: string;
   descricao?: string | null;

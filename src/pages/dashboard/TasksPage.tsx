@@ -50,7 +50,7 @@ const TasksPage = () => {
       const matchesSearch = (
         String(t.cliente_nome || '').toLowerCase().includes(term) ||
         String(t.repositorio_nome || '').toLowerCase().includes(term) ||
-        String(t.usuario_nome || '').toLowerCase().includes(term)
+        String(t.responsavel_nome || '').toLowerCase().includes(term)
       );
       const s = String(t.status || '').toLowerCase();
       const normalized = s === 'concluida' ? 'completed' : s === 'em_andamento' ? 'in_progress' : 'pending';
@@ -65,8 +65,8 @@ const TasksPage = () => {
       const nb = sb === 'concluida' ? 'completed' : sb === 'em_andamento' ? 'in_progress' : 'pending';
       const statusDiff = order[na] - order[nb];
       if (statusDiff !== 0) return statusDiff;
-      const dateA = a.data_criacao || a.created_at ? new Date(a.data_criacao || a.created_at || '').getTime() : 0;
-      const dateB = b.data_criacao || b.created_at ? new Date(b.data_criacao || b.created_at || '').getTime() : 0;
+      const dateA = a.atualizado_em ? new Date(a.atualizado_em).getTime() : 0;
+      const dateB = b.atualizado_em ? new Date(b.atualizado_em).getTime() : 0;
       if (dateA !== dateB) return dateB - dateA;
       return b.id - a.id;
     });
@@ -143,9 +143,9 @@ const TasksPage = () => {
                     return (
                       <TableRow key={t.id} className={`border-border ${showActions ? 'cursor-pointer hover:bg-muted/40' : ''}`} onClick={() => { if (!showActions) return; setSelectedId(t.id); setDetailsOpen(true); }}>
                         <TableCell className="font-mono">{t.id}</TableCell>
-                        <TableCell className="uppercase">{t.cliente_nome}</TableCell>
-                        <TableCell className="uppercase">{t.repositorio_nome}</TableCell>
-                        {showUserColumn && <TableCell className="uppercase">{t.usuario_nome}</TableCell>}
+                        <TableCell className="uppercase">{t.cliente_nome || '-'}</TableCell>
+                        <TableCell className="uppercase">{t.repositorio_nome || '-'}</TableCell>
+                        {showUserColumn && <TableCell className="uppercase">{t.responsavel_nome}</TableCell>}
                         <TableCell className="w-48"><span className={`text-xs px-2 py-0.5 rounded whitespace-nowrap inline-flex uppercase ${getStatusColor(label)}`}>{getStatusLabel(label)}</span></TableCell>
                         {showActions && (
                           <TableCell>
@@ -184,13 +184,15 @@ const TasksPage = () => {
             <div className="space-y-6">
               <div className="grid sm:grid-cols-4 gap-4">
                 <div><p className="text-xs text-muted-foreground">ID</p><p className="font-mono">{detail?.id ?? '-'}</p></div>
-                <div className="sm:col-span-2"><p className="text-xs text-muted-foreground">Repositório</p><p className="font-semibold uppercase">{detail?.servico_info?.nome_repositorio || '-'}</p></div>
+                <div><p className="text-xs text-muted-foreground">Cliente</p><p className="font-semibold uppercase">{detail?.cliente_nome || '-'}</p></div>
+                <div><p className="text-xs text-muted-foreground">Repositório</p><p className="font-semibold uppercase">{detail?.repositorio_nome || '-'}</p></div>
                 <div><p className="text-xs text-muted-foreground">Status</p>{(() => { const s = String(detail?.status || '').toLowerCase(); const label = s === 'concluida' ? 'completed' : s === 'em_andamento' ? 'in_progress' : 'pending'; return <Badge className={`${getStatusColor(label)} border-0 uppercase`}>{getStatusLabel(label)}</Badge>; })()}</div>
               </div>
-              {(() => { const serviceDesc = detail?.servico_descricao || tasks.find(t => t.id === selectedId)?.servico_descricao; return serviceDesc ? <div className="space-y-2"><p className="text-xs text-muted-foreground">Descri??o do Servi?o (Feita pela ?rea comercial)</p><div className="bg-secondary/10 p-3 rounded-md border border-border/50 text-sm font-medium">{serviceDesc}</div></div> : null; })()}
-              <div className="space-y-2"><p className="text-xs text-muted-foreground">Descri??o da Tarefa</p><div className="bg-secondary/30 p-4 rounded-md border border-border/50 leading-relaxed text-sm">{detail?.descricao || '-'}</div></div>
-              <div className="grid sm:grid-cols-3 gap-4"><div><p className="text-xs text-muted-foreground">In?cio</p><p className="font-medium">{detail?.data_inicio || '-'}</p></div><div><p className="text-xs text-muted-foreground">T?rmino</p><p className="font-medium">{detail?.data_termino || '-'}</p></div></div>
-              <div className="rounded-md border border-border bg-secondary/30 p-4"><p className="text-xs text-muted-foreground mb-2">Cliente</p><div className="grid sm:grid-cols-2 md:grid-cols-3 gap-4"><div className="sm:col-span-2 md:col-span-3"><p className="text-xs text-muted-foreground">Nome</p><p className="font-medium uppercase">{detail?.cliente?.nome || '-'}</p></div><div><p className="text-xs text-muted-foreground">Telefone</p><p className="font-medium">{detail?.cliente?.contato || '-'}</p></div><div><p className="text-xs text-muted-foreground">Representante</p><p className="font-medium">{detail?.cliente?.representante?.nome || '-'}</p></div><div><p className="text-xs text-muted-foreground">Setor</p><p className="font-medium">{detail?.cliente?.representante?.setor || '-'}</p></div><div><p className="text-xs text-muted-foreground">E-mail</p><p className="font-medium">{detail?.cliente?.representante?.email || '-'}</p></div></div></div>
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div><p className="text-xs text-muted-foreground">Responsável</p><p className="font-medium uppercase">{detail?.responsavel_nome || '-'}</p></div>
+              </div>
+              <div className="space-y-2"><p className="text-xs text-muted-foreground">Descrição da Tarefa</p><div className="bg-secondary/30 p-4 rounded-md border border-border/50 leading-relaxed text-sm">{detail?.descricao || '-'}</div></div>
+              <div className="grid sm:grid-cols-3 gap-4"><div><p className="text-xs text-muted-foreground">Início</p><p className="font-medium">{detail?.data_inicio || '-'}</p></div><div><p className="text-xs text-muted-foreground">Término</p><p className="font-medium">{detail?.data_termino || '-'}</p></div></div>
               <Separator />
               <div className="space-y-3"><p className="text-xs text-muted-foreground">Atualizar tarefa</p><div className="grid sm:grid-cols-3 gap-4"><div><p className="text-xs text-muted-foreground mb-1">In?cio</p><Input type="date" value={editStart} onChange={(e) => setEditStart(e.target.value)} className="bg-background border-border" /></div><div><p className="text-xs text-muted-foreground mb-1">T?rmino</p><Input type="date" value={editEnd} onChange={(e) => setEditEnd(e.target.value)} className="bg-background border-border" /></div><div><p className="text-xs text-muted-foreground mb-1">Status</p><Select value={editStatus} onValueChange={setEditStatus}><SelectTrigger className="bg-background border-border"><SelectValue placeholder="Selecione o status" /></SelectTrigger><SelectContent><SelectItem value="nao_iniciada">N?o iniciada</SelectItem><SelectItem value="em_andamento">Em andamento</SelectItem><SelectItem value="concluida">Conclu?da</SelectItem></SelectContent></Select></div></div><div className="flex justify-end"><Button variant="hero" disabled={updateTask.isPending || !selectedId} onClick={() => { if (!selectedId || updateTask.isPending) return; updateTask.mutate({ id: selectedId, payload: { data_inicio: editStart || undefined, data_termino: editEnd || undefined, status: editStatus || undefined } }, { onSuccess: async () => { await qc.invalidateQueries({ queryKey: ['taskDetail', selectedId] }); await qc.invalidateQueries({ queryKey: ['tasksList'] }); setDetailsOpen(false); setSelectedId(null); } }); }}>{updateTask.isPending ? 'Salvando...' : 'Salvar altera??es'}</Button></div></div>
             </div>

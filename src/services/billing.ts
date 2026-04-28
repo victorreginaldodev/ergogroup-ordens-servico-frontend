@@ -7,14 +7,12 @@ const miniOsEndpoint = '/api/tarefas/mini-os/';
 
 export type BillingServiceOrder = {
   id: number;
-  cliente: { id: number; nome: string };
+  cliente: number;
+  cliente_nome: string;
   valor: number | string;
   forma_pagamento: string | null;
-  quantidade_parcelas: number | null;
+  forma_pagamento_display?: string;
   cobranca_imediata: boolean;
-  nome_contato_envio_nf: string | null;
-  contato_envio_nf: string | null;
-  observacao: string | null;
   faturada: boolean;
   data_faturamento: string | null;
   numero_nf: number | null;
@@ -38,8 +36,9 @@ export type BillingOrdersPageParams = {
   page?: number;
   pageSize?: number;
   q?: string;
-  status?: string;
+  concluida?: string;
   faturada?: string;
+  liberada?: string;
 };
 
 export const useBillingServiceOrdersPage = (params: BillingOrdersPageParams) => {
@@ -51,7 +50,8 @@ export const useBillingServiceOrdersPage = (params: BillingOrdersPageParams) => 
       const queryParams: Record<string, string | number> = { page, page_size: pageSize };
       if (params.q) queryParams.q = params.q;
       if (params.faturada && params.faturada !== 'all') queryParams.faturada = params.faturada;
-      else if (!params.faturada) queryParams.faturada = 'false';
+      if (params.concluida && params.concluida !== 'all') queryParams.concluida = params.concluida;
+      if (params.liberada) queryParams.liberada = params.liberada;
 
       const { data } = await api.get(ordensEndpoint, { params: queryParams });
       if (isPaginatedResponse<BillingServiceOrder>(data)) {
@@ -87,8 +87,30 @@ export const useBillingKpis = () => {
   });
 };
 
+// Campos retornados pelo MiniOSListSerializer (endpoint de lista)
 export type MiniOsItem = {
   id: number;
+  cliente: number;
+  cliente_nome: string;
+  servico: number;
+  servico_nome: string;
+  responsavel: number;
+  responsavel_nome: string;
+  status: string;
+  status_display: string;
+  faturada: boolean;
+  data_recebimento: string | null;
+};
+
+// Campos retornados pelo MiniOSSerializer (endpoint de detalhe)
+export type MiniOsDetail = {
+  id: number;
+  cliente: number;
+  cliente_detail?: { id: number; nome: string; tipo_cliente: string | null } | null;
+  servico: number;
+  servico_detail?: { id: number; nome: string; descricao: string | null } | null;
+  responsavel: number;
+  responsavel_nome: string;
   quantidade: number;
   descricao: string | null;
   data_recebimento: string | null;
@@ -96,14 +118,9 @@ export type MiniOsItem = {
   data_termino: string | null;
   status: string;
   status_display: string;
+  revisao_cliente: boolean;
   faturada: boolean;
   numero_nf: string | null;
-  cliente: number;
-  cliente_detail?: { id: number; nome: string; tipo_cliente: string | null } | null;
-  servico: number;
-  servico_detail?: { id: number; nome: string; descricao: string | null } | null;
-  responsavel: number;
-  responsavel_nome: string;
 };
 
 export const useMiniOs = () => {
@@ -134,7 +151,6 @@ export const useMiniOsPage = (params: MiniOsPageParams) => {
       const queryParams: Record<string, string | number> = { page, page_size: pageSize };
       if (params.q) queryParams.q = params.q;
       if (params.faturada && params.faturada !== 'all') queryParams.faturada = params.faturada;
-      else if (!params.faturada) queryParams.faturada = 'false';
 
       const { data } = await api.get(miniOsEndpoint, { params: queryParams });
       if (isPaginatedResponse<MiniOsItem>(data)) {
@@ -153,8 +169,6 @@ export const useMiniOsPage = (params: MiniOsPageParams) => {
     },
   });
 };
-
-export type MiniOsDetail = MiniOsItem;
 
 export const useMiniOsDetail = (id?: number | string) => {
   return useQuery({

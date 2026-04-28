@@ -2,10 +2,20 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from './api';
 import { Contact } from '@/types';
 
-const endpoint = '/api/contatos/';
+// Contatos são representantes do cliente — campo embarcado no modelo Cliente.
+// Endpoint de lista usa ClienteListSerializer (sem campos de representante);
+// o endpoint de detalhe usa ClienteSerializer (campos completos).
+const endpoint = '/api/clientes/clientes/';
 
-type ContactApi = {
+type ClienteDetalhe = {
   id: string | number;
+  nome_representante?: string | null;
+  setor_representante?: string | null;
+  email_representante?: string | null;
+  contato_representante?: string | null;
+};
+
+export type ContactApiInput = {
   cliente: number;
   nome: string;
   email: string;
@@ -14,21 +24,21 @@ type ContactApi = {
   funcao?: string;
 };
 
-export type ContactApiInput = Omit<ContactApi, 'id'>;
-
-const toContact = (c: ContactApi): Contact => ({
+const toContact = (c: ClienteDetalhe): Contact => ({
   id: String(c.id),
-  cliente: String(c.cliente),
-  nome: c.nome,
-  email: c.email,
-  telefone: c.telefone,
-  setor: c.setor,
-  funcao: c.funcao,
+  cliente: String(c.id),
+  nome: c.nome_representante ?? '',
+  email: c.email_representante ?? '',
+  telefone: c.contato_representante ?? '',
+  setor: c.setor_representante ?? undefined,
+  funcao: undefined,
 });
 
 export const getContacts = async (): Promise<Contact[]> => {
-  const { data } = await api.get<ContactApi[]>(endpoint);
-  return (data || []).map(toContact);
+  const { data } = await api.get<ClienteDetalhe[]>(endpoint, { params: { page_size: 500 } });
+  return (Array.isArray(data) ? data : [])
+    .filter(c => c.nome_representante)
+    .map(toContact);
 };
 
 export const useContacts = () => {
@@ -39,7 +49,7 @@ export const useContacts = () => {
 };
 
 export const getContact = async (id: string): Promise<Contact> => {
-  const { data } = await api.get<ContactApi>(`${endpoint}${id}/`);
+  const { data } = await api.get<ClienteDetalhe>(`${endpoint}${id}/`);
   return toContact(data);
 };
 
@@ -58,16 +68,20 @@ export const useUpsertContact = () => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload: ContactApiInput & { id?: string }) => {
-      if (payload.id) {
-        const { id, ...body } = payload as any;
-        const { data } = await api.put<ContactApi>(`${endpoint}${id}/`, body);
-        return toContact(data);
-      }
-      const { data } = await api.post<ContactApi>(endpoint, payload);
+      const clientId = payload.id ?? String(payload.cliente);
+      const body = {
+        nome_representante: payload.nome,
+        email_representante: payload.email,
+        contato_representante: payload.telefone,
+        setor_representante: payload.setor ?? '',
+      };
+      const { data } = await api.patch<ClienteDetalhe>(`${endpoint}${clientId}/`, body);
       return toContact(data);
     },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ['contacts'] });
+      await qc.invalidateQueries({ queryKey: ['clients'] });
+      await qc.invalidateQueries({ queryKey: ['clientsPage'] });
     },
   });
 };
@@ -76,12 +90,17 @@ export const useDeleteContact = () => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      await api.delete(`${endpoint}${id}/`);
+      await api.patch(`${endpoint}${id}/`, {
+        nome_representante: '',
+        email_representante: '',
+        contato_representante: '',
+        setor_representante: '',
+      });
       return id;
     },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ['contacts'] });
+      await qc.invalidateQueries({ queryKey: ['clients'] });
     },
   });
 };
-

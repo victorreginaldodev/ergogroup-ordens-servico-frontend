@@ -64,8 +64,9 @@ const FinancialPage = () => {
     page: ordersPage,
     pageSize: PAGE_SIZE,
     q: searchTerm,
-    status: statusFilter,
-    billing: billingFilter,
+    liberada: 'true',
+    concluida: statusFilter === 'concluida' ? 'true' : statusFilter === 'andamento' ? 'false' : 'all',
+    faturada: billingFilter === 'faturada' ? 'true' : billingFilter === 'nao_faturada' ? 'false' : 'all',
   });
   const orders = ordersPageData?.items ?? [];
   const ordersTotalPages = ordersPageData?.totalPages ?? 1;
@@ -77,7 +78,7 @@ const FinancialPage = () => {
     page: miniPage,
     pageSize: PAGE_SIZE,
     q: miniOsSearch,
-    billing: miniOsBillingFilter,
+    faturada: miniOsBillingFilter === 'faturada' ? 'true' : miniOsBillingFilter === 'nao_faturada' ? 'false' : 'all',
   });
   const miniOs = miniOsPageData?.items ?? [];
   const miniOsTotalPages = miniOsPageData?.totalPages ?? 1;
@@ -130,12 +131,7 @@ const FinancialPage = () => {
       setNfNumber('');
       return;
     }
-    const faturamentoRaw = (orderDetail.faturamento ?? '').toLowerCase();
-    if (faturamentoRaw === 'sim' || faturamentoRaw === 'nao') {
-      setFaturamentoValue(faturamentoRaw);
-    } else {
-      setFaturamentoValue('');
-    }
+    setFaturamentoValue(orderDetail.faturada ? 'sim' : 'nao');
     setBillingDate(orderDetail.data_faturamento ?? '');
     const numeroNf = orderDetail.numero_nf;
     setNfNumber(numeroNf !== null && numeroNf !== undefined ? String(numeroNf) : '');
@@ -147,13 +143,8 @@ const FinancialPage = () => {
       setMiniNfNumber('');
       return;
     }
-    const faturamentoRaw = (miniDetail.faturamento ?? '').toLowerCase();
-    if (faturamentoRaw === 'sim' || faturamentoRaw === 'nao') {
-      setMiniBillingValue(faturamentoRaw);
-    } else {
-      setMiniBillingValue('');
-    }
-    setMiniNfNumber(miniDetail.n_nf ?? '');
+    setMiniBillingValue(miniDetail.faturada ? 'sim' : 'nao');
+    setMiniNfNumber(miniDetail.numero_nf ?? '');
   }, [miniDetail]);
 
   const handleEditClick = (orderId: number) => {
@@ -193,7 +184,6 @@ const FinancialPage = () => {
       await updateServiceOrderBilling.mutateAsync({
         id: selectedOrderId,
         payload: {
-          faturamento: faturamentoValue || null,
           data_faturamento: billingDate || null,
           numero_nf: nfNumber ? Number(nfNumber) : null,
         },
@@ -211,8 +201,8 @@ const FinancialPage = () => {
       await updateMiniOs.mutateAsync({
         id: selectedMiniId,
         payload: {
-          faturamento: miniBillingValue || null,
-          n_nf: miniNfNumber || null,
+          faturada: miniBillingValue === 'sim',
+          numero_nf: miniNfNumber || null,
         },
       });
     } catch (error) {
@@ -481,12 +471,12 @@ const FinancialPage = () => {
                   )}
 
                   {!isLoading && !isError && orders.map((order) => {
-                    const concluded = (order.concluida ?? '').toLowerCase() === 'sim';
-                    const billed = (order.faturamento ?? '').toLowerCase() === 'sim';
+                    const concluded = order.concluida;
+                    const billed = order.faturada;
 
                     return (
                       <TableRow key={order.id} className="border-border">
-                        <TableCell className="font-semibold text-muted-foreground">#{order.numero_os}</TableCell>
+                        <TableCell className="font-semibold text-muted-foreground">#{order.id}</TableCell>
                         <TableCell className="font-medium">{order.cliente_nome}</TableCell>
                         <TableCell className="text-center">
                           {renderBadge(concluded, 'Concluída', 'Em andamento')}
@@ -587,12 +577,12 @@ const FinancialPage = () => {
                   )}
 
                   {!isMiniOsLoading && !isMiniOsError && miniOs.map((mini) => {
-                    const billed = (mini.faturamento ?? '').toLowerCase() === 'sim';
+                    const billed = mini.faturada;
                     return (
                       <TableRow key={mini.id} className="border-border">
                         <TableCell className="font-semibold text-muted-foreground">#{mini.id}</TableCell>
                         <TableCell className="font-medium">
-                          {mini.cliente?.nome ?? 'Cliente não informado'}
+                          {mini.cliente_nome ?? 'Cliente não informado'}
                         </TableCell>
                         <TableCell className="text-center">
                           {renderBadge(billed, 'Faturada', 'Não faturada')}
@@ -640,7 +630,7 @@ const FinancialPage = () => {
             <div className="space-y-6 pb-6">
               <div>
                 <h3 className="text-sm font-semibold text-muted-foreground uppercase">Cliente</h3>
-                <p className="text-lg font-bold">{orderDetail.cliente?.nome ?? 'Cliente não informado'}</p>
+                <p className="text-lg font-bold">{orderDetail.cliente_detail?.nome ?? 'Cliente não informado'}</p>
               </div>
 
               <div className="space-y-4">
@@ -661,12 +651,8 @@ const FinancialPage = () => {
                   <div className="rounded-lg bg-secondary/50 p-4">
                     <span className="text-xs text-muted-foreground">Cobrança imediata</span>
                     <p className="text-base font-medium">
-                      {(orderDetail.cobranca_imediata ?? '').toLowerCase() === 'sim' ? 'Sim' : 'Não'}
+                      {orderDetail.cobranca_imediata ? 'Sim' : 'Não'}
                     </p>
-                  </div>
-                  <div className="rounded-lg bg-secondary/50 p-4 sm:col-span-2">
-                    <span className="text-xs text-muted-foreground">Primeiro faturamento</span>
-                    <p className="text-base font-medium">{orderDetail.faturamento_1 ?? '-'}</p>
                   </div>
                 </div>
               </div>
@@ -792,7 +778,7 @@ const FinancialPage = () => {
               <div>
                 <h3 className="text-sm font-semibold text-muted-foreground uppercase">Cliente</h3>
                 <p className="text-lg font-bold">
-                  {miniDetail.cliente?.nome ?? 'Cliente não informado'}
+                  {miniDetail.cliente_detail?.nome ?? 'Cliente não informado'}
                 </p>
               </div>
 
@@ -813,7 +799,7 @@ const FinancialPage = () => {
                 </div>
                 <div className="rounded-lg bg-secondary/50 p-4">
                   <span className="text-xs text-muted-foreground">NF atual</span>
-                  <p className="text-base font-medium">{miniDetail.n_nf ?? '-'}</p>
+                  <p className="text-base font-medium">{miniDetail.numero_nf ?? '-'}</p>
                 </div>
               </div>
 
@@ -830,7 +816,7 @@ const FinancialPage = () => {
 
               <div className="rounded-lg bg-secondary/50 p-4">
                 <span className="text-xs text-muted-foreground">Serviço</span>
-                <p className="text-base font-medium">{miniDetail.servico?.nome ?? '-'}</p>
+                <p className="text-base font-medium">{miniDetail.servico_detail?.nome ?? '-'}</p>
               </div>
 
               <div className="rounded-lg bg-secondary/50 p-4">
@@ -843,7 +829,7 @@ const FinancialPage = () => {
               <div className="rounded-lg bg-secondary/50 p-4">
                 <span className="text-xs text-muted-foreground">Responsável</span>
                 <p className="text-base font-medium">
-                  {miniDetail.profile?.username ?? 'Não informado'}
+                  {miniDetail.responsavel_nome ?? 'Não informado'}
                 </p>
               </div>
 
