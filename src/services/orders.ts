@@ -51,6 +51,9 @@ export interface OrdemServicoDetailNew {
     email_representante?: string;
     contato_representante?: string;
   };
+  criado_por_nome: string | null;
+  data_conclusao_os: string | null;
+  finalizador_nome: string | null;
 }
 
 export type OrdemServicoInput = {

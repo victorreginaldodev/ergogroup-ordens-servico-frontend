@@ -634,6 +634,30 @@ const FinancialPage = () => {
               </div>
 
               <div className="space-y-4">
+                <h4 className="text-sm font-semibold uppercase text-muted-foreground">Histórico</h4>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="rounded-lg bg-secondary/50 p-4">
+                    <span className="text-xs text-muted-foreground">Data de criação</span>
+                    <p className="text-base font-medium">{orderDetail.data_criacao ?? '-'}</p>
+                  </div>
+                  <div className="rounded-lg bg-secondary/50 p-4">
+                    <span className="text-xs text-muted-foreground">Criado por</span>
+                    <p className="text-base font-medium">{orderDetail.criado_por_nome ?? '-'}</p>
+                  </div>
+                  <div className="rounded-lg bg-secondary/50 p-4">
+                    <span className="text-xs text-muted-foreground">Data de finalização</span>
+                    <p className="text-base font-medium">{orderDetail.data_conclusao_os ?? '-'}</p>
+                  </div>
+                  <div className="rounded-lg bg-secondary/50 p-4">
+                    <span className="text-xs text-muted-foreground">Finalizado por</span>
+                    <p className="text-base font-medium">{orderDetail.finalizador_nome ?? '-'}</p>
+                  </div>
+                </div>
+              </div>
+
+              <Separator />
+
+              <div className="space-y-4">
                 <h4 className="text-sm font-semibold uppercase text-muted-foreground">Informações financeiras</h4>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="rounded-lg bg-secondary/50 p-4">
