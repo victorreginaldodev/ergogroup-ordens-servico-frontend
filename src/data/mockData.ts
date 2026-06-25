@@ -124,6 +124,20 @@ export const getStatusLabel = (status: ServiceStatus): string => {
   return labels[status];
 };
 
+export const getPriorityLabel = (priority?: 'baixa' | 'media' | 'alta'): string => {
+  const labels = { baixa: 'Baixa', media: 'Média', alta: 'Alta' };
+  return priority ? labels[priority] : '';
+};
+
+export const getPriorityColor = (priority?: 'baixa' | 'media' | 'alta'): string => {
+  const colors = {
+    baixa: 'bg-muted text-foreground',
+    media: 'bg-yellow-500 text-white',
+    alta: 'bg-red-600 text-white',
+  };
+  return priority ? colors[priority] : 'bg-muted text-foreground';
+};
+
 export const formatCurrency = (value: number): string => {
   return new Intl.NumberFormat('pt-BR', {
     style: 'currency',

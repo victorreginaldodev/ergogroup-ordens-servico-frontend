@@ -54,6 +54,16 @@ export interface OrdemServicoDetailNew {
   criado_por_nome: string | null;
   data_conclusao_os: string | null;
   finalizador_nome: string | null;
+  status?: string;
+  prioridade?: 'baixa' | 'media' | 'alta';
+  liberada_para_faturamento?: boolean;
+  contrato?: boolean;
+  objeto_contrato?: string | null;
+  contrato_data_inicio?: string | null;
+  contrato_data_fim?: string | null;
+  gestor_contrato_nome?: string | null;
+  gestor_contrato_email?: string | null;
+  gestor_contrato_telefone?: string | null;
 }
 
 export type OrdemServicoInput = {
@@ -72,6 +82,14 @@ export type OrdemServicoInput = {
   contato_envio_nf: string;
   observacao?: string;
   cliente: number;
+  prioridade?: 'baixa' | 'media' | 'alta';
+  contrato?: boolean;
+  objeto_contrato?: string;
+  contrato_data_inicio?: string;
+  contrato_data_fim?: string;
+  gestor_contrato_nome?: string;
+  gestor_contrato_email?: string;
+  gestor_contrato_telefone?: string;
 };
 
 export type OrdersPageParams = {
@@ -102,7 +120,12 @@ const toFrontendNew = (dto: any): ServiceOrder => {
     '';
   const concluida = typeof dto.concluida === 'boolean' ? dto.concluida : dto.concluida === 'sim';
   const faturada = typeof dto.faturada === 'boolean' ? dto.faturada : dto.faturada === 'sim';
-  const status: ServiceOrder['status'] = concluida ? 'completed' : 'in_progress';
+  const backendStatus = dto.status ?? '';
+  const status: ServiceOrder['status'] =
+    backendStatus === 'cancelada' ? 'cancelled'
+    : backendStatus === 'concluida' || concluida ? 'completed'
+    : backendStatus === 'em_andamento' ? 'in_progress'
+    : 'pending';
   return {
     id: String(dto.id),
     orderNumber: `OS-${dto.id}`,
@@ -117,6 +140,9 @@ const toFrontendNew = (dto: any): ServiceOrder => {
     updatedAt: created,
     dueDate: created,
     isPaid: faturada || !!dto.numero_nf,
+    priority: dto.prioridade,
+    liberadaParaFaturamento: dto.liberada_para_faturamento,
+    isContract: dto.contrato,
   };
 };
 

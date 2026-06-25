@@ -29,7 +29,7 @@ import { Badge } from '@/components/ui/badge';
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious, PaginationEllipsis } from '@/components/ui/pagination';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
-import { formatCurrency, formatDate, getStatusLabel, getStatusColor } from '@/data/mockData';
+import { formatCurrency, formatDate, getStatusLabel, getStatusColor, getPriorityLabel, getPriorityColor } from '@/data/mockData';
 import { useServiceOrders, useDeleteServiceOrder } from '@/services/orders';
 import { useUserRole } from '@/hooks/useUserRole';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -168,12 +168,15 @@ const OrdersPage = () => {
                       <TableCell>
                         <div>
                           <p className="font-medium uppercase">{order.clientName}</p>
-                          <p className="text-sm text-muted-foreground hidden sm:block">{order.clientEmail}</p>
+                          <div className="hidden sm:flex items-center gap-1 mt-1 flex-wrap">
+                            {order.priority && <Badge className={`${getPriorityColor(order.priority)} border-0 uppercase text-xs`}>{getPriorityLabel(order.priority)}</Badge>}
+                            {order.isContract && <Badge className="bg-blue-600 text-white border-0 uppercase text-xs">Contrato</Badge>}
+                          </div>
                         </div>
                       </TableCell>
                       {canViewOrderValues && <TableCell><span className="font-semibold">{formatCurrency(order.totalAmount)}</span></TableCell>}
                       <TableCell className="w-40"><Badge className={`${getStatusColor(order.status)} border-0 uppercase`}>{getStatusLabel(order.status)}</Badge></TableCell>
-                      <TableCell className="w-40"><Badge className={`border-0 uppercase ${order.isPaid ? 'bg-green-600 text-white' : 'bg-muted text-foreground'}`}>{order.isPaid ? 'Faturado' : 'Não faturado'}</Badge></TableCell>
+                      <TableCell className="w-40"><Badge className={`border-0 uppercase ${order.isPaid ? 'bg-green-600 text-white' : order.liberadaParaFaturamento ? 'bg-amber-500 text-white' : 'bg-muted text-foreground'}`}>{order.isPaid ? 'Faturado' : order.liberadaParaFaturamento ? 'Liberado' : 'Não faturado'}</Badge></TableCell>
                       <TableCell className="hidden sm:table-cell text-muted-foreground">{formatDate(order.createdAt)}</TableCell>
                       <TableCell>
                         {canManageOrders ? (

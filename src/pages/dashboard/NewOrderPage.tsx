@@ -126,6 +126,14 @@ const NewOrderPage = () => {
     invoiceContactName: '',
     invoiceContactEmail: '',
     observation: '',
+    prioridade: 'baixa' as 'baixa' | 'media' | 'alta',
+    contrato: false,
+    objetoContrato: '',
+    contratoDataInicio: '',
+    contratoDataFim: '',
+    gestorNome: '',
+    gestorEmail: '',
+    gestorTelefone: '',
   });
 
   const [orderServices, setOrderServices] = useState<ServiceItem[]>([]);
@@ -169,6 +177,14 @@ const NewOrderPage = () => {
       invoiceContactName: sourceData.nome_contato_envio_nf || '',
       invoiceContactEmail: sourceData.contato_envio_nf || '',
       observation: sourceData.observacao || '',
+      prioridade: (sourceData.prioridade || 'baixa') as 'baixa' | 'media' | 'alta',
+      contrato: !!sourceData.contrato,
+      objetoContrato: sourceData.objeto_contrato || '',
+      contratoDataInicio: sourceData.contrato_data_inicio || '',
+      contratoDataFim: sourceData.contrato_data_fim || '',
+      gestorNome: sourceData.gestor_contrato_nome || '',
+      gestorEmail: sourceData.gestor_contrato_email || '',
+      gestorTelefone: sourceData.gestor_contrato_telefone || '',
     });
 
     const items = (sourceData.servicos || []).map((s, idx) => {
@@ -283,6 +299,11 @@ const NewOrderPage = () => {
       const anyWithoutNote = orderServices.some(s => !s.note || !s.note.trim());
       if (anyWithoutNote) missing.push("Descrição do serviço");
     }
+    if (formData.contrato) {
+      if (!formData.objetoContrato) missing.push("Objeto do contrato");
+      if (!formData.contratoDataInicio) missing.push("Data de início do contrato");
+      if (!formData.contratoDataFim) missing.push("Data de fim do contrato");
+    }
     if (missing.length > 0) {
       toast({
         title: "Campos obrigatórios ausentes",
@@ -316,11 +337,21 @@ const NewOrderPage = () => {
       nome_contato_envio_nf: formData.invoiceContactName,
       contato_envio_nf: formData.invoiceContactEmail,
       cliente: Number(formData.clientId),
+      prioridade: formData.prioridade,
+      contrato: formData.contrato,
     };
     if (!payload.cliente || isNaN(payload.cliente)) payload.cliente = clientIdNum;
     if (formData.installments) payload.quantidade_parcelas = formData.installments as any;
     if (formData.immediateCharge) payload.cobranca_imediata = formData.immediateCharge === 'sim';
     if (formData.observation) payload.observacao = formData.observation;
+    if (formData.contrato) {
+      payload.objeto_contrato = formData.objetoContrato;
+      payload.contrato_data_inicio = formData.contratoDataInicio;
+      payload.contrato_data_fim = formData.contratoDataFim;
+      if (formData.gestorNome) payload.gestor_contrato_nome = formData.gestorNome;
+      if (formData.gestorEmail) payload.gestor_contrato_email = formData.gestorEmail;
+      if (formData.gestorTelefone) payload.gestor_contrato_telefone = formData.gestorTelefone;
+    }
 
     upsert.mutate(payload as any, {
       onSuccess: () => {
@@ -490,6 +521,19 @@ const NewOrderPage = () => {
                   </SelectContent>
                 </Select>
               </div>
+              <div className="space-y-2 sm:max-w-[280px] w-full">
+                <Label>Prioridade</Label>
+                <Select value={formData.prioridade} onValueChange={(v) => setFormData({ ...formData, prioridade: v as any })}>
+                  <SelectTrigger className="bg-secondary border-border w-full">
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="baixa">Baixa</SelectItem>
+                    <SelectItem value="media">Média</SelectItem>
+                    <SelectItem value="alta">Alta</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <div className="grid sm:grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -526,6 +570,91 @@ const NewOrderPage = () => {
             </div>
 
 
+          </CardContent>
+        </Card>
+
+        <Card className="bg-card border-border">
+          <CardHeader>
+            <CardTitle>Contrato</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center gap-3">
+              <Switch
+                id="contrato"
+                checked={formData.contrato}
+                onCheckedChange={(v) => setFormData({ ...formData, contrato: v })}
+              />
+              <Label htmlFor="contrato">Esta OS representa um contrato</Label>
+            </div>
+            {formData.contrato && (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="objetoContrato">Objeto do contrato *</Label>
+                  <Textarea
+                    id="objetoContrato"
+                    value={formData.objetoContrato}
+                    onChange={(e) => setFormData({ ...formData, objetoContrato: e.target.value })}
+                    className="bg-secondary border-border min-h-24"
+                    placeholder="Descreva o objeto do contrato"
+                  />
+                </div>
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="contratoDataInicio">Data de início *</Label>
+                    <Input
+                      id="contratoDataInicio"
+                      type="date"
+                      value={formData.contratoDataInicio}
+                      onChange={(e) => setFormData({ ...formData, contratoDataInicio: e.target.value })}
+                      className="bg-secondary border-border"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="contratoDataFim">Data de fim *</Label>
+                    <Input
+                      id="contratoDataFim"
+                      type="date"
+                      value={formData.contratoDataFim}
+                      onChange={(e) => setFormData({ ...formData, contratoDataFim: e.target.value })}
+                      className="bg-secondary border-border"
+                    />
+                  </div>
+                </div>
+                <div className="grid sm:grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="gestorNome">Nome do gestor</Label>
+                    <Input
+                      id="gestorNome"
+                      value={formData.gestorNome}
+                      onChange={(e) => setFormData({ ...formData, gestorNome: e.target.value })}
+                      className="bg-secondary border-border"
+                      placeholder="Nome (opcional)"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="gestorEmail">E-mail do gestor</Label>
+                    <Input
+                      id="gestorEmail"
+                      type="email"
+                      value={formData.gestorEmail}
+                      onChange={(e) => setFormData({ ...formData, gestorEmail: e.target.value })}
+                      className="bg-secondary border-border"
+                      placeholder="email@empresa.com (opcional)"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="gestorTelefone">Telefone do gestor</Label>
+                    <Input
+                      id="gestorTelefone"
+                      value={formData.gestorTelefone}
+                      onChange={(e) => setFormData({ ...formData, gestorTelefone: e.target.value })}
+                      className="bg-secondary border-border"
+                      placeholder="(00) 00000-0000 (opcional)"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 

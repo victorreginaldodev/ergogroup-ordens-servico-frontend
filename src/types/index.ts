@@ -40,6 +40,9 @@ export interface ServiceOrder {
   updatedAt: Date;
   dueDate: Date;
   isPaid: boolean;
+  priority?: 'baixa' | 'media' | 'alta';
+  liberadaParaFaturamento?: boolean;
+  isContract?: boolean;
 }
 
 export interface FinancialSummary {
