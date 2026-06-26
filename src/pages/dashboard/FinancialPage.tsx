@@ -1,7 +1,14 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FileText, Lock, PencilLine, Search } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
+import {
+  AlertCircle,
+  ArrowRight,
+  Clock,
+  DollarSign,
+  FileText,
+  Lock,
+  Search,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -15,6 +22,7 @@ import {
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 import {
   Select,
   SelectContent,
@@ -24,79 +32,248 @@ import {
 } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Pagination, PaginationContent, PaginationEllipsis, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination';
-import { formatCurrency } from '@/data/mockData';
-import { useBillingKpis, useBillingServiceOrdersPage, useMiniOsDetail, useMiniOsPage, useUpdateMiniOs } from '@/services/billing';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from '@/components/ui/pagination';
+import { cn } from '@/lib/utils';
+import { formatCurrency, formatDate } from '@/data/mockData';
+import {
+  useBillingKpis,
+  useBillingServiceOrdersPage,
+  useMiniOsDetail,
+  useMiniOsPage,
+  useUpdateMiniOs,
+} from '@/services/billing';
 import { useServiceOrder, useUpdateServiceOrderBilling } from '@/services/orders';
 import { useUserRole } from '@/hooks/useUserRole';
 
 const PAGE_SIZE = 20;
 
+// ── Dot badge helper (same pattern as OS listing) ────────────────────────────
+const dotBadge = (colorClass: string, label: string) => (
+  <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-foreground">
+    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${colorClass}`} />
+    {label}
+  </span>
+);
+
+// ── Pill filter (radio-style) ─────────────────────────────────────────────────
+type PillOption<T extends string> = { value: T; label: string };
+function PillFilter<T extends string>({
+  options,
+  value,
+  onChange,
+}: {
+  options: PillOption<T>[];
+  value: T;
+  onChange: (v: T) => void;
+}) {
+  return (
+    <div className="flex items-center gap-1.5 flex-wrap">
+      {options.map((opt) => (
+        <button
+          key={opt.value}
+          type="button"
+          onClick={() => onChange(opt.value)}
+          className={cn(
+            'px-2.5 py-1 rounded-full text-xs font-medium transition-colors border',
+            value === opt.value
+              ? 'bg-primary text-primary-foreground border-primary'
+              : 'bg-secondary text-muted-foreground border-border hover:text-foreground',
+          )}
+        >
+          {opt.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// ── KPI card ──────────────────────────────────────────────────────────────────
+function KpiCard({
+  label,
+  value,
+  icon: Icon,
+  iconColor,
+  barColor,
+  pct,
+}: {
+  label: string;
+  value: number;
+  icon: React.ElementType;
+  iconColor: string;
+  barColor: string;
+  pct: number;
+}) {
+  return (
+    <Card className="border-border bg-card">
+      <CardContent className="px-4 py-3">
+        <div className="flex items-center justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground truncate">
+              {label}
+            </p>
+            <p className="mt-0.5 text-lg font-bold tabular-nums leading-tight">{formatCurrency(value)}</p>
+          </div>
+          <span className={cn('flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md', iconColor)}>
+            <Icon className="h-3.5 w-3.5" />
+          </span>
+        </div>
+        <div className="mt-2.5 h-1 rounded-full bg-muted overflow-hidden">
+          <div
+            className={cn('h-full rounded-full transition-all duration-500', barColor)}
+            style={{ width: `${Math.max(pct, pct > 0 ? 2 : 0)}%` }}
+          />
+        </div>
+        <p className="mt-1 text-[10px] text-muted-foreground">{pct.toFixed(0)}% do total</p>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ── Status filters ────────────────────────────────────────────────────────────
+const STATUS_OPTIONS: PillOption<'all' | 'concluida' | 'andamento'>[] = [
+  { value: 'all', label: 'Todos' },
+  { value: 'concluida', label: 'Concluída' },
+  { value: 'andamento', label: 'Em andamento' },
+];
+
+const BILLING_OPTIONS: PillOption<'all' | 'faturada' | 'nao_faturada'>[] = [
+  { value: 'all', label: 'Todos' },
+  { value: 'faturada', label: 'Faturada' },
+  { value: 'nao_faturada', label: 'Não faturada' },
+];
+
+// ── Page ──────────────────────────────────────────────────────────────────────
 const FinancialPage = () => {
   const navigate = useNavigate();
-  const {
-    data: kpis,
-    isLoading: isKpiLoading,
-    isError: isKpiError,
-  } = useBillingKpis();
+  const { data: kpis, isLoading: isKpiLoading, isError: isKpiError } = useBillingKpis();
+
+  // OS state
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'concluida' | 'andamento'>('all');
+  const [billingFilter, setBillingFilter] = useState<'all' | 'faturada' | 'nao_faturada'>('nao_faturada');
+  const [ordersPage, setOrdersPage] = useState(1);
+
+  // MiniOS state
   const [miniOsSearch, setMiniOsSearch] = useState('');
   const [miniOsBillingFilter, setMiniOsBillingFilter] = useState<'all' | 'faturada' | 'nao_faturada'>('all');
-  const [isMiniDialogOpen, setIsMiniDialogOpen] = useState(false);
-  const [selectedMiniId, setSelectedMiniId] = useState<number | null>(null);
-  const [miniBillingValue, setMiniBillingValue] = useState<'sim' | 'nao' | ''>('');
-  const [miniNfNumber, setMiniNfNumber] = useState('');
+  const [miniPage, setMiniPage] = useState(1);
+
+  // Dialog state — OS
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
   const [faturamentoValue, setFaturamentoValue] = useState<'sim' | 'nao' | ''>('');
   const [billingDate, setBillingDate] = useState('');
   const [nfNumber, setNfNumber] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'concluida' | 'andamento'>('all');
-  const [billingFilter, setBillingFilter] = useState<'all' | 'faturada' | 'nao_faturada'>('all');
-  const [activeView, setActiveView] = useState<'os' | 'minios'>('os');
-  const [ordersPage, setOrdersPage] = useState(1);
-  const [miniPage, setMiniPage] = useState(1);
-  const {
-    data: ordersPageData,
-    isLoading,
-    isError,
-  } = useBillingServiceOrdersPage({
+
+  // Dialog state — MiniOS
+  const [isMiniDialogOpen, setIsMiniDialogOpen] = useState(false);
+  const [selectedMiniId, setSelectedMiniId] = useState<number | null>(null);
+  const [miniBillingValue, setMiniBillingValue] = useState<'sim' | 'nao' | ''>('');
+  const [miniNfNumber, setMiniNfNumber] = useState('');
+
+  const { data: ordersPageData, isLoading, isError } = useBillingServiceOrdersPage({
     page: ordersPage,
     pageSize: PAGE_SIZE,
     q: searchTerm,
     liberada: 'true',
-    concluida: statusFilter === 'concluida' ? 'true' : statusFilter === 'andamento' ? 'false' : 'all',
-    faturada: billingFilter === 'faturada' ? 'true' : billingFilter === 'nao_faturada' ? 'false' : 'all',
+    concluida:
+      statusFilter === 'concluida' ? 'true' : statusFilter === 'andamento' ? 'false' : 'all',
+    faturada:
+      billingFilter === 'faturada' ? 'true' : billingFilter === 'nao_faturada' ? 'false' : 'all',
   });
   const orders = ordersPageData?.items ?? [];
   const ordersTotalPages = ordersPageData?.totalPages ?? 1;
-  const {
-    data: miniOsPageData,
-    isLoading: isMiniOsLoading,
-    isError: isMiniOsError,
-  } = useMiniOsPage({
+
+  const { data: miniOsPageData, isLoading: isMiniOsLoading, isError: isMiniOsError } = useMiniOsPage({
     page: miniPage,
     pageSize: PAGE_SIZE,
     q: miniOsSearch,
-    faturada: miniOsBillingFilter === 'faturada' ? 'true' : miniOsBillingFilter === 'nao_faturada' ? 'false' : 'all',
+    faturada:
+      miniOsBillingFilter === 'faturada'
+        ? 'true'
+        : miniOsBillingFilter === 'nao_faturada'
+        ? 'false'
+        : 'all',
   });
   const miniOs = miniOsPageData?.items ?? [];
   const miniOsTotalPages = miniOsPageData?.totalPages ?? 1;
 
-  const selectedOrderIdString = selectedOrderId ? String(selectedOrderId) : undefined;
-  const {
-    data: orderDetail,
-    isLoading: isDetailLoading,
-    isError: isDetailError,
-  } = useServiceOrder(selectedOrderIdString);
+  const { data: orderDetail, isLoading: isDetailLoading, isError: isDetailError } =
+    useServiceOrder(selectedOrderId ? String(selectedOrderId) : undefined);
   const updateServiceOrderBilling = useUpdateServiceOrderBilling();
-  const {
-    data: miniDetail,
-    isLoading: isMiniDetailLoading,
-    isError: isMiniDetailError,
-  } = useMiniOsDetail(selectedMiniId ?? undefined);
+
+  const { data: miniDetail, isLoading: isMiniDetailLoading, isError: isMiniDetailError } =
+    useMiniOsDetail(selectedMiniId ?? undefined);
   const updateMiniOs = useUpdateMiniOs();
+
   const { canAccessFinancials } = useUserRole();
+
+  // Reset pages on filter change
+  useEffect(() => { setOrdersPage(1); }, [searchTerm, statusFilter, billingFilter]);
+  useEffect(() => { setMiniPage(1); }, [miniOsSearch, miniOsBillingFilter]);
+  useEffect(() => {
+    if (ordersPage > ordersTotalPages) setOrdersPage(ordersTotalPages);
+  }, [ordersPage, ordersTotalPages]);
+  useEffect(() => {
+    if (miniPage > miniOsTotalPages) setMiniPage(miniOsTotalPages);
+  }, [miniPage, miniOsTotalPages]);
+
+  // Populate OS dialog from detail
+  useEffect(() => {
+    if (!orderDetail) { setFaturamentoValue(''); setBillingDate(''); setNfNumber(''); return; }
+    setFaturamentoValue(orderDetail.faturada ? 'sim' : 'nao');
+    setBillingDate(orderDetail.data_faturamento ?? '');
+    setNfNumber(orderDetail.numero_nf != null ? String(orderDetail.numero_nf) : '');
+  }, [orderDetail]);
+
+  // Populate MiniOS dialog from detail
+  useEffect(() => {
+    if (!miniDetail) { setMiniBillingValue(''); setMiniNfNumber(''); return; }
+    setMiniBillingValue(miniDetail.faturada ? 'sim' : 'nao');
+    setMiniNfNumber(miniDetail.numero_nf ?? '');
+  }, [miniDetail]);
+
+  const handleEditClick = (id: number) => { setSelectedOrderId(id); setIsDialogOpen(true); };
+  const handleDialogChange = (open: boolean) => {
+    setIsDialogOpen(open);
+    if (!open) { setSelectedOrderId(null); setFaturamentoValue(''); setBillingDate(''); setNfNumber(''); }
+  };
+  const handleMiniEditClick = (id: number) => { setSelectedMiniId(id); setIsMiniDialogOpen(true); };
+  const handleMiniDialogChange = (open: boolean) => {
+    setIsMiniDialogOpen(open);
+    if (!open) { setSelectedMiniId(null); setMiniBillingValue(''); setMiniNfNumber(''); }
+  };
+
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!selectedOrderId) return;
+    try {
+      await updateServiceOrderBilling.mutateAsync({
+        id: selectedOrderId,
+        payload: { data_faturamento: billingDate || null, numero_nf: nfNumber ? Number(nfNumber) : null },
+      });
+    } catch (err) { console.error(err); }
+  };
+
+  const handleMiniSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!selectedMiniId) return;
+    try {
+      await updateMiniOs.mutateAsync({
+        id: selectedMiniId,
+        payload: { faturada: miniBillingValue === 'sim', numero_nf: miniNfNumber || null },
+      });
+    } catch (err) { console.error(err); }
+  };
 
   const renderBadge = (condition: boolean, positive: string, negative: string) => (
     <Badge className={condition ? 'bg-status-completed text-primary-foreground' : 'bg-status-pending text-primary-foreground'}>
@@ -104,170 +281,36 @@ const FinancialPage = () => {
     </Badge>
   );
 
-  useEffect(() => {
-    setOrdersPage(1);
-  }, [searchTerm, statusFilter, billingFilter]);
-
-  useEffect(() => {
-    setMiniPage(1);
-  }, [miniOsSearch, miniOsBillingFilter]);
-
-  useEffect(() => {
-    if (ordersPage > ordersTotalPages) {
-      setOrdersPage(ordersTotalPages);
-    }
-  }, [ordersPage, ordersTotalPages]);
-
-  useEffect(() => {
-    if (miniPage > miniOsTotalPages) {
-      setMiniPage(miniOsTotalPages);
-    }
-  }, [miniPage, miniOsTotalPages]);
-
-  useEffect(() => {
-    if (!orderDetail) {
-      setFaturamentoValue('');
-      setBillingDate('');
-      setNfNumber('');
-      return;
-    }
-    setFaturamentoValue(orderDetail.faturada ? 'sim' : 'nao');
-    setBillingDate(orderDetail.data_faturamento ?? '');
-    const numeroNf = orderDetail.numero_nf;
-    setNfNumber(numeroNf !== null && numeroNf !== undefined ? String(numeroNf) : '');
-  }, [orderDetail]);
-
-  useEffect(() => {
-    if (!miniDetail) {
-      setMiniBillingValue('');
-      setMiniNfNumber('');
-      return;
-    }
-    setMiniBillingValue(miniDetail.faturada ? 'sim' : 'nao');
-    setMiniNfNumber(miniDetail.numero_nf ?? '');
-  }, [miniDetail]);
-
-  const handleEditClick = (orderId: number) => {
-    setSelectedOrderId(orderId);
-    setIsDialogOpen(true);
-  };
-
-  const handleDialogChange = (open: boolean) => {
-    setIsDialogOpen(open);
-    if (!open) {
-      setSelectedOrderId(null);
-      setFaturamentoValue('');
-      setBillingDate('');
-      setNfNumber('');
-    }
-  };
-
-  const handleMiniEditClick = (miniId: number) => {
-    setSelectedMiniId(miniId);
-    setIsMiniDialogOpen(true);
-  };
-
-  const handleMiniDialogChange = (open: boolean) => {
-    setIsMiniDialogOpen(open);
-    if (!open) {
-      setSelectedMiniId(null);
-      setMiniBillingValue('');
-      setMiniNfNumber('');
-    }
-  };
-
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!selectedOrderId) return;
-
-    try {
-      await updateServiceOrderBilling.mutateAsync({
-        id: selectedOrderId,
-        payload: {
-          data_faturamento: billingDate || null,
-          numero_nf: nfNumber ? Number(nfNumber) : null,
-        },
-      });
-    } catch (error) {
-      console.error('Erro ao atualizar ordem de serviço para faturamento', error);
-    }
-  };
-
-  const handleMiniSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!selectedMiniId) return;
-
-    try {
-      await updateMiniOs.mutateAsync({
-        id: selectedMiniId,
-        payload: {
-          faturada: miniBillingValue === 'sim',
-          numero_nf: miniNfNumber || null,
-        },
-      });
-    } catch (error) {
-      console.error('Erro ao atualizar Mini OS', error);
-    }
-  };
-
-  const renderPager = (page: number, totalPages: number, setPage: (value: number) => void) => {
+  const renderPager = (page: number, totalPages: number, setPage: (v: number) => void) => {
     if (totalPages <= 1) return null;
-
-    const siblingCount = 1;
     const items: (number | 'ellipsis')[] = [];
     if (totalPages <= 7) {
       for (let p = 1; p <= totalPages; p++) items.push(p);
     } else {
       items.push(1);
-      const start = Math.max(2, page - siblingCount);
-      const end = Math.min(totalPages - 1, page + siblingCount);
+      const start = Math.max(2, page - 1);
+      const end = Math.min(totalPages - 1, page + 1);
       if (start > 2) items.push('ellipsis');
       for (let p = start; p <= end; p++) items.push(p);
       if (end < totalPages - 1) items.push('ellipsis');
       items.push(totalPages);
     }
-
     return (
       <div className="pt-4">
         <Pagination>
           <PaginationContent>
             <PaginationItem>
-              <PaginationPrevious
-                href="#"
-                onClick={(e) => {
-                  e.preventDefault();
-                  if (page > 1) setPage(page - 1);
-                }}
-                className={page === 1 ? 'pointer-events-none opacity-50' : ''}
-              />
+              <PaginationPrevious href="#" onClick={(e) => { e.preventDefault(); if (page > 1) setPage(page - 1); }} className={page === 1 ? 'pointer-events-none opacity-50' : ''} />
             </PaginationItem>
             {items.map((item, idx) => (
               <PaginationItem key={`${item}-${idx}`}>
-                {item === 'ellipsis' ? (
-                  <PaginationEllipsis />
-                ) : (
-                  <PaginationLink
-                    href="#"
-                    isActive={item === page}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      setPage(item);
-                    }}
-                  >
-                    {item}
-                  </PaginationLink>
+                {item === 'ellipsis' ? <PaginationEllipsis /> : (
+                  <PaginationLink href="#" isActive={item === page} onClick={(e) => { e.preventDefault(); setPage(item as number); }}>{item}</PaginationLink>
                 )}
               </PaginationItem>
             ))}
             <PaginationItem>
-              <PaginationNext
-                href="#"
-                onClick={(e) => {
-                  e.preventDefault();
-                  if (page < totalPages) setPage(page + 1);
-                }}
-                className={page === totalPages ? 'pointer-events-none opacity-50' : ''}
-              />
+              <PaginationNext href="#" onClick={(e) => { e.preventDefault(); if (page < totalPages) setPage(page + 1); }} className={page === totalPages ? 'pointer-events-none opacity-50' : ''} />
             </PaginationItem>
           </PaginationContent>
         </Pagination>
@@ -285,7 +328,7 @@ const FinancialPage = () => {
             </div>
             <CardTitle className="mt-4 text-xl">Acesso restrito</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent>
             <p className="text-muted-foreground">
               Seu perfil não possui permissão para visualizar as informações financeiras.
             </p>
@@ -295,319 +338,366 @@ const FinancialPage = () => {
     );
   }
 
+  // KPI proportions
+  const kpiTotal = (kpis?.total_faturado ?? 0) + (kpis?.total_para_faturar ?? 0) + (kpis?.total_sem_liberacao ?? 0);
+  const pctFaturado     = kpiTotal > 0 ? ((kpis?.total_faturado     ?? 0) / kpiTotal) * 100 : 0;
+  const pctParaFaturar  = kpiTotal > 0 ? ((kpis?.total_para_faturar  ?? 0) / kpiTotal) * 100 : 0;
+  const pctSemLiberacao = kpiTotal > 0 ? ((kpis?.total_sem_liberacao ?? 0) / kpiTotal) * 100 : 0;
+
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold">Financeiro</h1>
-          <p className="text-muted-foreground">Ordens de serviço disponíveis para faturamento</p>
-        </div>
+      <div>
+        <h1 className="text-2xl font-bold">Financeiro</h1>
+        <p className="text-muted-foreground">Ordens de serviço disponíveis para faturamento</p>
       </div>
 
+      {/* ── KPIs ────────────────────────────────────────────────────────────── */}
+      {isKpiLoading && (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Card key={i} className="border-border">
+              <CardContent className="p-5 space-y-3">
+                <Skeleton className="h-3 w-28" />
+                <Skeleton className="h-7 w-36" />
+                <Skeleton className="h-1 w-full" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {!isKpiLoading && isKpiError && (
+        <Card className="border-destructive bg-destructive/10">
+          <CardContent className="p-4 text-destructive text-sm">
+            Não foi possível carregar os indicadores de faturamento.
+          </CardContent>
+        </Card>
+      )}
+
+      {!isKpiLoading && !isKpiError && kpis && (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <KpiCard
+            label="Total faturado"
+            value={kpis.total_faturado ?? 0}
+            icon={DollarSign}
+            iconColor="bg-green-500/10 text-green-600 dark:text-green-400"
+            barColor="bg-green-500"
+            pct={pctFaturado}
+          />
+          <KpiCard
+            label="Para faturar"
+            value={kpis.total_para_faturar ?? 0}
+            icon={Clock}
+            iconColor="bg-amber-500/10 text-amber-600 dark:text-amber-400"
+            barColor="bg-amber-400"
+            pct={pctParaFaturar}
+          />
+          <KpiCard
+            label="Sem liberação"
+            value={kpis.total_sem_liberacao ?? 0}
+            icon={AlertCircle}
+            iconColor="bg-muted text-muted-foreground"
+            barColor="bg-muted-foreground"
+            pct={pctSemLiberacao}
+          />
+        </div>
+      )}
+
+      {/* ── Main table card ──────────────────────────────────────────────────── */}
       <Card className="bg-card border-border">
-        <CardHeader>
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <CardTitle className="text-lg font-semibold">Financeiro</CardTitle>
-            <div className="inline-flex rounded-md border border-border bg-muted p-1">
-              <Button
-                type="button"
-                variant={activeView === 'os' ? 'secondary' : 'ghost'}
-                size="sm"
-                onClick={() => setActiveView('os')}
-                className="rounded-sm px-4"
-              >
-                Ordens
-              </Button>
-              <Button
-                type="button"
-                variant={activeView === 'minios' ? 'secondary' : 'ghost'}
-                size="sm"
-                onClick={() => setActiveView('minios')}
-                className="rounded-sm px-4"
-              >
-                Tarefas rápidas
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {isKpiLoading && (
-              <>
-                {Array.from({ length: 3 }).map((_, index) => (
-                  <Card key={`kpi-loading-${index}`} className="border-border bg-secondary/40">
-                    <CardContent className="space-y-3 p-4">
-                      <Skeleton className="h-4 w-32" />
-                      <Skeleton className="h-6 w-24" />
-                    </CardContent>
-                  </Card>
-                ))}
-              </>
-            )}
-
-            {!isKpiLoading && isKpiError && (
-              <Card className="border-destructive bg-destructive/10 sm:col-span-2 lg:col-span-3">
-                <CardContent className="p-4 text-destructive">
-                  Não foi possível carregar os indicadores de faturamento.
-                </CardContent>
-              </Card>
-            )}
-
-            {!isKpiLoading && !isKpiError && kpis && (
-              <>
-                <Card className="border-border bg-secondary/40">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-semibold text-muted-foreground">
-                      Total faturado
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="pt-0">
-                    <p className="text-2xl font-bold">{formatCurrency(kpis.total_faturado ?? 0)}</p>
-                  </CardContent>
-                </Card>
-
-                <Card className="border-border bg-secondary/40">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-semibold text-muted-foreground">
-                      Total para faturar
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="pt-0">
-                    <p className="text-2xl font-bold">{formatCurrency(kpis.total_para_faturar ?? 0)}</p>
-                  </CardContent>
-                </Card>
-
-                <Card className="border-border bg-secondary/40">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-semibold text-muted-foreground">
-                      Sem liberação
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="pt-0">
-                    <p className="text-2xl font-bold">{formatCurrency(kpis.total_sem_liberacao ?? 0)}</p>
-                  </CardContent>
-                </Card>
-              </>
-            )}
+        <Tabs defaultValue="os">
+          <div className="flex items-center justify-between px-4 h-12 border-b border-border">
+            <p className="text-sm font-semibold">Cobrança</p>
+            <TabsList className="h-8">
+              <TabsTrigger value="os" className="text-xs px-3">Ordens de Serviço</TabsTrigger>
+              <TabsTrigger value="minios" className="text-xs px-3">Tarefas Rápidas</TabsTrigger>
+            </TabsList>
           </div>
 
-          {activeView === 'os' ? (
-            <>
-              <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="relative flex-1">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <CardContent className="p-0">
+
+            {/* ── OS tab ─────────────────────────────────────────────────────── */}
+            <TabsContent value="os" className="mt-0">
+              {/* Filters */}
+              <div className="px-4 py-3 flex flex-wrap items-center gap-2 border-b border-border">
+                <div className="relative flex-1 min-w-[180px]">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
                   <Input
-                    placeholder="Buscar por cliente ou número da OS..."
+                    placeholder="Buscar por cliente ou nº OS..."
                     value={searchTerm}
-                    onChange={(event) => setSearchTerm(event.target.value)}
-                    className="pl-9"
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-9 h-9 bg-secondary border-border text-sm"
                   />
                 </div>
-
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-                  <Select
-                    value={statusFilter}
-                    onValueChange={(value) => setStatusFilter(value as typeof statusFilter)}
-                  >
-                    <SelectTrigger className="w-full sm:w-48">
-                      <SelectValue placeholder="Status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Status (todos)</SelectItem>
-                      <SelectItem value="concluida">Concluídas</SelectItem>
-                      <SelectItem value="andamento">Em andamento</SelectItem>
-                    </SelectContent>
-                  </Select>
-
-                  <Select
-                    value={billingFilter}
-                    onValueChange={(value) => setBillingFilter(value as typeof billingFilter)}
-                  >
-                    <SelectTrigger className="w-full sm:w-48">
-                      <SelectValue placeholder="Faturamento" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Faturamento (todos)</SelectItem>
-                      <SelectItem value="faturada">Faturadas</SelectItem>
-                      <SelectItem value="nao_faturada">Não faturadas</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}>
+                  <SelectTrigger className="h-9 w-44 bg-secondary border-border text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os status</SelectItem>
+                    <SelectItem value="concluida">Concluída</SelectItem>
+                    <SelectItem value="andamento">Em andamento</SelectItem>
+                  </SelectContent>
+                </Select>
+                <PillFilter options={BILLING_OPTIONS} value={billingFilter} onChange={setBillingFilter} />
               </div>
 
-              <Table>
-                <TableHeader>
-                  <TableRow className="border-border hover:bg-transparent">
-                    <TableHead className="uppercase">OS</TableHead>
-                    <TableHead className="uppercase">Cliente</TableHead>
-                    <TableHead className="uppercase text-center w-48">Status</TableHead>
-                    <TableHead className="uppercase text-center">Faturamento</TableHead>
-                    <TableHead className="uppercase text-right">Ações</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {isLoading && (
-                    <TableRow className="border-border">
-                      <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
-                        Carregando ordens de serviço...
-                      </TableCell>
+              {/* Table */}
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader className="sticky top-0 z-10 bg-card">
+                    <TableRow className="border-border hover:bg-transparent">
+                      <TableHead className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground py-2 px-3">
+                        Ordem de Serviço
+                      </TableHead>
+                      <TableHead className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground py-2 px-3 w-[90px]">
+                        Liberação
+                      </TableHead>
+                      <TableHead className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground py-2 px-3 w-[130px]">
+                        Liberado por
+                      </TableHead>
+                      <TableHead className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground py-2 px-3 w-[110px] text-right">
+                        Valor
+                      </TableHead>
+                      <TableHead className="py-2 px-3 w-[40px]" />
                     </TableRow>
-                  )}
+                  </TableHeader>
+                  <TableBody>
+                    {isLoading &&
+                      Array.from({ length: 8 }).map((_, i) => (
+                        <TableRow key={`sk-${i}`} className="border-border">
+                          <TableCell className="py-3 px-3">
+                            <div className="space-y-2">
+                              <Skeleton className="h-4 w-40" />
+                              <div className="flex gap-3">
+                                <Skeleton className="h-3 w-20" />
+                                <Skeleton className="h-3 w-20" />
+                                <Skeleton className="h-3 w-12" />
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell className="py-3 px-3"><Skeleton className="h-3 w-16" /></TableCell>
+                          <TableCell className="py-3 px-3"><Skeleton className="h-3 w-20" /></TableCell>
+                          <TableCell className="py-3 px-3"><Skeleton className="h-4 w-20 ml-auto" /></TableCell>
+                          <TableCell className="py-3 px-3" />
+                        </TableRow>
+                      ))}
 
-                  {isError && !isLoading && (
-                    <TableRow className="border-border">
-                      <TableCell colSpan={5} className="py-8 text-center text-destructive">
-                        Não foi possível carregar as ordens de serviço para faturamento.
-                      </TableCell>
-                    </TableRow>
-                  )}
-
-                  {!isLoading && !isError && orders.length === 0 && (
-                    <TableRow className="border-border">
-                      <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
-                        Nenhuma ordem de serviço disponível para faturamento.
-                      </TableCell>
-                    </TableRow>
-                  )}
-
-                  {!isLoading && !isError && orders.map((order) => {
-                    const concluded = order.concluida;
-                    const billed = order.faturada;
-
-                    return (
-                      <TableRow key={order.id} className="border-border">
-                        <TableCell className="font-semibold text-muted-foreground">#{order.id}</TableCell>
-                        <TableCell className="font-medium">{order.cliente_nome}</TableCell>
-                        <TableCell className="text-center">
-                          {renderBadge(concluded, 'Concluída', 'Em andamento')}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          {renderBadge(billed, 'Faturada', 'Não faturada')}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleEditClick(order.id)}
-                            >
-                              <PencilLine className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => navigate(`/dashboard/orders/${order.id}/edit`)}
-                            >
-                              <FileText className="h-4 w-4" />
-                            </Button>
-                          </div>
+                    {isError && !isLoading && (
+                      <TableRow className="border-border">
+                        <TableCell colSpan={4} className="py-8 text-center text-sm text-destructive">
+                          Não foi possível carregar as ordens de serviço.
                         </TableCell>
                       </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-              {renderPager(ordersPage, ordersTotalPages, setOrdersPage)}
-            </>
-          ) : (
-            <>
-              <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="relative flex-1">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    )}
+
+                    {!isLoading && !isError && orders.length === 0 && (
+                      <TableRow className="border-border">
+                        <TableCell colSpan={4} className="py-10 text-center">
+                          <FileText className="w-10 h-10 text-muted-foreground mx-auto mb-2" />
+                          <p className="text-sm text-muted-foreground">Nenhuma ordem encontrada</p>
+                        </TableCell>
+                      </TableRow>
+                    )}
+
+                    {!isLoading && !isError && orders.map((order) => (
+                      <TableRow
+                        key={order.id}
+                        className="border-border hover:bg-muted/40 cursor-pointer transition-colors group"
+                        onClick={() => handleEditClick(order.id)}
+                      >
+                        <TableCell className="py-3 px-3">
+                          <div>
+                            <span className="text-sm font-semibold uppercase">{order.cliente_nome}</span>
+                            <div className="flex items-center gap-3 mt-1.5">
+                              {dotBadge(
+                                order.concluida ? 'bg-status-completed' : 'bg-status-progress',
+                                order.concluida ? 'Concluída' : 'Em andamento',
+                              )}
+                              {dotBadge(
+                                order.faturada ? 'bg-green-600' : 'bg-amber-500',
+                                order.faturada ? 'Faturada' : 'Lib. faturamento',
+                              )}
+                              <span className="font-mono text-[10px] text-muted-foreground">#{order.id}</span>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell className="py-3 px-3">
+                          <span className="text-xs text-muted-foreground tabular-nums">
+                            {order.liberada_para_faturamento_em
+                              ? new Date(order.liberada_para_faturamento_em.slice(0, 10) + 'T00:00:00').toLocaleDateString('pt-BR')
+                              : '—'}
+                          </span>
+                        </TableCell>
+                        <TableCell className="py-3 px-3">
+                          <span className="text-xs text-muted-foreground truncate block max-w-[120px]">
+                            {order.liberada_para_faturamento_por_nome ?? '—'}
+                          </span>
+                        </TableCell>
+                        <TableCell className="py-3 px-3 text-right">
+                          <span className="text-sm font-semibold tabular-nums">
+                            {formatCurrency(Number(order.valor ?? 0))}
+                          </span>
+                        </TableCell>
+                        <TableCell className="py-3 px-3">
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); navigate(`/dashboard/orders/${order.id}/edit`); }}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-muted"
+                            title="Ver OS completa"
+                          >
+                            <ArrowRight className="w-3.5 h-3.5 text-muted-foreground" />
+                          </button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+
+              <div className="px-4">
+                {renderPager(ordersPage, ordersTotalPages, setOrdersPage)}
+              </div>
+            </TabsContent>
+
+            {/* ── MiniOS tab ──────────────────────────────────────────────────── */}
+            <TabsContent value="minios" className="mt-0">
+              {/* Filters */}
+              <div className="px-4 py-3 flex flex-wrap items-center gap-2 border-b border-border">
+                <div className="relative flex-1 min-w-[180px]">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
                   <Input
                     placeholder="Buscar por cliente ou ID..."
                     value={miniOsSearch}
-                    onChange={(event) => setMiniOsSearch(event.target.value)}
-                    className="pl-9"
+                    onChange={(e) => setMiniOsSearch(e.target.value)}
+                    className="pl-9 h-9 bg-secondary border-border text-sm"
                   />
                 </div>
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-                  <Select
-                    value={miniOsBillingFilter}
-                    onValueChange={(value) =>
-                      setMiniOsBillingFilter(value as typeof miniOsBillingFilter)
-                    }
-                  >
-                    <SelectTrigger className="w-full sm:w-48">
-                      <SelectValue placeholder="Faturamento" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Faturamento (todos)</SelectItem>
-                      <SelectItem value="faturada">Faturadas</SelectItem>
-                      <SelectItem value="nao_faturada">Não faturadas</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                <PillFilter options={BILLING_OPTIONS} value={miniOsBillingFilter} onChange={setMiniOsBillingFilter} />
               </div>
 
-              <Table>
-                <TableHeader>
-                  <TableRow className="border-border hover:bg-transparent">
-                    <TableHead className="w-24 uppercase">ID</TableHead>
-                    <TableHead className="uppercase">Cliente</TableHead>
-                    <TableHead className="uppercase text-center">Faturamento</TableHead>
-                    <TableHead className="uppercase text-right">Ações</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {isMiniOsLoading && (
-                    <TableRow className="border-border">
-                      <TableCell colSpan={4} className="py-8 text-center text-muted-foreground">
-                        Carregando tarefas rápidas...
-                      </TableCell>
+              {/* Table */}
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader className="sticky top-0 z-10 bg-card">
+                    <TableRow className="border-border hover:bg-transparent">
+                      <TableHead className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground py-2 px-3">
+                        Tarefa Rápida
+                      </TableHead>
+                      <TableHead className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground py-2 px-3 w-[90px]">
+                        Recebimento
+                      </TableHead>
+                      <TableHead className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground py-2 px-3 w-[130px]">
+                        Responsável
+                      </TableHead>
+                      <TableHead className="py-2 px-3 w-[40px]" />
                     </TableRow>
-                  )}
+                  </TableHeader>
+                  <TableBody>
+                    {isMiniOsLoading &&
+                      Array.from({ length: 8 }).map((_, i) => (
+                        <TableRow key={`sk-mini-${i}`} className="border-border">
+                          <TableCell className="py-3 px-3">
+                            <div className="space-y-2">
+                              <Skeleton className="h-4 w-40" />
+                              <div className="flex gap-3">
+                                <Skeleton className="h-3 w-24" />
+                                <Skeleton className="h-3 w-20" />
+                                <Skeleton className="h-3 w-12" />
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell className="py-3 px-3"><Skeleton className="h-3 w-16" /></TableCell>
+                          <TableCell className="py-3 px-3"><Skeleton className="h-3 w-20" /></TableCell>
+                          <TableCell className="py-3 px-3" />
+                        </TableRow>
+                      ))}
 
-                  {isMiniOsError && !isMiniOsLoading && (
-                    <TableRow className="border-border">
-                      <TableCell colSpan={4} className="py-8 text-center text-destructive">
-                        Não foi possível carregar as tarefas rápidas.
-                      </TableCell>
-                    </TableRow>
-                  )}
-
-                  {!isMiniOsLoading && !isMiniOsError && miniOs.length === 0 && (
-                    <TableRow className="border-border">
-                      <TableCell colSpan={4} className="py-8 text-center text-muted-foreground">
-                        Nenhuma mini OS encontrada.
-                      </TableCell>
-                    </TableRow>
-                  )}
-
-                  {!isMiniOsLoading && !isMiniOsError && miniOs.map((mini) => {
-                    const billed = mini.faturada;
-                    return (
-                      <TableRow key={mini.id} className="border-border">
-                        <TableCell className="font-semibold text-muted-foreground">#{mini.id}</TableCell>
-                        <TableCell className="font-medium">
-                          {mini.cliente_nome ?? 'Cliente não informado'}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          {renderBadge(billed, 'Faturada', 'Não faturada')}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleMiniEditClick(mini.id)}
-                          >
-                            <PencilLine className="h-4 w-4" />
-                          </Button>
+                    {isMiniOsError && !isMiniOsLoading && (
+                      <TableRow className="border-border">
+                        <TableCell colSpan={4} className="py-8 text-center text-sm text-destructive">
+                          Não foi possível carregar as tarefas rápidas.
                         </TableCell>
                       </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-              {renderPager(miniPage, miniOsTotalPages, setMiniPage)}
-            </>
-          )}
-        </CardContent>
+                    )}
+
+                    {!isMiniOsLoading && !isMiniOsError && miniOs.length === 0 && (
+                      <TableRow className="border-border">
+                        <TableCell colSpan={4} className="py-10 text-center">
+                          <FileText className="w-10 h-10 text-muted-foreground mx-auto mb-2" />
+                          <p className="text-sm text-muted-foreground">Nenhuma tarefa rápida encontrada</p>
+                        </TableCell>
+                      </TableRow>
+                    )}
+
+                    {!isMiniOsLoading && !isMiniOsError && miniOs.map((mini) => {
+                      const isFinished = (mini.status ?? '').toLowerCase() === 'finalizada';
+                      return (
+                        <TableRow
+                          key={mini.id}
+                          className="border-border hover:bg-muted/40 cursor-pointer transition-colors group"
+                          onClick={() => handleMiniEditClick(mini.id)}
+                        >
+                          <TableCell className="py-3 px-3">
+                            <div>
+                              <span className="text-sm font-semibold uppercase">
+                                {mini.cliente_nome ?? 'Cliente não informado'}
+                              </span>
+                              <div className="flex items-center gap-3 mt-1.5">
+                                {dotBadge(
+                                  isFinished ? 'bg-status-completed' : 'bg-status-progress',
+                                  mini.status_display ?? (isFinished ? 'Finalizada' : 'Em andamento'),
+                                )}
+                                {dotBadge(
+                                  mini.faturada ? 'bg-green-600' : 'bg-amber-500',
+                                  mini.faturada ? 'Faturada' : 'Não faturada',
+                                )}
+                                <span className="font-mono text-[10px] text-muted-foreground">
+                                  {mini.servico_nome ? `· ${mini.servico_nome}` : ''}
+                                  {' '}#{mini.id}
+                                </span>
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell className="py-3 px-3">
+                            <span className="text-xs text-muted-foreground tabular-nums">
+                              {mini.data_recebimento
+                                ? new Date(mini.data_recebimento.slice(0, 10) + 'T00:00:00').toLocaleDateString('pt-BR')
+                                : '—'}
+                            </span>
+                          </TableCell>
+                          <TableCell className="py-3 px-3">
+                            <span className="text-xs text-muted-foreground truncate block max-w-[120px]">
+                              {mini.responsavel_nome ?? '—'}
+                            </span>
+                          </TableCell>
+                          <TableCell className="py-3 px-3">
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); handleMiniEditClick(mini.id); }}
+                              className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-muted"
+                              title="Editar tarefa rápida"
+                            >
+                              <ArrowRight className="w-3.5 h-3.5 text-muted-foreground" />
+                            </button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+
+              <div className="px-4">
+                {renderPager(miniPage, miniOsTotalPages, setMiniPage)}
+              </div>
+            </TabsContent>
+
+          </CardContent>
+        </Tabs>
       </Card>
 
+      {/* ── OS Billing Dialog (unchanged) ───────────────────────────────────── */}
       <Dialog open={isDialogOpen} onOpenChange={handleDialogChange}>
         <DialogContent className="sm:max-w-3xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
@@ -674,9 +764,7 @@ const FinancialPage = () => {
                   </div>
                   <div className="rounded-lg bg-secondary/50 p-4">
                     <span className="text-xs text-muted-foreground">Cobrança imediata</span>
-                    <p className="text-base font-medium">
-                      {orderDetail.cobranca_imediata ? 'Sim' : 'Não'}
-                    </p>
+                    <p className="text-base font-medium">{orderDetail.cobranca_imediata ? 'Sim' : 'Não'}</p>
                   </div>
                 </div>
               </div>
@@ -730,44 +818,23 @@ const FinancialPage = () => {
                 <div className="grid gap-4 sm:grid-cols-3">
                   <div className="space-y-2">
                     <Label htmlFor="faturamento">Faturamento</Label>
-                    <Select
-                      value={faturamentoValue}
-                      onValueChange={(value) => setFaturamentoValue(value as 'sim' | 'nao')}
-                      disabled={updateServiceOrderBilling.isPending}
-                    >
-                      <SelectTrigger id="faturamento">
-                        <SelectValue placeholder="Selecione" />
-                      </SelectTrigger>
+                    <Select value={faturamentoValue} onValueChange={(v) => setFaturamentoValue(v as 'sim' | 'nao')} disabled={updateServiceOrderBilling.isPending}>
+                      <SelectTrigger id="faturamento"><SelectValue placeholder="Selecione" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="sim">Sim</SelectItem>
                         <SelectItem value="nao">Não</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
-
                   <div className="space-y-2">
                     <Label htmlFor="data-faturamento">Data do faturamento</Label>
-                    <Input
-                      id="data-faturamento"
-                      type="date"
-                      value={billingDate}
-                      onChange={(event) => setBillingDate(event.target.value)}
-                      disabled={updateServiceOrderBilling.isPending}
-                    />
+                    <Input id="data-faturamento" type="date" value={billingDate} onChange={(e) => setBillingDate(e.target.value)} disabled={updateServiceOrderBilling.isPending} />
                   </div>
-
                   <div className="space-y-2">
                     <Label htmlFor="numero-nf">Número da NF</Label>
-                    <Input
-                      id="numero-nf"
-                      type="number"
-                      value={nfNumber}
-                      onChange={(event) => setNfNumber(event.target.value)}
-                      disabled={updateServiceOrderBilling.isPending}
-                    />
+                    <Input id="numero-nf" type="number" value={nfNumber} onChange={(e) => setNfNumber(e.target.value)} disabled={updateServiceOrderBilling.isPending} />
                   </div>
                 </div>
-
                 <DialogFooter>
                   <Button type="submit" disabled={updateServiceOrderBilling.isPending}>
                     {updateServiceOrderBilling.isPending ? 'Salvando...' : 'Salvar alterações'}
@@ -779,6 +846,7 @@ const FinancialPage = () => {
         </DialogContent>
       </Dialog>
 
+      {/* ── MiniOS Billing Dialog (unchanged) ───────────────────────────────── */}
       <Dialog open={isMiniDialogOpen} onOpenChange={handleMiniDialogChange}>
         <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
@@ -786,24 +854,18 @@ const FinancialPage = () => {
           </DialogHeader>
 
           {isMiniDetailLoading && (
-            <div className="py-6 text-center text-muted-foreground">
-              Carregando detalhes da tarefa rápida...
-            </div>
+            <div className="py-6 text-center text-muted-foreground">Carregando detalhes da tarefa rápida...</div>
           )}
 
           {isMiniDetailError && !isMiniDetailLoading && (
-            <div className="py-6 text-center text-destructive">
-              Não foi possível carregar os detalhes da tarefa rápida.
-            </div>
+            <div className="py-6 text-center text-destructive">Não foi possível carregar os detalhes da tarefa rápida.</div>
           )}
 
           {!isMiniDetailLoading && !isMiniDetailError && miniDetail && (
             <div className="space-y-6 pb-4">
               <div>
                 <h3 className="text-sm font-semibold text-muted-foreground uppercase">Cliente</h3>
-                <p className="text-lg font-bold">
-                  {miniDetail.cliente_detail?.nome ?? 'Cliente não informado'}
-                </p>
+                <p className="text-lg font-bold">{miniDetail.cliente_detail?.nome ?? 'Cliente não informado'}</p>
               </div>
 
               <div className="grid gap-4 sm:grid-cols-3">
@@ -814,11 +876,7 @@ const FinancialPage = () => {
                 <div className="rounded-lg bg-secondary/50 p-4">
                   <span className="text-xs text-muted-foreground">Status</span>
                   <div className="mt-1">
-                    {renderBadge(
-                      (miniDetail.status ?? '').toLowerCase() === 'finalizada',
-                      'Finalizada',
-                      miniDetail.status ?? 'Em andamento',
-                    )}
+                    {renderBadge((miniDetail.status ?? '').toLowerCase() === 'finalizada', 'Finalizada', miniDetail.status ?? 'Em andamento')}
                   </div>
                 </div>
                 <div className="rounded-lg bg-secondary/50 p-4">
@@ -852,26 +910,16 @@ const FinancialPage = () => {
 
               <div className="rounded-lg bg-secondary/50 p-4">
                 <span className="text-xs text-muted-foreground">Responsável</span>
-                <p className="text-base font-medium">
-                  {miniDetail.responsavel_nome ?? 'Não informado'}
-                </p>
+                <p className="text-base font-medium">{miniDetail.responsavel_nome ?? 'Não informado'}</p>
               </div>
 
               <form onSubmit={handleMiniSubmit} className="space-y-4">
-                <h4 className="text-sm font-semibold uppercase text-muted-foreground">
-                  Atualizar faturamento
-                </h4>
+                <h4 className="text-sm font-semibold uppercase text-muted-foreground">Atualizar faturamento</h4>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="mini-faturamento">Faturamento</Label>
-                    <Select
-                      value={miniBillingValue}
-                      onValueChange={(value) => setMiniBillingValue(value as 'sim' | 'nao')}
-                      disabled={updateMiniOs.isPending}
-                    >
-                      <SelectTrigger id="mini-faturamento">
-                        <SelectValue placeholder="Selecione" />
-                      </SelectTrigger>
+                    <Select value={miniBillingValue} onValueChange={(v) => setMiniBillingValue(v as 'sim' | 'nao')} disabled={updateMiniOs.isPending}>
+                      <SelectTrigger id="mini-faturamento"><SelectValue placeholder="Selecione" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="sim">Sim</SelectItem>
                         <SelectItem value="nao">Não</SelectItem>
@@ -880,13 +928,7 @@ const FinancialPage = () => {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="mini-nf">Número da NF</Label>
-                    <Input
-                      id="mini-nf"
-                      value={miniNfNumber}
-                      onChange={(event) => setMiniNfNumber(event.target.value)}
-                      placeholder="Ex.: 12345"
-                      disabled={updateMiniOs.isPending}
-                    />
+                    <Input id="mini-nf" value={miniNfNumber} onChange={(e) => setMiniNfNumber(e.target.value)} placeholder="Ex.: 12345" disabled={updateMiniOs.isPending} />
                   </div>
                 </div>
                 <DialogFooter>

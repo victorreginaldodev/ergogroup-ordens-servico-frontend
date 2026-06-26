@@ -18,6 +18,8 @@ export type BillingServiceOrder = {
   numero_nf: number | null;
   concluida: boolean;
   data_criacao: string;
+  liberada_para_faturamento_em?: string | null;
+  liberada_para_faturamento_por_nome?: string | null;
 };
 
 export const useBillingServiceOrders = () => {

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, FileText } from 'lucide-react';
+import { Plus, FileText, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import {
@@ -122,7 +122,7 @@ const OrdersPage = () => {
 
       <Card className="bg-card border-border">
         <CardContent className="p-0">
-          <div className="overflow-y-auto max-h-[calc(100vh-320px)]">
+          <div className="overflow-x-auto">
             <Table>
               <TableHeader className="sticky top-0 z-10 bg-card">
                 <TableRow className="border-border hover:bg-transparent">
@@ -133,6 +133,7 @@ const OrdersPage = () => {
                     <TableHead className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground py-2 px-3 w-[110px] text-right">Valor</TableHead>
                   )}
                   <TableHead className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground py-2 px-3 w-[90px]">Criação</TableHead>
+                  <TableHead className="py-2 px-3 w-[40px]" />
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -153,12 +154,13 @@ const OrdersPage = () => {
                         <TableCell className="py-3 px-3"><Skeleton className="h-3 w-20" /></TableCell>
                         {canViewOrderValues && <TableCell className="py-3 px-3"><Skeleton className="h-4 w-20 ml-auto" /></TableCell>}
                         <TableCell className="py-3 px-3"><Skeleton className="h-3 w-20" /></TableCell>
+                        <TableCell className="py-3 px-3" />
                       </TableRow>
                     ))
                   : paginatedOrders.map((order) => (
                       <TableRow
                         key={order.id}
-                        className="border-border hover:bg-muted/40 cursor-pointer transition-colors"
+                        className="border-border hover:bg-muted/40 cursor-pointer transition-colors group"
                         onClick={() => navigate(`/dashboard/orders/${order.id}/edit`)}
                       >
                         <TableCell className="py-3 px-3">
@@ -198,6 +200,16 @@ const OrdersPage = () => {
                         )}
                         <TableCell className="py-3 px-3">
                           <span className="text-xs text-muted-foreground tabular-nums">{formatDate(order.createdAt)}</span>
+                        </TableCell>
+                        <TableCell className="py-3 px-3">
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); navigate(`/dashboard/orders/${order.id}/edit`); }}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-muted"
+                            title="Ver OS completa"
+                          >
+                            <ArrowRight className="w-3.5 h-3.5 text-muted-foreground" />
+                          </button>
                         </TableCell>
                       </TableRow>
                     ))}
