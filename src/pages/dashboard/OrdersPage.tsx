@@ -1,15 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { 
-  Plus, 
-  Search, 
-  MoreVertical,
-  Edit,
-  Trash2,
-  FileText
-} from 'lucide-react';
+import { Plus, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import {
   Table,
@@ -19,63 +11,93 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Badge } from '@/components/ui/badge';
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious, PaginationEllipsis } from '@/components/ui/pagination';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
-import { formatCurrency, formatDate, getStatusLabel, getStatusColor, getPriorityLabel, getPriorityColor } from '@/data/mockData';
-import { useServiceOrders, useDeleteServiceOrder } from '@/services/orders';
+import { formatCurrency, formatDate, getStatusLabel, getPriorityLabel } from '@/data/mockData';
+import { useServiceOrders } from '@/services/orders';
 import { useUserRole } from '@/hooks/useUserRole';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Calendar } from '@/components/ui/calendar';
+import { ServiceStatus } from '@/types';
+import OrderFilters, { FiltersState, defaultFilters } from '@/components/orders/OrderFilters';
+import ActiveFilterChips from '@/components/orders/ActiveFilterChips';
+
+const STATUS_DOT: Record<ServiceStatus, string> = {
+  pending:     'bg-status-pending',
+  in_progress: 'bg-status-progress',
+  completed:   'bg-status-completed',
+  cancelled:   'bg-status-cancelled',
+};
+
+const PRIORITY_DOT: Record<string, string> = {
+  baixa: 'bg-muted-foreground',
+  media: 'bg-yellow-500',
+  alta:  'bg-red-600',
+};
+
+const dotBadge = (dotColorClass: string, label: string) => (
+  <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-foreground">
+    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dotColorClass}`} />
+    {label}
+  </span>
+);
 
 const OrdersPage = () => {
   const navigate = useNavigate();
-  const [searchTerm, setSearchTerm] = useState('');
+  const [filters, setFilters] = useState<FiltersState>(defaultFilters);
   const [page, setPage] = useState(1);
-  const [dateRange, setDateRange] = useState<{ from?: Date; to?: Date }>({});
   const { data: orders = [], isLoading } = useServiceOrders();
-  const del = useDeleteServiceOrder();
   const { canViewOrderValues, canManageOrders } = useUserRole();
 
   const filteredOrders = orders.filter(order => {
-    const matchesText = order.clientName.toLowerCase().includes(searchTerm.toLowerCase());
+    const q = filters.search.toLowerCase();
+    const matchesText = !q ||
+      order.clientName.toLowerCase().includes(q) ||
+      order.id.toLowerCase().includes(q);
+
+    const matchesStatus   = filters.status.length === 0 || filters.status.includes(order.status);
+    const matchesPriority = filters.priority.length === 0 || (!!order.priority && filters.priority.includes(order.priority));
+    const matchesBilling  =
+      filters.billing === 'all' ||
+      (filters.billing === 'paid'     && order.isPaid) ||
+      (filters.billing === 'released' && !order.isPaid && !!order.liberadaParaFaturamento) ||
+      (filters.billing === 'unpaid'   && !order.isPaid && !order.liberadaParaFaturamento);
+    const matchesContract = !filters.contractOnly || !!order.isContract;
+
     const created = order.createdAt instanceof Date ? order.createdAt : new Date(order.createdAt);
-    if (!dateRange.from && !dateRange.to) return matchesText;
-    const start = dateRange.from ? new Date(dateRange.from.getFullYear(), dateRange.from.getMonth(), dateRange.from.getDate(), 0, 0, 0, 0) : undefined;
-    const end = dateRange.to ? new Date(dateRange.to.getFullYear(), dateRange.to.getMonth(), dateRange.to.getDate(), 23, 59, 59, 999) : undefined;
-    const inRange =
-      (!start || created >= start) &&
-      (!end || created <= end);
-    return matchesText && inRange;
+    const start = filters.dateRange.from
+      ? new Date(filters.dateRange.from.getFullYear(), filters.dateRange.from.getMonth(), filters.dateRange.from.getDate())
+      : undefined;
+    const end = filters.dateRange.to
+      ? new Date(filters.dateRange.to.getFullYear(), filters.dateRange.to.getMonth(), filters.dateRange.to.getDate(), 23, 59, 59, 999)
+      : undefined;
+    const matchesDate = (!start || created >= start) && (!end || created <= end);
+
+    return matchesText && matchesStatus && matchesPriority && matchesBilling && matchesContract && matchesDate;
   });
 
+  const STATUS_ORDER: Record<string, number> = { pending: 0, in_progress: 1, completed: 2, cancelled: 3 };
+  const PRIORITY_ORDER: Record<string, number> = { alta: 0, media: 1, baixa: 2 };
+
   const sortedOrders = [...filteredOrders].sort((a, b) => {
-    const ta = a.createdAt instanceof Date ? a.createdAt.getTime() : new Date(a.createdAt).getTime();
-    const tb = b.createdAt instanceof Date ? b.createdAt.getTime() : new Date(b.createdAt).getTime();
-    return tb - ta;
+    const statusDiff = (STATUS_ORDER[a.status] ?? 4) - (STATUS_ORDER[b.status] ?? 4);
+    if (statusDiff !== 0) return statusDiff;
+
+    const da = a.dueDate ? (a.dueDate instanceof Date ? a.dueDate : new Date(a.dueDate)).getTime() : Infinity;
+    const db = b.dueDate ? (b.dueDate instanceof Date ? b.dueDate : new Date(b.dueDate)).getTime() : Infinity;
+    if (da !== db) return da - db;
+
+    return (PRIORITY_ORDER[a.priority ?? ''] ?? 3) - (PRIORITY_ORDER[b.priority ?? ''] ?? 3);
   });
 
   const itemsPerPage = 10;
   const totalPages = Math.ceil(sortedOrders.length / itemsPerPage);
   const paginatedOrders = sortedOrders.slice((page - 1) * itemsPerPage, page * itemsPerPage);
 
-  useEffect(() => {
-    setPage(1);
-  }, [searchTerm, dateRange]);
+  useEffect(() => { setPage(1); }, [filters]);
 
   useEffect(() => {
-    if (totalPages === 0) {
-      setPage(1);
-    } else if (page > totalPages) {
-      setPage(totalPages);
-    }
+    if (totalPages === 0) setPage(1);
+    else if (page > totalPages) setPage(totalPages);
   }, [totalPages]);
 
   return (
@@ -93,136 +115,115 @@ const OrdersPage = () => {
         )}
       </div>
 
-      <Card className="bg-card border-border">
-        <CardContent className="p-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="relative sm:flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                placeholder="Buscar por cliente..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 bg-secondary border-border"
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className="uppercase">
-                    {dateRange.from && dateRange.to
-                      ? `${formatDate(dateRange.from)} - ${formatDate(dateRange.to)}`
-                      : dateRange.from
-                        ? `${formatDate(dateRange.from)} - ...`
-                        : 'Entre datas'}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="end">
-                  <Calendar
-                    mode="range"
-                    selected={dateRange}
-                    onSelect={setDateRange}
-                    numberOfMonths={2}
-                    showOutsideDays
-                  />
-                </PopoverContent>
-              </Popover>
-              {dateRange.from || dateRange.to ? (
-                <Button variant="ghost" onClick={() => setDateRange({})} className="uppercase">
-                  Limpar
-                </Button>
-              ) : null}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="space-y-2">
+        <OrderFilters filters={filters} onChange={setFilters} />
+        <ActiveFilterChips filters={filters} onChange={setFilters} />
+      </div>
 
       <Card className="bg-card border-border">
         <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow className="border-border hover:bg-transparent">
-                <TableHead className="uppercase">ID</TableHead>
-                <TableHead className="uppercase">Cliente</TableHead>
-                {canViewOrderValues && <TableHead className="uppercase">Valor</TableHead>}
-                <TableHead className="uppercase w-40">Conclusão</TableHead>
-                <TableHead className="uppercase w-40">Faturamento</TableHead>
-                <TableHead className="hidden sm:table-cell uppercase">Criação</TableHead>
-                <TableHead className="w-12"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading
-                ? Array.from({ length: 8 }).map((_, idx) => (
-                    <TableRow key={`skeleton-${idx}`} className="border-border">
-                      <TableCell><Skeleton className="h-4 w-16" /></TableCell>
-                      <TableCell><div className="space-y-1"><Skeleton className="h-4 w-40" /><div className="hidden sm:block"><Skeleton className="h-3 w-52" /></div></div></TableCell>
-                      {canViewOrderValues && <TableCell><Skeleton className="h-4 w-20" /></TableCell>}
-                      <TableCell className="w-48"><Skeleton className="h-5 w-24 rounded-full" /></TableCell>
-                      <TableCell className="hidden sm:table-cell"><Skeleton className="h-4 w-24" /></TableCell>
-                      <TableCell><Skeleton className="h-8 w-8 rounded-md" /></TableCell>
-                    </TableRow>
-                  ))
-                : paginatedOrders.map((order) => (
-                    <TableRow key={order.id} className="border-border">
-                      <TableCell><span className="font-medium uppercase">{order.id}</span></TableCell>
-                      <TableCell>
-                        <div>
-                          <p className="font-medium uppercase">{order.clientName}</p>
-                          <div className="hidden sm:flex items-center gap-1 mt-1 flex-wrap">
-                            {order.priority && <Badge className={`${getPriorityColor(order.priority)} border-0 uppercase text-xs`}>{getPriorityLabel(order.priority)}</Badge>}
-                            {order.isContract && <Badge className="bg-blue-600 text-white border-0 uppercase text-xs">Contrato</Badge>}
+          <div className="overflow-y-auto max-h-[calc(100vh-320px)]">
+            <Table>
+              <TableHeader className="sticky top-0 z-10 bg-card">
+                <TableRow className="border-border hover:bg-transparent">
+                  <TableHead className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground py-2 px-3">Ordem de Serviço</TableHead>
+                  <TableHead className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground py-2 px-3 w-[90px]">Prioridade</TableHead>
+                  <TableHead className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground py-2 px-3 w-[90px]">Prazo</TableHead>
+                  {canViewOrderValues && (
+                    <TableHead className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground py-2 px-3 w-[110px] text-right">Valor</TableHead>
+                  )}
+                  <TableHead className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground py-2 px-3 w-[90px]">Criação</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoading
+                  ? Array.from({ length: 10 }).map((_, idx) => (
+                      <TableRow key={`skeleton-${idx}`} className="border-border">
+                        <TableCell className="py-3 px-3">
+                          <div className="space-y-2">
+                            <Skeleton className="h-4 w-48" />
+                            <div className="flex items-center gap-3">
+                              <Skeleton className="h-3 w-24" />
+                              <Skeleton className="h-3 w-28" />
+                              <Skeleton className="h-3 w-14" />
+                            </div>
                           </div>
-                        </div>
-                      </TableCell>
-                      {canViewOrderValues && <TableCell><span className="font-semibold">{formatCurrency(order.totalAmount)}</span></TableCell>}
-                      <TableCell className="w-40"><Badge className={`${getStatusColor(order.status)} border-0 uppercase`}>{getStatusLabel(order.status)}</Badge></TableCell>
-                      <TableCell className="w-40"><Badge className={`border-0 uppercase ${order.isPaid ? 'bg-green-600 text-white' : order.liberadaParaFaturamento ? 'bg-amber-500 text-white' : 'bg-muted text-foreground'}`}>{order.isPaid ? 'Faturado' : order.liberadaParaFaturamento ? 'Liberado' : 'Não faturado'}</Badge></TableCell>
-                      <TableCell className="hidden sm:table-cell text-muted-foreground">{formatDate(order.createdAt)}</TableCell>
-                      <TableCell>
-                        {canManageOrders ? (
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-8 w-8">
-                                <MoreVertical className="w-4 h-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => navigate(`/dashboard/orders/${order.id}/edit`)}>
-                                <Edit className="w-4 h-4 mr-2" />
-                                Editar
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                className="text-destructive"
-                                onClick={() => {
-                                  const ok = window.confirm('Deseja excluir esta ordem?');
-                                  if (!ok) return;
-                                  del.mutate(String(order.id));
-                                }}
-                              >
-                                <Trash2 className="w-4 h-4 mr-2" />
-                                Excluir
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        ) : (
-                          <Button variant="ghost" size="icon" className="h-8 w-8" disabled>
-                            <MoreVertical className="w-4 h-4 text-muted-foreground" />
-                          </Button>
+                        </TableCell>
+                        <TableCell className="py-3 px-3"><Skeleton className="h-3 w-14" /></TableCell>
+                        <TableCell className="py-3 px-3"><Skeleton className="h-3 w-20" /></TableCell>
+                        {canViewOrderValues && <TableCell className="py-3 px-3"><Skeleton className="h-4 w-20 ml-auto" /></TableCell>}
+                        <TableCell className="py-3 px-3"><Skeleton className="h-3 w-20" /></TableCell>
+                      </TableRow>
+                    ))
+                  : paginatedOrders.map((order) => (
+                      <TableRow
+                        key={order.id}
+                        className="border-border hover:bg-muted/40 cursor-pointer transition-colors"
+                        onClick={() => navigate(`/dashboard/orders/${order.id}/edit`)}
+                      >
+                        <TableCell className="py-3 px-3">
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-sm font-semibold uppercase">{order.clientName}</span>
+                              {order.isContract && (
+                                <span className="bg-blue-600 text-white rounded-sm text-[9px] font-bold px-1 py-0.5 tracking-widest">CTR</span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-3 mt-1.5">
+                              {dotBadge(STATUS_DOT[order.status], getStatusLabel(order.status))}
+                              {dotBadge(
+                                order.isPaid ? 'bg-green-600' : order.liberadaParaFaturamento ? 'bg-amber-500' : 'bg-muted-foreground',
+                                order.isPaid ? 'Faturado' : order.liberadaParaFaturamento ? 'Lib. faturamento' : 'Não faturado'
+                              )}
+                              <span className="font-mono text-[10px] text-muted-foreground">#{order.id}</span>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell className="py-3 px-3">
+                          {order.priority
+                            ? dotBadge(PRIORITY_DOT[order.priority], getPriorityLabel(order.priority))
+                            : <span className="text-[11px] text-muted-foreground">—</span>
+                          }
+                        </TableCell>
+                        <TableCell className="py-3 px-3">
+                          {order.dueDate
+                            ? <span className="text-xs tabular-nums">{formatDate(order.dueDate)}</span>
+                            : <span className="text-[11px] text-muted-foreground">—</span>
+                          }
+                        </TableCell>
+                        {canViewOrderValues && (
+                          <TableCell className="py-3 px-3 text-right">
+                            <span className="text-sm font-semibold tabular-nums">{formatCurrency(order.totalAmount)}</span>
+                          </TableCell>
                         )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-            </TableBody>
-          </Table>
+                        <TableCell className="py-3 px-3">
+                          <span className="text-xs text-muted-foreground tabular-nums">{formatDate(order.createdAt)}</span>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+              </TableBody>
+            </Table>
+          </div>
 
-          <div className="px-4"><Separator /></div>
+          <div className="px-3 flex items-center">
+            <Separator className="flex-1" />
+            {!isLoading && (
+              <span className="px-3 py-2 text-xs text-muted-foreground whitespace-nowrap tabular-nums">
+                {filteredOrders.length} {filteredOrders.length === 1 ? 'ordem' : 'ordens'}
+              </span>
+            )}
+          </div>
 
           {totalPages > 1 && (
             <div className="p-4">
               <Pagination>
                 <PaginationContent>
                   <PaginationItem>
-                    <PaginationPrevious href="#" onClick={(e) => { e.preventDefault(); if (page > 1) setPage(page - 1); }} className={page === 1 ? 'pointer-events-none opacity-50' : ''} />
+                    <PaginationPrevious
+                      href="#"
+                      onClick={(e) => { e.preventDefault(); if (page > 1) setPage(page - 1); }}
+                      className={page === 1 ? 'pointer-events-none opacity-50' : ''}
+                    />
                   </PaginationItem>
                   {(() => {
                     const siblingCount = 1;
@@ -240,12 +241,19 @@ const OrdersPage = () => {
                     }
                     return items.map((it, idx) => (
                       <PaginationItem key={`${it}-${idx}`}>
-                        {it === 'ellipsis' ? <PaginationEllipsis /> : <PaginationLink href="#" isActive={it === page} onClick={(e) => { e.preventDefault(); setPage(it as number); }}>{it as number}</PaginationLink>}
+                        {it === 'ellipsis'
+                          ? <PaginationEllipsis />
+                          : <PaginationLink href="#" isActive={it === page} onClick={(e) => { e.preventDefault(); setPage(it as number); }}>{it as number}</PaginationLink>
+                        }
                       </PaginationItem>
                     ));
                   })()}
                   <PaginationItem>
-                    <PaginationNext href="#" onClick={(e) => { e.preventDefault(); if (page < totalPages) setPage(page + 1); }} className={page === totalPages ? 'pointer-events-none opacity-50' : ''} />
+                    <PaginationNext
+                      href="#"
+                      onClick={(e) => { e.preventDefault(); if (page < totalPages) setPage(page + 1); }}
+                      className={page === totalPages ? 'pointer-events-none opacity-50' : ''}
+                    />
                   </PaginationItem>
                 </PaginationContent>
               </Pagination>

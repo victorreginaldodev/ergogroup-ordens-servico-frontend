@@ -38,7 +38,7 @@ export interface ServiceOrder {
   totalAmount: number;
   createdAt: Date;
   updatedAt: Date;
-  dueDate: Date;
+  dueDate?: Date;
   isPaid: boolean;
   priority?: 'baixa' | 'media' | 'alta';
   liberadaParaFaturamento?: boolean;
