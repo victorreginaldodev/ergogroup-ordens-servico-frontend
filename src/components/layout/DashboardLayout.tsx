@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
-  LayoutDashboard,
   FileText,
   Wrench,
   DollarSign,
@@ -14,6 +13,8 @@ import {
   Clock,
   List,
   PanelLeft,
+  BarChart2,
+  Activity,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -34,7 +35,6 @@ import UnderDevelopmentOverlay from '@/components/UnderDevelopmentOverlay';
 import { useUserRole } from '@/hooks/useUserRole';
 
 const baseMenuItems = [
-  { title: 'Dashboard',          url: '/dashboard',               icon: LayoutDashboard },
   { title: 'Ordens de Serviço',  url: '/dashboard/orders',        icon: FileText },
   { title: 'Serviços',           url: '/dashboard/services',      icon: Wrench },
   { title: 'Tarefas',            url: '/dashboard/tasks',         icon: List },
@@ -47,6 +47,11 @@ const adminItems = [
   { title: 'Catálogo',                    url: '/dashboard/catalog',              icon: Wrench },
   { title: 'Catálogo Tarefas Rápidas',    url: '/dashboard/quick-tasks/catalog',  icon: List },
   { title: 'Usuários',                    url: '/dashboard/users',                icon: Users },
+];
+
+const analyticsItems = [
+  { title: 'Operacional',  url: '/dashboard/analise/operacional', icon: Activity,  requiresFinancial: false },
+  { title: 'Financeiro',   url: '/dashboard/analise/financeiro',  icon: BarChart2, requiresFinancial: true },
 ];
 
 const SIDEBAR_KEY = 'sidebar:collapsed';
@@ -110,6 +115,11 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
 
   const visibleMenuItems = useMemo(
     () => baseMenuItems.filter((item) => canAccessFinancials || item.url !== '/dashboard/financial'),
+    [canAccessFinancials],
+  );
+
+  const visibleAnalyticsItems = useMemo(
+    () => analyticsItems.filter((item) => !item.requiresFinancial || canAccessFinancials),
     [canAccessFinancials],
   );
 
@@ -186,7 +196,22 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
               {visibleMenuItems.map((item) => {
                 const isActive =
                   location.pathname === item.url ||
-                  (item.url !== '/dashboard' && location.pathname.startsWith(item.url));
+                  location.pathname.startsWith(item.url + '/');
+                return <NavItem key={item.url} item={item} isActive={isActive} collapsed={collapsed} />;
+              })}
+            </div>
+
+            {!collapsed && <Separator className="my-2" />}
+
+            {!collapsed && (
+              <p className="px-2 py-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Análise
+              </p>
+            )}
+
+            <div className="space-y-0.5 mt-0.5">
+              {visibleAnalyticsItems.map((item) => {
+                const isActive = location.pathname === item.url;
                 return <NavItem key={item.url} item={item} isActive={isActive} collapsed={collapsed} />;
               })}
             </div>
@@ -302,7 +327,8 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                 p.startsWith('/dashboard/catalog') ||
                 p.startsWith('/dashboard/tasks') ||
                 p.startsWith('/dashboard/quick-tasks') ||
-                p.startsWith('/dashboard/profile');
+                p.startsWith('/dashboard/profile') ||
+                p.startsWith('/dashboard/analise');
               if (!isExcept && p !== '/dashboard') return <UnderDevelopmentOverlay />;
               return null;
             })()}

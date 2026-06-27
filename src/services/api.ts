@@ -1,8 +1,8 @@
 import axios from 'axios';
 
 // URL base da API - altere aqui para desenvolvimento
-const API_BASE_URL = 'https://www.ergogroupapp.com/';
-// const API_BASE_URL = 'http://127.0.0.1:8000/'; // URL para desenvolvimento local
+// const API_BASE_URL = 'https://www.ergogroupapp.com/';
+const API_BASE_URL = 'http://127.0.0.1:8000/'; // URL para desenvolvimento local
 
 const api = axios.create({
   baseURL: API_BASE_URL,
