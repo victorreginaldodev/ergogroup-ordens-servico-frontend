@@ -11,7 +11,8 @@ import {
   AlertCircle,
   CheckCircle2,
   Clock,
-  List,
+  Zap,
+  BookOpen,
   PanelLeft,
   BarChart2,
   Activity,
@@ -36,14 +37,14 @@ import { useUserRole } from '@/hooks/useUserRole';
 
 const baseMenuItems = [
   { title: 'Ordens de Serviço',  url: '/dashboard/orders',        icon: FileText },
-  { title: 'Tarefas Rápidas',    url: '/dashboard/quick-tasks',   icon: List },
+  { title: 'OS Operacionais',     url: '/dashboard/quick-tasks',   icon: Zap },
   { title: 'Financeiro',         url: '/dashboard/financial',     icon: DollarSign },
 ];
 
 const adminItems = [
   { title: 'Clientes',                    url: '/dashboard/clients',              icon: Users },
   { title: 'Catálogo',                    url: '/dashboard/catalog',              icon: Wrench },
-  { title: 'Catálogo Tarefas Rápidas',    url: '/dashboard/quick-tasks/catalog',  icon: List },
+  { title: 'Catálogo OS Operacionais',    url: '/dashboard/quick-tasks/catalog',  icon: BookOpen },
   { title: 'Usuários',                    url: '/dashboard/users',                icon: Users },
 ];
 

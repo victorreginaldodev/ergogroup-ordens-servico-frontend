@@ -28,9 +28,9 @@ import ContactsPage from '@/pages/dashboard/ContactsPage';
 import ContactFormPage from '@/pages/dashboard/ContactFormPage';
 import CatalogPage from '@/pages/dashboard/CatalogPage';
 import CatalogFormPage from '@/pages/dashboard/CatalogFormPage';
-import QuickTasksPage from '@/pages/dashboard/QuickTasksPage';
-import QuickTasksCatalogPage from '@/pages/dashboard/QuickTasksCatalogPage';
-import QuickTasksCatalogFormPage from '@/pages/dashboard/QuickTasksCatalogFormPage';
+import OperationalOrderListPage from '@/features/operational-order/pages/OperationalOrderListPage';
+import OperationalOrderCatalogListPage from '@/features/operational-order/pages/OperationalOrderCatalogListPage';
+import OperationalOrderCatalogFormPage from '@/features/operational-order/pages/OperationalOrderCatalogFormPage';
 
 const w = (element: React.ReactNode) => <DashboardLayout>{element}</DashboardLayout>;
 
@@ -53,11 +53,11 @@ const AppRoutes = () => (
     <Route path="/dashboard/orders/:id/edit" element={w(<OrdemServicoFormPage />)} />
     <Route path="/dashboard/orders/:id/services/:servicoId" element={w(<ServicoDetalhePage />)} />
 
-    {/* Quick Tasks */}
-    <Route path="/dashboard/quick-tasks" element={w(<QuickTasksPage />)} />
-    <Route path="/dashboard/quick-tasks/catalog" element={w(<QuickTasksCatalogPage />)} />
-    <Route path="/dashboard/quick-tasks/catalog/new" element={w(<QuickTasksCatalogFormPage />)} />
-    <Route path="/dashboard/quick-tasks/catalog/:id/edit" element={w(<QuickTasksCatalogFormPage />)} />
+    {/* Operational Orders */}
+    <Route path="/dashboard/quick-tasks" element={w(<OperationalOrderListPage />)} />
+    <Route path="/dashboard/quick-tasks/catalog" element={w(<OperationalOrderCatalogListPage />)} />
+    <Route path="/dashboard/quick-tasks/catalog/new" element={w(<OperationalOrderCatalogFormPage />)} />
+    <Route path="/dashboard/quick-tasks/catalog/:id/edit" element={w(<OperationalOrderCatalogFormPage />)} />
 
     {/* Clientes e Contatos */}
     <Route path="/dashboard/clients" element={w(<ClientsPage />)} />
