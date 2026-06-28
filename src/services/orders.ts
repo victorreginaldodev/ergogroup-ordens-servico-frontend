@@ -46,6 +46,8 @@ export interface OrdemServicoDetailNew {
   cliente_detail?: {
     id: number;
     nome: string;
+    tipo_inscricao?: string | null;
+    numero_inscricao?: string | null;
     nome_representante?: string;
     setor_representante?: string;
     email_representante?: string;

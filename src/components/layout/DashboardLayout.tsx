@@ -36,8 +36,6 @@ import { useUserRole } from '@/hooks/useUserRole';
 
 const baseMenuItems = [
   { title: 'Ordens de Serviço',  url: '/dashboard/orders',        icon: FileText },
-  { title: 'Serviços',           url: '/dashboard/services',      icon: Wrench },
-  { title: 'Tarefas',            url: '/dashboard/tasks',         icon: List },
   { title: 'Tarefas Rápidas',    url: '/dashboard/quick-tasks',   icon: List },
   { title: 'Financeiro',         url: '/dashboard/financial',     icon: DollarSign },
 ];
@@ -320,12 +318,10 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
               const p = location.pathname;
               const isExcept =
                 p.startsWith('/dashboard/orders') ||
-                p.startsWith('/dashboard/services') ||
                 p.startsWith('/dashboard/users') ||
                 p.startsWith('/dashboard/financial') ||
                 p.startsWith('/dashboard/clients') ||
                 p.startsWith('/dashboard/catalog') ||
-                p.startsWith('/dashboard/tasks') ||
                 p.startsWith('/dashboard/quick-tasks') ||
                 p.startsWith('/dashboard/profile') ||
                 p.startsWith('/dashboard/analise');

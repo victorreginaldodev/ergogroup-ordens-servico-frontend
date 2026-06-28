@@ -40,7 +40,7 @@ import { useUserRole } from '@/hooks/useUserRole';
 
 
 
-const NewOrderPage = () => {
+const OrdemServicoFormPage = () => {
   const navigate = useNavigate();
   const { id } = useParams();
   const { toast } = useToast();
@@ -142,27 +142,18 @@ const NewOrderPage = () => {
   const originalServiceIds = useRef<number[]>([]);
 
   useEffect(() => {
-    // Restringe o preenchimento apenas para o modo de edição (quando há ID)
     if (!id || !orderData) return;
 
     const sourceData = orderData;
 
     if (!sourceData || !sourceData.cliente) return;
 
-    // Tentar encontrar o cliente pelo ID ou nome
     const clientData = typeof sourceData.cliente === 'object' ? sourceData.cliente : { id: sourceData.cliente, nome: '' };
-    const client = clientsData.find(c => String(c.id) === String(clientData.id)) || 
+    const client = clientsData.find(c => String(c.id) === String(clientData.id)) ||
                    clientsData.find(c => c.name === clientData.nome);
     const clientId = client ? String(client.id) : String(clientData.id || '');
 
     const faturamento = sourceData.faturamento || {};
-    
-    // DEBUG: Verificar o que está vindo do backend
-    console.log('DEBUG sourceData:', sourceData);
-    if (faturamento) {
-      console.log('DEBUG faturamento keys:', Object.keys(faturamento));
-      console.log('DEBUG faturamento full:', faturamento);
-    }
 
     setFormData({
       clientId: clientId,
@@ -190,7 +181,7 @@ const NewOrderPage = () => {
     const items = (sourceData.servicos || []).map((s, idx) => {
       const catId = s.catalogo?.id || s.catalogo_servico || s.repositorio?.id;
       const catName = s.catalogo?.nome || s.repositorio?.nome || '';
-      const svc = servicesData.find(x => String(x.id) === String(catId)) || 
+      const svc = servicesData.find(x => String(x.id) === String(catId)) ||
                   servicesData.find(x => x.name === catName);
       const serviceId = svc ? String(svc.id) : (catId ? String(catId) : `repo-${idx}`);
       const serviceName = svc?.name ?? catName;
@@ -280,8 +271,6 @@ const NewOrderPage = () => {
     setOrderServices(orderServices.filter(s => s.id !== id));
   };
 
-  const servicesTotal = orderServices.length; // valor agora é explicitamente informado no formulário
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const missing: string[] = [];
@@ -289,10 +278,10 @@ const NewOrderPage = () => {
     if (!formData.createdAt) missing.push("Data de criação");
     if (!Number.isFinite(formData.amount)) missing.push("Valor");
     if (!formData.paymentMethod) missing.push("Forma de Pagamento");
-    
+
     if (!formData.invoiceContactName) missing.push("Nome do contato para NF");
     if (!formData.invoiceContactEmail) missing.push("Contato envio NF (email)");
-    
+
     if (orderServices.length === 0) {
       missing.push("Serviços");
     } else {
@@ -373,7 +362,6 @@ const NewOrderPage = () => {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Header */}
       <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">{id ? 'Editar Ordem de Serviço' : 'Nova Ordem de Serviço'}</h1>
@@ -455,7 +443,6 @@ const NewOrderPage = () => {
               </div>
             </div>
             <div className="grid sm:grid-cols-3 gap-4">
-              
               <div className="space-y-2 sm:max-w-[280px] w-full">
                 <Label htmlFor="amount">Valor *</Label>
                 <Input
@@ -568,8 +555,6 @@ const NewOrderPage = () => {
                 placeholder="Observação geral da OS"
               />
             </div>
-
-
           </CardContent>
         </Card>
 
@@ -749,4 +734,4 @@ const NewOrderPage = () => {
   );
 };
 
-export default NewOrderPage;
+export default OrdemServicoFormPage;

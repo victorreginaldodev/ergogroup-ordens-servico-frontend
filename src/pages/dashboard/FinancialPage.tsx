@@ -1,16 +1,27 @@
 import { FormEvent, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   AlertCircle,
   ArrowRight,
   Clock,
   DollarSign,
+  ExternalLink,
   FileText,
+  History,
   Lock,
+  MoreHorizontal,
+  Receipt,
   Search,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import {
   Table,
   TableBody,
@@ -20,9 +31,11 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { OrdemAuditoriaTimeline } from '@/features/ordens/components/OrdemAuditoriaTimeline';
 import {
   Select,
   SelectContent,
@@ -138,6 +151,25 @@ function KpiCard({
   );
 }
 
+// Usa slicing de string — não chama new Date(), não crasha com datetimes ────────
+const safeFormatDate = (s: string | null | undefined): string | null => {
+  if (!s) return null;
+  const parts = s.slice(0, 10).split('-');
+  if (parts.length !== 3) return null;
+  const [y, m, d] = parts;
+  return `${d}/${m}/${y}`;
+};
+
+// ── Field helper para o Sheet ─────────────────────────────────────────────────
+function SField({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="space-y-1">
+      <p className="text-xs font-medium text-muted-foreground">{label}</p>
+      <p className="text-sm font-medium text-foreground">{value ?? '—'}</p>
+    </div>
+  );
+}
+
 // ── Status filters ────────────────────────────────────────────────────────────
 const STATUS_OPTIONS: PillOption<'all' | 'concluida' | 'andamento'>[] = [
   { value: 'all', label: 'Todos' },
@@ -167,8 +199,9 @@ const FinancialPage = () => {
   const [miniOsBillingFilter, setMiniOsBillingFilter] = useState<'all' | 'faturada' | 'nao_faturada'>('all');
   const [miniPage, setMiniPage] = useState(1);
 
-  // Dialog state — OS
+  // Sheet state — OS
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [sheetTab, setSheetTab] = useState<'cobranca' | 'historico'>('cobranca');
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
   const [faturamentoValue, setFaturamentoValue] = useState<'sim' | 'nao' | ''>('');
   const [billingDate, setBillingDate] = useState('');
@@ -242,7 +275,11 @@ const FinancialPage = () => {
     setMiniNfNumber(miniDetail.numero_nf ?? '');
   }, [miniDetail]);
 
-  const handleEditClick = (id: number) => { setSelectedOrderId(id); setIsDialogOpen(true); };
+  const openSheet = (id: number, tab: 'cobranca' | 'historico') => {
+    setSheetTab(tab);
+    setSelectedOrderId(id);
+    setIsDialogOpen(true);
+  };
   const handleDialogChange = (open: boolean) => {
     setIsDialogOpen(open);
     if (!open) { setSelectedOrderId(null); setFaturamentoValue(''); setBillingDate(''); setNfNumber(''); }
@@ -503,8 +540,7 @@ const FinancialPage = () => {
                     {!isLoading && !isError && orders.map((order) => (
                       <TableRow
                         key={order.id}
-                        className="border-border hover:bg-muted/40 cursor-pointer transition-colors group"
-                        onClick={() => handleEditClick(order.id)}
+                        className="border-border hover:bg-muted/40 transition-colors group"
                       >
                         <TableCell className="py-3 px-3">
                           <div>
@@ -524,9 +560,7 @@ const FinancialPage = () => {
                         </TableCell>
                         <TableCell className="py-3 px-3">
                           <span className="text-xs text-muted-foreground tabular-nums">
-                            {order.liberada_para_faturamento_em
-                              ? new Date(order.liberada_para_faturamento_em.slice(0, 10) + 'T00:00:00').toLocaleDateString('pt-BR')
-                              : '—'}
+                            {safeFormatDate(order.liberada_para_faturamento_em) ?? '—'}
                           </span>
                         </TableCell>
                         <TableCell className="py-3 px-3">
@@ -540,14 +574,28 @@ const FinancialPage = () => {
                           </span>
                         </TableCell>
                         <TableCell className="py-3 px-3">
-                          <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); navigate(`/dashboard/orders/${order.id}/edit`); }}
-                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-muted"
-                            title="Ver OS completa"
-                          >
-                            <ArrowRight className="w-3.5 h-3.5 text-muted-foreground" />
-                          </button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <button
+                                type="button"
+                                className="flex h-7 w-7 items-center justify-center rounded opacity-0 transition-opacity hover:bg-muted group-hover:opacity-100"
+                              >
+                                <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
+                              </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-44">
+                              <DropdownMenuItem onClick={() => openSheet(order.id, 'cobranca')}>
+                                <Receipt className="mr-2 h-3.5 w-3.5" /> Faturamento
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => openSheet(order.id, 'historico')}>
+                                <History className="mr-2 h-3.5 w-3.5" /> Histórico
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem onClick={() => navigate(`/dashboard/orders/${order.id}`)}>
+                                <ExternalLink className="mr-2 h-3.5 w-3.5" /> Ver OS
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -697,154 +745,204 @@ const FinancialPage = () => {
         </Tabs>
       </Card>
 
-      {/* ── OS Billing Dialog (unchanged) ───────────────────────────────────── */}
-      <Dialog open={isDialogOpen} onOpenChange={handleDialogChange}>
-        <DialogContent className="sm:max-w-3xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Detalhes da ordem de serviço</DialogTitle>
-          </DialogHeader>
+      {/* ── OS Billing Sheet ─────────────────────────────────────────────────── */}
+      <Sheet open={isDialogOpen} onOpenChange={handleDialogChange}>
+        <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-[680px]">
 
-          {isDetailLoading && (
-            <div className="py-6 text-center text-muted-foreground">
-              Carregando detalhes da ordem de serviço...
+          {/* Header */}
+          <SheetHeader className="flex-row items-start justify-between gap-4 border-b border-border px-6 py-4 pr-14 space-y-0">
+            <div className="min-w-0">
+              <SheetTitle className="truncate text-base">
+                {orderDetail?.cliente_detail?.nome ?? `OS #${selectedOrderId}`}
+              </SheetTitle>
+              <p className="mt-0.5 text-sm text-muted-foreground">OS #{selectedOrderId}</p>
             </div>
-          )}
+            <Link
+              to={`/dashboard/orders/${selectedOrderId}`}
+              onClick={() => handleDialogChange(false)}
+              className="flex shrink-0 items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted"
+            >
+              <ExternalLink className="h-3.5 w-3.5" /> Ver OS
+            </Link>
+          </SheetHeader>
 
-          {isDetailError && !isDetailLoading && (
-            <div className="py-6 text-center text-destructive">
-              Não foi possível carregar os detalhes da ordem de serviço.
-            </div>
-          )}
+          {/* Tabs */}
+          <Tabs value={sheetTab} onValueChange={(v) => setSheetTab(v as 'cobranca' | 'historico')} className="flex min-h-0 flex-1 flex-col">
+            <TabsList className="h-auto w-full justify-start gap-0 rounded-none border-b border-border bg-transparent px-6 pt-1">
+              <TabsTrigger value="cobranca" className="rounded-none border-b-2 border-transparent bg-transparent px-4 pb-2.5 pt-2 text-sm font-medium text-muted-foreground data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none">
+                Cobrança
+              </TabsTrigger>
+              <TabsTrigger value="historico" className="rounded-none border-b-2 border-transparent bg-transparent px-4 pb-2.5 pt-2 text-sm font-medium text-muted-foreground data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none">
+                Histórico
+              </TabsTrigger>
+            </TabsList>
 
-          {!isDetailLoading && !isDetailError && orderDetail && (
-            <div className="space-y-6 pb-6">
-              <div>
-                <h3 className="text-sm font-semibold text-muted-foreground uppercase">Cliente</h3>
-                <p className="text-lg font-bold">{orderDetail.cliente_detail?.nome ?? 'Cliente não informado'}</p>
-              </div>
-
-              <div className="space-y-4">
-                <h4 className="text-sm font-semibold uppercase text-muted-foreground">Histórico</h4>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="rounded-lg bg-secondary/50 p-4">
-                    <span className="text-xs text-muted-foreground">Data de criação</span>
-                    <p className="text-base font-medium">{orderDetail.data_criacao ?? '-'}</p>
-                  </div>
-                  <div className="rounded-lg bg-secondary/50 p-4">
-                    <span className="text-xs text-muted-foreground">Criado por</span>
-                    <p className="text-base font-medium">{orderDetail.criado_por_nome ?? '-'}</p>
-                  </div>
-                  <div className="rounded-lg bg-secondary/50 p-4">
-                    <span className="text-xs text-muted-foreground">Data de finalização</span>
-                    <p className="text-base font-medium">{orderDetail.data_conclusao_os ?? '-'}</p>
-                  </div>
-                  <div className="rounded-lg bg-secondary/50 p-4">
-                    <span className="text-xs text-muted-foreground">Finalizado por</span>
-                    <p className="text-base font-medium">{orderDetail.finalizador_nome ?? '-'}</p>
-                  </div>
+            {/* ── Aba Cobrança ── */}
+            <TabsContent value="cobranca" className="m-0 flex-1 overflow-y-auto">
+              {isDetailLoading && (
+                <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
+                  Carregando...
                 </div>
-              </div>
-
-              <Separator />
-
-              <div className="space-y-4">
-                <h4 className="text-sm font-semibold uppercase text-muted-foreground">Informações financeiras</h4>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="rounded-lg bg-secondary/50 p-4">
-                    <span className="text-xs text-muted-foreground">Valor</span>
-                    <p className="text-base font-medium">{formatCurrency(orderDetail.valor ?? 0)}</p>
-                  </div>
-                  <div className="rounded-lg bg-secondary/50 p-4">
-                    <span className="text-xs text-muted-foreground">Forma de pagamento</span>
-                    <p className="text-base font-medium capitalize">{orderDetail.forma_pagamento ?? '-'}</p>
-                  </div>
-                  <div className="rounded-lg bg-secondary/50 p-4">
-                    <span className="text-xs text-muted-foreground">Parcelas</span>
-                    <p className="text-base font-medium">{orderDetail.quantidade_parcelas ?? 0}</p>
-                  </div>
-                  <div className="rounded-lg bg-secondary/50 p-4">
-                    <span className="text-xs text-muted-foreground">Cobrança imediata</span>
-                    <p className="text-base font-medium">{orderDetail.cobranca_imediata ? 'Sim' : 'Não'}</p>
-                  </div>
+              )}
+              {isDetailError && !isDetailLoading && (
+                <div className="flex items-center justify-center py-12 text-sm text-destructive">
+                  Não foi possível carregar os detalhes.
                 </div>
-              </div>
+              )}
+              {!isDetailLoading && !isDetailError && orderDetail && (
+                <div className="space-y-5 px-6 py-5">
 
-              <Separator />
-
-              <div className="space-y-4">
-                <h4 className="text-sm font-semibold uppercase text-muted-foreground">Contato para envio da NF</h4>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="rounded-lg bg-secondary/50 p-4">
-                    <span className="text-xs text-muted-foreground">Nome</span>
-                    <p className="text-base font-medium">{orderDetail.nome_contato_envio_nf ?? '-'}</p>
+                  {/* Valor + status faturamento */}
+                  <div className="flex items-end justify-between gap-4">
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground">Valor total</p>
+                      <p className="text-[28px] font-bold leading-none tracking-tight">
+                        {formatCurrency(Number(orderDetail.valor ?? 0))}
+                      </p>
+                    </div>
+                    <span className={cn(
+                      'rounded-full px-2.5 py-1 text-xs font-semibold',
+                      orderDetail.faturada
+                        ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                        : orderDetail.liberada_para_faturamento
+                        ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                        : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
+                    )}>
+                      {orderDetail.faturada ? 'Faturada' : orderDetail.liberada_para_faturamento ? 'Liberada para fat.' : 'Não faturada'}
+                    </span>
                   </div>
-                  <div className="rounded-lg bg-secondary/50 p-4">
-                    <span className="text-xs text-muted-foreground">Contato</span>
-                    <p className="text-base font-medium break-words">{orderDetail.contato_envio_nf ?? '-'}</p>
+
+                  {/* Dados financeiros */}
+                  <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+                    <SField
+                      label={orderDetail.cliente_detail?.tipo_inscricao?.toUpperCase() ?? 'CNPJ'}
+                      value={orderDetail.cliente_detail?.numero_inscricao ?? 'Não informado'}
+                    />
+                    <SField label="Forma de pagamento" value={(orderDetail as any).forma_pagamento_display ?? orderDetail.forma_pagamento} />
+                    {orderDetail.quantidade_parcelas ? (
+                      <SField label="Parcelas" value={`${orderDetail.quantidade_parcelas}x`} />
+                    ) : null}
+                    <SField label="Cobrança imediata" value={orderDetail.cobranca_imediata ? 'Sim' : 'Não'} />
+                    {(orderDetail as any).liberada_para_faturamento_em ? (
+                      <SField label="Lib. faturamento em" value={safeFormatDate((orderDetail as any).liberada_para_faturamento_em)} />
+                    ) : null}
+                    {(orderDetail as any).liberada_para_faturamento_por_nome ? (
+                      <SField label="Liberada por" value={(orderDetail as any).liberada_para_faturamento_por_nome} />
+                    ) : null}
+                    {orderDetail.numero_nf ? (
+                      <SField label="Número NF" value={String(orderDetail.numero_nf)} />
+                    ) : null}
+                    {orderDetail.data_faturamento ? (
+                      <SField label="Faturada em" value={safeFormatDate(orderDetail.data_faturamento)} />
+                    ) : null}
+                    {(orderDetail as any).faturada_por_nome ? (
+                      <SField label="Faturada por" value={(orderDetail as any).faturada_por_nome} />
+                    ) : null}
                   </div>
-                </div>
-              </div>
 
-              <Separator />
+                  <Separator />
 
-              <div className="space-y-2">
-                <h4 className="text-sm font-semibold uppercase text-muted-foreground">Observação</h4>
-                <p className="rounded-lg bg-secondary/50 p-4 text-sm text-muted-foreground">
-                  {orderDetail.observacao?.trim() || 'Nenhuma observação registrada.'}
-                </p>
-              </div>
+                  {/* Dados da OS */}
+                  <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+                    <SField label="Criado por" value={orderDetail.criado_por_nome} />
+                    <SField label="Data de criação" value={safeFormatDate(orderDetail.data_criacao)} />
+                    {orderDetail.data_conclusao_os ? (
+                      <SField label="Concluída em" value={safeFormatDate(orderDetail.data_conclusao_os)} />
+                    ) : null}
+                    {orderDetail.finalizador_nome ? (
+                      <SField label="Finalizada por" value={orderDetail.finalizador_nome} />
+                    ) : null}
+                  </div>
 
-              <Separator />
-
-              <div className="space-y-2">
-                <h4 className="text-sm font-semibold uppercase text-muted-foreground">Serviços</h4>
-                <div className="rounded-lg bg-secondary/50 p-4">
-                  {orderDetail.servicos?.length ? (
-                    <ul className="list-disc space-y-1 pl-4 text-sm">
-                      {orderDetail.servicos.map((svc) => (
-                        <li key={svc.id}>{svc.repositorio?.nome ?? 'Serviço sem nome'}</li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">Nenhum serviço associado à ordem.</p>
+                  {(orderDetail.nome_contato_envio_nf || orderDetail.contato_envio_nf) && (
+                    <>
+                      <Separator />
+                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        Contato para envio de NF
+                      </p>
+                      <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+                        {orderDetail.nome_contato_envio_nf && (
+                          <SField label="Nome" value={orderDetail.nome_contato_envio_nf} />
+                        )}
+                        {orderDetail.contato_envio_nf && (
+                          <SField label="E-mail / Telefone" value={orderDetail.contato_envio_nf} />
+                        )}
+                      </div>
+                    </>
                   )}
-                </div>
-              </div>
 
-              <Separator />
+                  {orderDetail.observacao && (
+                    <>
+                      <Separator />
+                      <div className="space-y-1.5">
+                        <p className="text-xs font-medium text-muted-foreground">Observação</p>
+                        <p className="rounded-lg border border-border bg-muted/50 px-4 py-3 text-sm leading-relaxed">
+                          {orderDetail.observacao}
+                        </p>
+                      </div>
+                    </>
+                  )}
 
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <h4 className="text-sm font-semibold uppercase text-muted-foreground">Atualizar faturamento</h4>
-                <div className="grid gap-4 sm:grid-cols-3">
-                  <div className="space-y-2">
-                    <Label htmlFor="faturamento">Faturamento</Label>
-                    <Select value={faturamentoValue} onValueChange={(v) => setFaturamentoValue(v as 'sim' | 'nao')} disabled={updateServiceOrderBilling.isPending}>
-                      <SelectTrigger id="faturamento"><SelectValue placeholder="Selecione" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="sim">Sim</SelectItem>
-                        <SelectItem value="nao">Não</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="data-faturamento">Data do faturamento</Label>
-                    <Input id="data-faturamento" type="date" value={billingDate} onChange={(e) => setBillingDate(e.target.value)} disabled={updateServiceOrderBilling.isPending} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="numero-nf">Número da NF</Label>
-                    <Input id="numero-nf" type="number" value={nfNumber} onChange={(e) => setNfNumber(e.target.value)} disabled={updateServiceOrderBilling.isPending} />
-                  </div>
+                  {(orderDetail.servicos?.length ?? 0) > 0 && (
+                    <>
+                      <Separator />
+                      <div className="space-y-2">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Serviços</p>
+                        <ul className="space-y-1">
+                          {orderDetail.servicos.map((svc) => (
+                            <li key={svc.id} className="text-sm text-foreground">
+                              {svc.repositorio?.nome ?? 'Serviço sem nome'}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </>
+                  )}
+
+                  <Separator />
+
+                  <form onSubmit={handleSubmit} className="space-y-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Atualizar faturamento
+                    </p>
+                    <div className="grid gap-4 sm:grid-cols-3">
+                      <div className="space-y-2">
+                        <Label htmlFor="faturamento">Faturamento</Label>
+                        <Select value={faturamentoValue} onValueChange={(v) => setFaturamentoValue(v as 'sim' | 'nao')} disabled={updateServiceOrderBilling.isPending}>
+                          <SelectTrigger id="faturamento"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="sim">Sim</SelectItem>
+                            <SelectItem value="nao">Não</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="data-faturamento">Data do faturamento</Label>
+                        <Input id="data-faturamento" type="date" value={billingDate} onChange={(e) => setBillingDate(e.target.value)} disabled={updateServiceOrderBilling.isPending} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="numero-nf">Número da NF</Label>
+                        <Input id="numero-nf" type="number" value={nfNumber} onChange={(e) => setNfNumber(e.target.value)} disabled={updateServiceOrderBilling.isPending} />
+                      </div>
+                    </div>
+                    <div className="flex justify-end pb-2">
+                      <Button type="submit" disabled={updateServiceOrderBilling.isPending}>
+                        {updateServiceOrderBilling.isPending ? 'Salvando...' : 'Salvar alterações'}
+                      </Button>
+                    </div>
+                  </form>
                 </div>
-                <DialogFooter>
-                  <Button type="submit" disabled={updateServiceOrderBilling.isPending}>
-                    {updateServiceOrderBilling.isPending ? 'Salvando...' : 'Salvar alterações'}
-                  </Button>
-                </DialogFooter>
-              </form>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+              )}
+            </TabsContent>
+
+            {/* ── Aba Histórico ── */}
+            <TabsContent value="historico" className="m-0 flex-1 overflow-y-auto px-6">
+              {selectedOrderId && <OrdemAuditoriaTimeline ordemId={selectedOrderId} />}
+            </TabsContent>
+          </Tabs>
+
+        </SheetContent>
+      </Sheet>
 
       {/* ── MiniOS Billing Dialog (unchanged) ───────────────────────────────── */}
       <Dialog open={isMiniDialogOpen} onOpenChange={handleMiniDialogChange}>

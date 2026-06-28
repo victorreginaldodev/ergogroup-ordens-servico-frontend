@@ -11,11 +11,13 @@ import NotFound from '@/pages/NotFound';
 import OperacionalPage from '@/features/analytics/pages/OperacionalPage';
 import AnaliseFinanceiroPage from '@/features/analytics/pages/FinanceiroPage';
 
+// Ordens
+import OrdemServicoListPage from '@/features/ordens/pages/OrdemServicoListPage';
+import OrdemServicoFormPage from '@/features/ordens/pages/OrdemServicoFormPage';
+import OrdemDetalhePage from '@/features/ordens/pages/OrdemDetalhePage';
+import ServicoDetalhePage from '@/features/ordens/pages/ServicoDetalhePage';
+
 // Páginas existentes (migrar para features/ conforme forem tocadas)
-import OrdersPage from '@/pages/dashboard/OrdersPage';
-import NewOrderPage from '@/pages/dashboard/NewOrderPage';
-import ServicesPage from '@/pages/dashboard/ServicesPage';
-import ServiceManagementPage from '@/pages/dashboard/ServiceManagementPage';
 import FinancialPage from '@/pages/dashboard/FinancialPage';
 import UserProfilePage from '@/pages/dashboard/UserProfilePage';
 import UsersManagementPage from '@/pages/dashboard/UsersManagementPage';
@@ -26,7 +28,6 @@ import ContactsPage from '@/pages/dashboard/ContactsPage';
 import ContactFormPage from '@/pages/dashboard/ContactFormPage';
 import CatalogPage from '@/pages/dashboard/CatalogPage';
 import CatalogFormPage from '@/pages/dashboard/CatalogFormPage';
-import TasksPage from '@/pages/dashboard/TasksPage';
 import QuickTasksPage from '@/pages/dashboard/QuickTasksPage';
 import QuickTasksCatalogPage from '@/pages/dashboard/QuickTasksCatalogPage';
 import QuickTasksCatalogFormPage from '@/pages/dashboard/QuickTasksCatalogFormPage';
@@ -46,16 +47,13 @@ const AppRoutes = () => (
     <Route path="/dashboard/analise/financeiro" element={w(<AnaliseFinanceiroPage />)} />
 
     {/* Ordens */}
-    <Route path="/dashboard/orders" element={w(<OrdersPage />)} />
-    <Route path="/dashboard/orders/new" element={w(<NewOrderPage />)} />
-    <Route path="/dashboard/orders/:id/edit" element={w(<NewOrderPage />)} />
+    <Route path="/dashboard/orders" element={w(<OrdemServicoListPage />)} />
+    <Route path="/dashboard/orders/new" element={w(<OrdemServicoFormPage />)} />
+    <Route path="/dashboard/orders/:id" element={w(<OrdemDetalhePage />)} />
+    <Route path="/dashboard/orders/:id/edit" element={w(<OrdemServicoFormPage />)} />
+    <Route path="/dashboard/orders/:id/services/:servicoId" element={w(<ServicoDetalhePage />)} />
 
-    {/* Serviços */}
-    <Route path="/dashboard/services" element={w(<ServicesPage />)} />
-    <Route path="/dashboard/services/manage/:orderId/:itemId" element={w(<ServiceManagementPage />)} />
-
-    {/* Tarefas */}
-    <Route path="/dashboard/tasks" element={w(<TasksPage />)} />
+    {/* Quick Tasks */}
     <Route path="/dashboard/quick-tasks" element={w(<QuickTasksPage />)} />
     <Route path="/dashboard/quick-tasks/catalog" element={w(<QuickTasksCatalogPage />)} />
     <Route path="/dashboard/quick-tasks/catalog/new" element={w(<QuickTasksCatalogFormPage />)} />
