@@ -1,0 +1,274 @@
+import { useEffect, useState } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Switch } from '@/components/ui/switch';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { useClients } from '@/services/clients';
+import { useUsers } from '@/services/users';
+import {
+  useOperationalOrderCatalog,
+  useOperationalOrderDetail,
+  useCreateOperationalOrder,
+  useUpdateOperationalOrder,
+} from '../hooks';
+
+interface FormState {
+  cliente: number;
+  servico: number;
+  responsavel: number;
+  quantidade: number;
+  descricao: string;
+  dataRecebimento: string;
+  dataInicio: string;
+  dataTermino: string;
+  status: string;
+  revisaoCliente: boolean;
+}
+
+const defaultForm: FormState = {
+  cliente: 0,
+  servico: 0,
+  responsavel: 0,
+  quantidade: 1,
+  descricao: '',
+  dataRecebimento: '',
+  dataInicio: '',
+  dataTermino: '',
+  status: 'nao_iniciado',
+  revisaoCliente: false,
+};
+
+interface OperationalOrderFormProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  editId?: number | null;
+}
+
+export function OperationalOrderForm({ open, onOpenChange, editId }: OperationalOrderFormProps) {
+  const isEdit = !!editId;
+  const [form, setForm] = useState<FormState>(defaultForm);
+
+  const { data: clients = [] } = useClients();
+  const { data: profiles = [] } = useUsers();
+  const { data: catalog = [] } = useOperationalOrderCatalog();
+  const { data: detail, isLoading: loadingDetail } = useOperationalOrderDetail(editId ?? undefined);
+  const createOrder = useCreateOperationalOrder();
+  const updateOrder = useUpdateOperationalOrder();
+
+  useEffect(() => {
+    if (!open) {
+      setForm(defaultForm);
+      return;
+    }
+    if (isEdit && detail) {
+      setForm({
+        cliente: detail.clienteId,
+        servico: detail.servicoId,
+        responsavel: detail.responsavelId,
+        quantidade: detail.quantidade,
+        descricao: detail.descricao ?? '',
+        dataRecebimento: detail.dataRecebimento ?? '',
+        dataInicio: detail.dataInicio ?? '',
+        dataTermino: detail.dataTermino ?? '',
+        status: detail.status,
+        revisaoCliente: detail.revisaoCliente,
+      });
+    }
+  }, [open, isEdit, detail]);
+
+  const isValid = form.cliente > 0 && form.servico > 0 && form.quantidade > 0 && !!form.dataRecebimento;
+  const isPending = createOrder.isPending || updateOrder.isPending;
+
+  const handleSubmit = () => {
+    if (!isValid || isPending) return;
+    const payload = {
+      cliente: form.cliente,
+      servico: form.servico,
+      responsavel: form.responsavel || undefined,
+      quantidade: form.quantidade,
+      descricao: form.descricao || null,
+      dataRecebimento: form.dataRecebimento,
+      dataInicio: form.dataInicio || null,
+      dataTermino: form.dataTermino || null,
+      status: form.status,
+      revisaoCliente: form.revisaoCliente,
+    };
+
+    if (isEdit && editId) {
+      updateOrder.mutate({ id: editId, payload }, { onSuccess: () => onOpenChange(false) });
+    } else {
+      createOrder.mutate(payload, { onSuccess: () => onOpenChange(false) });
+    }
+  };
+
+  const technicians = profiles.filter((p: any) => p.tipo_usuario === 'tecnico');
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-3xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>
+            {isEdit ? 'Editar OS Operacional' : 'Nova OS Operacional'}
+          </DialogTitle>
+        </DialogHeader>
+
+        {isEdit && loadingDetail ? (
+          <div className="space-y-4">
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-24 w-full" />
+          </div>
+        ) : (
+          <div className="space-y-6">
+            <div>
+              <p className="text-xs text-muted-foreground mb-1">Cliente</p>
+              <Select
+                value={form.cliente ? String(form.cliente) : ''}
+                onValueChange={(v) => setForm({ ...form, cliente: Number(v) })}
+              >
+                <SelectTrigger className="bg-background border-border">
+                  <SelectValue placeholder="Selecione o cliente" />
+                </SelectTrigger>
+                <SelectContent>
+                  {clients.map((c: any) => (
+                    <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Serviço</p>
+                <Select
+                  value={form.servico ? String(form.servico) : ''}
+                  onValueChange={(v) => setForm({ ...form, servico: Number(v) })}
+                >
+                  <SelectTrigger className="bg-background border-border">
+                    <SelectValue placeholder="Selecione o serviço" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {catalog.map((s) => (
+                      <SelectItem key={s.id} value={String(s.id)}>{s.nome}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Técnico</p>
+                <Select
+                  value={form.responsavel ? String(form.responsavel) : ''}
+                  onValueChange={(v) => setForm({ ...form, responsavel: Number(v) })}
+                >
+                  <SelectTrigger className="bg-background border-border">
+                    <SelectValue placeholder="Selecione o técnico" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {technicians.map((p: any) => (
+                      <SelectItem key={p.id} value={String(p.id)}>{p.nome_completo}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid sm:grid-cols-3 gap-4">
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Quantidade</p>
+                <Input
+                  type="number"
+                  min={1}
+                  value={form.quantidade}
+                  onChange={(e) => setForm({ ...form, quantidade: Number(e.target.value) || 1 })}
+                  className="bg-background border-border"
+                />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Recebimento</p>
+                <Input
+                  type="date"
+                  value={form.dataRecebimento}
+                  onChange={(e) => setForm({ ...form, dataRecebimento: e.target.value })}
+                  className="bg-background border-border"
+                />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Status</p>
+                <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v })}>
+                  <SelectTrigger className="bg-background border-border">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="nao_iniciado">Não Iniciado</SelectItem>
+                    <SelectItem value="em_andamento">Em Andamento</SelectItem>
+                    <SelectItem value="finalizada">Finalizada</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <Switch
+                checked={form.revisaoCliente}
+                onCheckedChange={(v) => setForm({ ...form, revisaoCliente: v })}
+              />
+              <span className="text-sm">Revisão do cliente</span>
+              {form.revisaoCliente && (
+                <span className="text-xs text-muted-foreground">(gera cobrança ao finalizar)</span>
+              )}
+            </div>
+
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Início</p>
+                <Input
+                  type="date"
+                  value={form.dataInicio}
+                  onChange={(e) => setForm({ ...form, dataInicio: e.target.value })}
+                  className="bg-background border-border"
+                />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Término</p>
+                <Input
+                  type="date"
+                  value={form.dataTermino}
+                  onChange={(e) => setForm({ ...form, dataTermino: e.target.value })}
+                  className="bg-background border-border"
+                />
+              </div>
+            </div>
+
+            <div>
+              <p className="text-xs text-muted-foreground mb-1">Descrição</p>
+              <Textarea
+                value={form.descricao}
+                onChange={(e) => setForm({ ...form, descricao: e.target.value })}
+                className="bg-background border-border min-h-24 resize-y"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => onOpenChange(false)}>
+                Cancelar
+              </Button>
+              <Button variant="hero" disabled={!isValid || isPending} onClick={handleSubmit}>
+                {isPending ? 'Salvando...' : isEdit ? 'Salvar alterações' : 'Criar'}
+              </Button>
+            </div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
