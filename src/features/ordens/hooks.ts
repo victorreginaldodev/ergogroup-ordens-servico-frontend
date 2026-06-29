@@ -1,4 +1,5 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMemo } from 'react';
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   createTarefa,
   deleteTarefa,
@@ -56,6 +57,34 @@ export const useTarefasDeServico = (servicoId?: number) =>
     enabled: !!servicoId,
     staleTime: 1000 * 60 * 2,
   });
+
+export const useTarefasDeServicos = (servicos?: ServicoDetalhe[]) => {
+  const tarefasQueries = useQueries({
+    queries: (servicos ?? []).map((servico) => ({
+      queryKey: ['ordens-tarefas-servico', servico.id],
+      queryFn: () => getTarefasDeServico(servico.id),
+      enabled: !!servico.id,
+      staleTime: 1000 * 60 * 2,
+    })),
+  });
+
+  const tarefasPorServico = useMemo(() => {
+    const acc: Record<number, TarefaDetalhe[]> = {};
+
+    (servicos ?? []).forEach((servico, index) => {
+      const tarefas = tarefasQueries[index]?.data;
+      if (tarefas) acc[servico.id] = tarefas as TarefaDetalhe[];
+    });
+
+    return acc;
+  }, [servicos, tarefasQueries]);
+
+  return {
+    tarefasPorServico,
+    isLoading: tarefasQueries.some((query) => query.isLoading),
+    isFetching: tarefasQueries.some((query) => query.isFetching),
+  };
+};
 
 export const useAuditoriaTimeline = (ordemId?: number) =>
   useQuery<RegistroAuditoria[]>({

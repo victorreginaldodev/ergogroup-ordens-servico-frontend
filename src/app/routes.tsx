@@ -15,7 +15,6 @@ import AnaliseFinanceiroPage from '@/features/analytics/pages/FinanceiroPage';
 import OrdemServicoListPage from '@/features/ordens/pages/OrdemServicoListPage';
 import OrdemServicoFormPage from '@/features/ordens/pages/OrdemServicoFormPage';
 import OrdemDetalhePage from '@/features/ordens/pages/OrdemDetalhePage';
-import ServicoDetalhePage from '@/features/ordens/pages/ServicoDetalhePage';
 
 // Páginas existentes (migrar para features/ conforme forem tocadas)
 import FinancialPage from '@/pages/dashboard/FinancialPage';
@@ -51,7 +50,6 @@ const AppRoutes = () => (
     <Route path="/dashboard/orders/new" element={w(<OrdemServicoFormPage />)} />
     <Route path="/dashboard/orders/:id" element={w(<OrdemDetalhePage />)} />
     <Route path="/dashboard/orders/:id/edit" element={w(<OrdemServicoFormPage />)} />
-    <Route path="/dashboard/orders/:id/services/:servicoId" element={w(<ServicoDetalhePage />)} />
 
     {/* Operational Orders */}
     <Route path="/dashboard/quick-tasks" element={w(<OperationalOrderListPage />)} />

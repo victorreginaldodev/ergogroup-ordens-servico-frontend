@@ -46,6 +46,8 @@ export function OperationalOrderRow({ item, canManage, onEdit }: OperationalOrde
           <button
             type="button"
             className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-muted"
+            aria-label="Ver detalhes"
+            title="Ver detalhes"
           >
             <ArrowRight className="w-3.5 h-3.5 text-muted-foreground" />
           </button>

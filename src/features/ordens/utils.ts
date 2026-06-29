@@ -1,3 +1,9 @@
+export const formatShortDate = (dateStr: string | null | undefined): string | null => {
+  if (!dateStr) return null;
+  const [, m, d] = dateStr.slice(0, 10).split('-');
+  return `${d}/${m}`;
+};
+
 export const formatDate = (dateStr: string | null | undefined): string | null => {
   if (!dateStr) return null;
   const [y, m, d] = dateStr.slice(0, 10).split('-');

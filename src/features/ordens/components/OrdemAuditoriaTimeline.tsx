@@ -68,7 +68,7 @@ function Alteracoes({ data }: { data: Record<string, { antes: unknown; depois: u
   if (!entries.length) return null;
 
   return (
-    <div className="mt-2 space-y-1 rounded-lg border border-border bg-muted/40 px-3 py-2">
+    <div className="mt-2 space-y-1 border-l border-border pl-3">
       {entries.map(([campo, { antes, depois }]) => (
         <div key={campo} className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
           <span className="font-medium text-foreground">{campo}</span>
