@@ -6,6 +6,7 @@ import {
   History,
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { MoneyValue } from '@/components/common/MoneyValue';
 import { cn } from '@/lib/utils';
 import { formatCurrency, formatDate, formatDateTime } from '../utils';
 import { OrdemAuditoriaTimeline } from './OrdemAuditoriaTimeline';
@@ -164,7 +165,7 @@ function CobrancaTab({ ordem }: OrdemAdministrativePanelProps) {
             Valor total
           </p>
           <p className="mt-1 text-[28px] font-bold leading-none tracking-tight text-foreground">
-            {formatCurrency(ordem.valor)}
+            <MoneyValue value={ordem.valor} formatter={formatCurrency} />
           </p>
         </div>
         <StatusPill status={faturamentoKey} label={faturamentoLabel} />

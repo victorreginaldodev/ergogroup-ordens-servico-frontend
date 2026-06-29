@@ -1,4 +1,5 @@
 import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer';
+import { useUserRole } from '@/hooks/useUserRole';
 import type { OrdemServicoDetalhe, ServicoDetalhe, TarefaDetalhe } from '../services';
 import { formatDate, formatDateTime, formatCurrency } from '../utils';
 
@@ -416,13 +417,14 @@ function ContratoSection({ ordem }: { ordem: OrdemServicoDetalhe }) {
 }
 
 function CobrancaSection({ ordem }: { ordem: OrdemServicoDetalhe }) {
+  const { canViewOrderValues } = useUserRole();
   return (
     <View style={s.section}>
       <Text style={s.sectionTitle}>Cobrança</Text>
       <View style={s.valorBanner}>
         <View>
           <Text style={s.valorLabel}>Valor total</Text>
-          <Text style={s.valorValue}>{formatCurrency(ordem.valor)}</Text>
+          <Text style={s.valorValue}>{canViewOrderValues ? formatCurrency(ordem.valor) : '—'}</Text>
         </View>
         <Text style={billingBadgeStyle(ordem)}>{billingLabel(ordem)}</Text>
       </View>
@@ -563,6 +565,7 @@ export interface OrdemPdfDocumentProps {
 }
 
 export function OrdemPdfDocument({ ordem, servicos, tarefasPorServico }: OrdemPdfDocumentProps) {
+  const { canViewOrderValues } = useUserRole();
   const geradoEm = new Intl.DateTimeFormat('pt-BR', {
     day: '2-digit', month: '2-digit', year: 'numeric',
     hour: '2-digit', minute: '2-digit',
@@ -601,7 +604,7 @@ export function OrdemPdfDocument({ ordem, servicos, tarefasPorServico }: OrdemPd
           <MetaCell label="Criado por"  value={ordem.criado_por_nome ?? '—'} border />
           <MetaCell label="Serviços"    value={`${servicos.length} serviço${servicos.length !== 1 ? 's' : ''}`} border />
           <MetaCell label="Tarefas"     value={`${totalTarefas} tarefa${totalTarefas !== 1 ? 's' : ''}`} border />
-          <MetaCell label="Valor total" value={formatCurrency(ordem.valor)} border />
+          <MetaCell label="Valor total" value={canViewOrderValues ? formatCurrency(ordem.valor) : '—'} border />
         </View>
 
         {/* ── Dados ── */}

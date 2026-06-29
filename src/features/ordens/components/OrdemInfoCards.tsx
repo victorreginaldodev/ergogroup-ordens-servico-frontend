@@ -1,4 +1,5 @@
 import { cn } from '@/lib/utils';
+import { MoneyValue } from '@/components/common/MoneyValue';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -103,7 +104,7 @@ export function OrdemInfoCards({ ordem }: OrdemInfoCardsProps) {
               <div className="space-y-1">
                 <p className="text-xs font-medium text-muted-foreground">Valor total</p>
                 <p className="text-[28px] font-bold leading-none tracking-tight">
-                  {formatCurrency(ordem.valor)}
+                  <MoneyValue value={ordem.valor} formatter={formatCurrency} />
                 </p>
               </div>
               <span

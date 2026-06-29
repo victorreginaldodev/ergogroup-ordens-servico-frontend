@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronDown, ChevronUp, Pencil, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { MoneyValue } from '@/components/common/MoneyValue';
 import { cn } from '@/lib/utils';
 import { formatDate, formatCurrency } from '../utils';
 import type { OrdemServicoDetalhe } from '../services';
@@ -44,7 +45,7 @@ export function OrdemHeroCard({ ordem, servicosCount, pdfButton }: OrdemHeroCard
         ? `${servicosCount} serviço${servicosCount !== 1 ? 's' : ''}`
         : '—',
     },
-    { label: 'Valor total', value: formatCurrency(ordem.valor) },
+    { label: 'Valor total', value: <MoneyValue value={ordem.valor} formatter={formatCurrency} /> },
   ];
 
   return (

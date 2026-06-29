@@ -1,4 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
+import { EV1UpdatesModal } from '@/components/common/EV1UpdatesModal';
+import { useEV1Modal } from '@/hooks/useEV1Modal';
 import { Link, useLocation } from 'react-router-dom';
 import {
   FileText,
@@ -97,6 +99,7 @@ interface DashboardLayoutProps {
 
 const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   const location = useLocation();
+  const { open: ev1Open, dismiss: dismissEV1 } = useEV1Modal();
   const [collapsed, setCollapsed] = useState<boolean>(() => {
     try { return localStorage.getItem(SIDEBAR_KEY) === 'true'; }
     catch { return false; }
@@ -334,6 +337,8 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
 
         </div>
       </div>
+
+      <EV1UpdatesModal open={ev1Open} onDismiss={dismissEV1} />
     </TooltipProvider>
   );
 };
