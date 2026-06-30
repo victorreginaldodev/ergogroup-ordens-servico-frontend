@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Loader2, Pencil, Save, Trash2, X } from 'lucide-react';
+import { CalendarClock, Loader2, Pencil, Save, Trash2, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { formatShortDate } from '../utils';
+import { formatDate, formatShortDate } from '../utils';
 import type { UsuarioApi } from '@/services/users';
 import type { TarefaDetalhe, UpdateTarefaPayload } from '../services';
 
@@ -112,6 +112,7 @@ export function TarefaRow({
   const avatarCls = avatarColor(nome);
   const monogram = nome !== '—' ? initials(nome) : '?';
   const descricao = tarefa.descricao?.trim();
+  const assignedAt = formatDate(tarefa.criada_em);
 
   /* ── Modo edição ── */
   if (editing) {
@@ -184,6 +185,11 @@ export function TarefaRow({
               VOCÊ
             </span>
           )}
+
+          <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+            <CalendarClock className="h-3.5 w-3.5" />
+            Atribuída em {assignedAt ?? '—'}
+          </span>
 
           <span className="text-xs text-muted-foreground">{dateRange}</span>
 
