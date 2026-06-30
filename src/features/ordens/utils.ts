@@ -21,6 +21,11 @@ export const formatDateTime = (isoStr: string | null | undefined): string | null
 export const formatCurrency = (value: string | number): string =>
   Number(value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
+export const formatDaysCount = (value: number | null | undefined): string | null => {
+  if (value === null || value === undefined) return null;
+  return `${value} ${value === 1 ? 'dia' : 'dias'}`;
+};
+
 export const formatDateObj = (date: Date): string =>
   new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(date);
 

@@ -4,7 +4,7 @@ import { ChevronDown, ChevronUp, Pencil, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { MoneyValue } from '@/components/common/MoneyValue';
 import { cn } from '@/lib/utils';
-import { formatDate, formatCurrency } from '../utils';
+import { formatDate, formatCurrency, formatDaysCount } from '../utils';
 import type { OrdemServicoDetalhe } from '../services';
 
 const STATUS_DOT: Record<string, string> = {
@@ -35,9 +35,16 @@ interface OrdemHeroCardProps {
 
 export function OrdemHeroCard({ ordem, servicosCount, pdfButton }: OrdemHeroCardProps) {
   const [collapsed, setCollapsed] = useState(false);
+  const isDone = ordem.status === 'concluida';
 
   const meta = [
     { label: 'Criação',    value: formatDate(ordem.data_criacao) ?? '—' },
+    {
+      label: isDone ? 'Até conclusão' : 'Em aberto',
+      value: formatDaysCount(
+        isDone ? ordem.dias_entre_criacao_e_conclusao : ordem.dias_em_aberto,
+      ) ?? '—',
+    },
     { label: 'Criado por', value: ordem.criado_por_nome ?? '—' },
     {
       label: 'Serviços',
@@ -107,7 +114,7 @@ export function OrdemHeroCard({ ordem, servicosCount, pdfButton }: OrdemHeroCard
 
       {/* Meta strip — colapsável */}
       {!collapsed && (
-        <div className="grid grid-cols-2 border-t border-border bg-muted/30 sm:grid-cols-4 sm:divide-x sm:divide-border">
+        <div className="grid grid-cols-2 border-t border-border bg-muted/30 sm:grid-cols-5 sm:divide-x sm:divide-border">
           {meta.map((m, i) => (
             <div
               key={m.label}

@@ -24,7 +24,7 @@ import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useOrdensLista } from '../hooks';
-import { formatDate, formatCurrency, getStatusLabel, getPriorityLabel, STATUS_DOT, PRIORITY_DOT } from '../utils';
+import { formatDate, formatCurrency, formatDaysCount, getStatusLabel, getPriorityLabel, STATUS_DOT, PRIORITY_DOT } from '../utils';
 import { OrdemServicoFiltros, defaultFilters, type FiltersState } from '../components/OrdemServicoFiltros';
 import { OrdemServicoFiltrosAtivos } from '../components/OrdemServicoFiltrosAtivos';
 
@@ -34,6 +34,20 @@ const dotBadge = (dotColorClass: string, label: string) => (
     {label}
   </span>
 );
+
+const getDurationMeta = (ordem: {
+  status: string;
+  dias_em_aberto: number | null;
+  dias_entre_criacao_e_conclusao: number | null;
+}) => {
+  const isDone = ordem.status === 'concluida';
+  return {
+    label: isDone ? 'até conclusão' : 'em aberto',
+    value: formatDaysCount(
+      isDone ? ordem.dias_entre_criacao_e_conclusao : ordem.dias_em_aberto,
+    ),
+  };
+};
 
 const STATUS_SORT: Record<string, number> = { aberta: 0, em_andamento: 1, concluida: 2, cancelada: 3 };
 const PRIORITY_SORT: Record<string, number> = { alta: 0, media: 1, baixa: 2 };
@@ -119,6 +133,7 @@ const OrdemServicoListPage = () => {
                   <TableHead className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground py-2 px-3">Ordem de Serviço</TableHead>
                   <TableHead className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground py-2 px-3 w-[90px]">Prioridade</TableHead>
                   <TableHead className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground py-2 px-3 w-[90px]">Criação</TableHead>
+                  <TableHead className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground py-2 px-3 w-[110px]">Tempo</TableHead>
                   {canViewOrderValues && (
                     <TableHead className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground py-2 px-3 w-[110px] text-right">Valor</TableHead>
                   )}
@@ -142,65 +157,83 @@ const OrdemServicoListPage = () => {
                         </TableCell>
                         <TableCell className="py-3 px-3"><Skeleton className="h-3 w-14" /></TableCell>
                         <TableCell className="py-3 px-3"><Skeleton className="h-3 w-20" /></TableCell>
+                        <TableCell className="py-3 px-3"><Skeleton className="h-8 w-20" /></TableCell>
                         {canViewOrderValues && <TableCell className="py-3 px-3"><Skeleton className="h-4 w-20 ml-auto" /></TableCell>}
                         <TableCell className="py-3 px-3" />
                       </TableRow>
                     ))
                   : paginatedOrdens.map((ordem) => (
-                      <TableRow
-                        key={ordem.id}
-                        className="border-border hover:bg-muted/40 cursor-pointer transition-colors group"
-                        onClick={() => navigate(`/dashboard/orders/${ordem.id}`)}
-                      >
-                        <TableCell className="py-3 px-3">
-                          <div>
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-sm font-semibold uppercase">{ordem.cliente_detail?.nome ?? '—'}</span>
-                              {ordem.contrato && (
-                                <span className="bg-blue-600 text-white rounded-sm text-[9px] font-bold px-1 py-0.5 tracking-widest">CTR</span>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-3 mt-1.5">
-                              {dotBadge(STATUS_DOT[ordem.status] ?? 'bg-muted-foreground', getStatusLabel(ordem.status))}
-                              {dotBadge(
-                                ordem.faturada ? 'bg-green-600' : ordem.liberada_para_faturamento ? 'bg-amber-500' : 'bg-muted-foreground',
-                                ordem.faturada ? 'Faturado' : ordem.liberada_para_faturamento ? 'Lib. faturamento' : 'Não faturado',
-                              )}
-                              <span className="font-mono text-[10px] text-muted-foreground">#{ordem.id}</span>
-                            </div>
-                          </div>
-                        </TableCell>
+                      (() => {
+                        const duration = getDurationMeta(ordem);
 
-                        <TableCell className="py-3 px-3">
-                          {ordem.prioridade
-                            ? dotBadge(PRIORITY_DOT[ordem.prioridade] ?? 'bg-muted-foreground', getPriorityLabel(ordem.prioridade))
-                            : <span className="text-[11px] text-muted-foreground">—</span>
-                          }
-                        </TableCell>
-
-                        <TableCell className="py-3 px-3">
-                          <span className="text-xs tabular-nums text-muted-foreground">
-                            {formatDate(ordem.data_criacao ?? ordem.criada_em) ?? '—'}
-                          </span>
-                        </TableCell>
-
-                        {canViewOrderValues && (
-                          <TableCell className="py-3 px-3 text-right">
-                            <span className="text-sm font-semibold tabular-nums">{formatCurrency(ordem.valor)}</span>
-                          </TableCell>
-                        )}
-
-                        <TableCell className="py-3 px-3">
-                          <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); navigate(`/dashboard/orders/${ordem.id}`); }}
-                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-muted"
-                            title="Ver OS completa"
+                        return (
+                          <TableRow
+                            key={ordem.id}
+                            className="border-border hover:bg-muted/40 cursor-pointer transition-colors group"
+                            onClick={() => navigate(`/dashboard/orders/${ordem.id}`)}
                           >
-                            <ArrowRight className="w-3.5 h-3.5 text-muted-foreground" />
-                          </button>
-                        </TableCell>
-                      </TableRow>
+                            <TableCell className="py-3 px-3">
+                              <div>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-sm font-semibold uppercase">{ordem.cliente_detail?.nome ?? '—'}</span>
+                                  {ordem.contrato && (
+                                    <span className="bg-blue-600 text-white rounded-sm text-[9px] font-bold px-1 py-0.5 tracking-widest">CTR</span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-3 mt-1.5">
+                                  {dotBadge(STATUS_DOT[ordem.status] ?? 'bg-muted-foreground', getStatusLabel(ordem.status))}
+                                  {dotBadge(
+                                    ordem.faturada ? 'bg-green-600' : ordem.liberada_para_faturamento ? 'bg-amber-500' : 'bg-muted-foreground',
+                                    ordem.faturada ? 'Faturado' : ordem.liberada_para_faturamento ? 'Lib. faturamento' : 'Não faturado',
+                                  )}
+                                  <span className="font-mono text-[10px] text-muted-foreground">#{ordem.id}</span>
+                                </div>
+                              </div>
+                            </TableCell>
+
+                            <TableCell className="py-3 px-3">
+                              {ordem.prioridade
+                                ? dotBadge(PRIORITY_DOT[ordem.prioridade] ?? 'bg-muted-foreground', getPriorityLabel(ordem.prioridade))
+                                : <span className="text-[11px] text-muted-foreground">—</span>
+                              }
+                            </TableCell>
+
+                            <TableCell className="py-3 px-3">
+                              <span className="text-xs tabular-nums text-muted-foreground">
+                                {formatDate(ordem.data_criacao ?? ordem.criada_em) ?? '—'}
+                              </span>
+                            </TableCell>
+
+                            <TableCell className="py-3 px-3">
+                              <div className="leading-tight">
+                                <span className="text-xs font-semibold tabular-nums">
+                                  {duration.value ?? '—'}
+                                </span>
+                                <p className="mt-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+                                  {duration.label}
+                                </p>
+                              </div>
+                            </TableCell>
+
+                            {canViewOrderValues && (
+                              <TableCell className="py-3 px-3 text-right">
+                                <span className="text-sm font-semibold tabular-nums">{formatCurrency(ordem.valor)}</span>
+                              </TableCell>
+                            )}
+
+                            <TableCell className="py-3 px-3">
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); navigate(`/dashboard/orders/${ordem.id}`); }}
+                                className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-muted"
+                                title="Ver OS completa"
+                              >
+                                <ArrowRight className="w-3.5 h-3.5 text-muted-foreground" />
+                              </button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })()
                     ))
                 }
               </TableBody>

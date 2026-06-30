@@ -8,7 +8,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { MoneyValue } from '@/components/common/MoneyValue';
 import { cn } from '@/lib/utils';
-import { formatCurrency, formatDate, formatDateTime } from '../utils';
+import { formatCurrency, formatDate, formatDateTime, formatDaysCount } from '../utils';
 import { OrdemAuditoriaTimeline } from './OrdemAuditoriaTimeline';
 import type { OrdemServicoDetalhe } from '../services';
 
@@ -89,6 +89,11 @@ function DadosTab({ ordem }: OrdemAdministrativePanelProps) {
         <InfoField label="Criado por" value={ordem.criado_por_nome} />
         <InfoField label="Registrado em" value={formatDateTime(ordem.criada_em)} />
         <InfoField label="Data de criação" value={formatDate(ordem.data_criacao)} />
+        <InfoField label="Dias em aberto" value={formatDaysCount(ordem.dias_em_aberto)} />
+        <InfoField
+          label="Tempo até conclusão"
+          value={formatDaysCount(ordem.dias_entre_criacao_e_conclusao)}
+        />
         <InfoField label="Última atualização" value={formatDateTime(ordem.data_atualizacao)} />
         <InfoField label="Prioridade" value={ordem.prioridade_display} />
         <InfoField

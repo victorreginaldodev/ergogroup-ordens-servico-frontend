@@ -17,6 +17,8 @@ export interface OrdemServicoItem {
   contrato: boolean;
   criada_em: string;
   data_criacao: string;
+  dias_em_aberto: number | null;
+  dias_entre_criacao_e_conclusao: number | null;
 }
 
 const STATUS_DISPLAY_MAP: Record<string, OrdemServicoItem['status']> = {
@@ -49,6 +51,8 @@ const normalizeOrdemItem = (dto: any): OrdemServicoItem => ({
   contrato: !!dto.contrato,
   criada_em: dto.criada_em ?? dto.data_criacao ?? '',
   data_criacao: dto.data_criacao ?? dto.criada_em ?? '',
+  dias_em_aberto: dto.dias_em_aberto ?? null,
+  dias_entre_criacao_e_conclusao: dto.dias_entre_criacao_e_conclusao ?? null,
 });
 
 export const getOrdensLista = async (): Promise<OrdemServicoItem[]> => {
@@ -110,6 +114,8 @@ export interface OrdemServicoDetalhe {
   atualizado_por: number | null;
   data_conclusao_os: string | null;
   finalizador_nome: string | null;
+  dias_em_aberto: number | null;
+  dias_entre_criacao_e_conclusao: number | null;
 }
 
 export const getOrdemDetalhe = async (id: number): Promise<OrdemServicoDetalhe> => {
