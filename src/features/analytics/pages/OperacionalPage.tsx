@@ -14,7 +14,9 @@ import { HorizontalBarChart } from '../components/HorizontalBarChart';
 
 
 const formatDias = (value: number | null | undefined) =>
-  value != null ? `${value} dias` : '—';
+  value != null
+    ? `${value.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} dias`
+    : '—';
 
 const deltaPct = (atual: number, anterior: number) =>
   anterior === 0 ? (atual > 0 ? 100 : 0) : Math.round(((atual - anterior) / anterior) * 100);
@@ -50,12 +52,13 @@ const OperacionalPage = () => {
       total: Number(os.total ?? 0),
       totalConcluidas: Number(os.total_concluidas ?? 0),
       emAberto: Number(os.em_aberto ?? 0),
+      tempoMedioConclusao: produtividade?.tempos_medios?.os_criacao_para_conclusao_dias ?? null,
       abertasMes,
       concluidasMes,
       deltaAbertas,
       deltaConcluidas,
     };
-  }, [analytics]);
+  }, [analytics, produtividade]);
 
   // ── Fluxo mensal (abertas vs concluídas) ─────────────────────────────────────
   const fluxoMensalData = useMemo(() => {
@@ -188,7 +191,7 @@ const OperacionalPage = () => {
         </Alert>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {kpisOS ? (
           <>
             <KpiCard
@@ -197,6 +200,7 @@ const OperacionalPage = () => {
               change={`${kpisOS.abertasMes} abertas este mês (${kpisOS.deltaAbertas >= 0 ? '+' : ''}${kpisOS.deltaAbertas}% vs anterior)`}
               changeType={kpisOS.deltaAbertas <= 0 ? 'positive' : 'negative'}
               icon={ClipboardList}
+              compact
             />
             <KpiCard
               title="Total Concluídas"
@@ -204,6 +208,7 @@ const OperacionalPage = () => {
               change={`${kpisOS.concluidasMes} concluídas este mês (${kpisOS.deltaConcluidas >= 0 ? '+' : ''}${kpisOS.deltaConcluidas}% vs anterior)`}
               changeType={kpisOS.deltaConcluidas >= 0 ? 'positive' : 'negative'}
               icon={CheckCircle}
+              compact
             />
             <KpiCard
               title="Em Andamento"
@@ -211,10 +216,19 @@ const OperacionalPage = () => {
               change="backlog atual em aberto"
               changeType="neutral"
               icon={Clock}
+              compact
+            />
+            <KpiCard
+              title="Tempo Médio de Conclusão"
+              value={formatDias(kpisOS.tempoMedioConclusao)}
+              change="criação até fim da OS"
+              changeType="neutral"
+              icon={Timer}
+              compact
             />
           </>
         ) : (
-          Array.from({ length: 3 }).map((_, i) => <KpiCardSkeleton key={i} index={i} />)
+          Array.from({ length: 4 }).map((_, i) => <KpiCardSkeleton key={i} index={i} compact />)
         )}
       </div>
 

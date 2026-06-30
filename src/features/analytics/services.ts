@@ -161,6 +161,7 @@ export interface TempoRepositorio {
 export interface ProdutividadeResponse {
   tempos_medios: {
     os_criacao_para_encerramento_dias: number | null;
+    os_criacao_para_conclusao_dias: number | null;
     os_total_com_data: number;
     os_distribuicao_tempo: OsDistribuicaoTempo;
     servicos_inicio_para_fim_dias: number | null;
