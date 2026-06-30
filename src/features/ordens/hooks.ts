@@ -106,6 +106,7 @@ const invalidarContexto = (
   qc.invalidateQueries({ queryKey: ['ordens-tarefas-servico', servicoId] });
   qc.invalidateQueries({ queryKey: ['ordens-servicos', ordemId] });
   qc.invalidateQueries({ queryKey: ['ordens-detalhe', ordemId] });
+  qc.invalidateQueries({ queryKey: ['ordens-lista'] });
 };
 
 export const useCreateTarefa = (ctx: MutacaoContexto) => {

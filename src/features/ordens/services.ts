@@ -19,6 +19,15 @@ export interface OrdemServicoItem {
   data_criacao: string;
 }
 
+const STATUS_DISPLAY_MAP: Record<string, OrdemServicoItem['status']> = {
+  'Aberta': 'aberta',
+  'Em Andamento': 'em_andamento',
+  'Em andamento': 'em_andamento',
+  'Concluída': 'concluida',
+  'Concluida': 'concluida',
+  'Cancelada': 'cancelada',
+};
+
 const normalizeOrdemItem = (dto: any): OrdemServicoItem => ({
   id: dto.id,
   cliente: typeof dto.cliente === 'object' ? dto.cliente?.id : dto.cliente,
@@ -29,7 +38,7 @@ const normalizeOrdemItem = (dto: any): OrdemServicoItem => ({
     : dto.cliente_nome
     ? { id: typeof dto.cliente === 'number' ? dto.cliente : 0, nome: dto.cliente_nome }
     : null,
-  status: dto.status ?? 'aberta',
+  status: dto.status ?? STATUS_DISPLAY_MAP[dto.status_display] ?? 'aberta',
   status_display: dto.status_display ?? '',
   prioridade: dto.prioridade ?? null,
   prioridade_display: dto.prioridade_display ?? '',
