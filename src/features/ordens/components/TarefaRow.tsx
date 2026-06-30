@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CalendarClock, Loader2, Pencil, Save, Trash2, X } from 'lucide-react';
+import { CalendarClock, CalendarDays, Loader2, Pencil, Save, Trash2, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { formatDate, formatShortDate } from '../utils';
+import { formatDate } from '../utils';
 import type { UsuarioApi } from '@/services/users';
 import type { TarefaDetalhe, UpdateTarefaPayload } from '../services';
 
@@ -101,18 +101,13 @@ export function TarefaRow({
     setEditing(true);
   };
 
-  const dateRange = (() => {
-    const s = formatShortDate(tarefa.data_inicio);
-    const e = formatShortDate(tarefa.data_termino);
-    if (!s && !e) return 'Sem data';
-    return `${s ?? 'Sem data'} → ${e ?? 'Sem data'}`;
-  })();
-
   const nome = tarefa.responsavel_nome ?? '—';
   const avatarCls = avatarColor(nome);
   const monogram = nome !== '—' ? initials(nome) : '?';
   const descricao = tarefa.descricao?.trim();
   const assignedAt = formatDate(tarefa.criada_em);
+  const startAt = formatDate(tarefa.data_inicio);
+  const endAt = formatDate(tarefa.data_termino);
 
   /* ── Modo edição ── */
   if (editing) {
@@ -161,7 +156,7 @@ export function TarefaRow({
     <div
       className={cn(
         'flex gap-3 px-[22px] py-[13px] transition-colors hover:bg-muted/20',
-        isCurrentUser && 'border-l-[3px] border-l-primary bg-primary/10 pl-[19px] dark:bg-primary/10',
+        isCurrentUser && 'border-l-[3px] border-l-primary/80 bg-primary/[0.06] pl-[19px] hover:bg-primary/[0.08] dark:bg-primary/[0.08]',
       )}
     >
       {/* Avatar */}
@@ -169,6 +164,7 @@ export function TarefaRow({
         className={cn(
           'mt-0.5 flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full text-xs font-bold',
           avatarCls,
+          isCurrentUser && 'ring-2 ring-primary/20',
         )}
       >
         {monogram}
@@ -181,17 +177,10 @@ export function TarefaRow({
           <span className="text-sm font-semibold text-foreground">{nome}</span>
 
           {isCurrentUser && (
-            <span className="rounded-full bg-teal-100 px-1.5 py-px text-[10px] font-bold uppercase tracking-wide text-teal-700 dark:bg-teal-900/40 dark:text-teal-400">
-              VOCÊ
+            <span className="rounded-full border border-primary/25 bg-primary/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-primary">
+              Sua tarefa
             </span>
           )}
-
-          <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-            <CalendarClock className="h-3.5 w-3.5" />
-            Atribuída em {assignedAt ?? '—'}
-          </span>
-
-          <span className="text-xs text-muted-foreground">{dateRange}</span>
 
           {/* Status + ações — empurrados para direita */}
           <div className="ml-auto flex items-center gap-2">
@@ -256,11 +245,29 @@ export function TarefaRow({
           </div>
         </div>
 
+        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+          <span className="inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-background/60 px-2 py-1 text-[11px] text-muted-foreground">
+            <CalendarClock className="h-3.5 w-3.5" />
+            <span className="font-semibold">Atribuída</span>
+            <span className="tabular-nums text-foreground/80">{assignedAt ?? '—'}</span>
+          </span>
+          <span className="inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-background/60 px-2 py-1 text-[11px] text-muted-foreground">
+            <CalendarDays className="h-3.5 w-3.5" />
+            <span className="font-semibold">Início</span>
+            <span className="tabular-nums text-foreground/80">{startAt ?? '—'}</span>
+          </span>
+          <span className="inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-background/60 px-2 py-1 text-[11px] text-muted-foreground">
+            <CalendarDays className="h-3.5 w-3.5" />
+            <span className="font-semibold">Fim</span>
+            <span className="tabular-nums text-foreground/80">{endAt ?? '—'}</span>
+          </span>
+        </div>
+
         {/* Descrição */}
         {descricao && (
           <p
             className={cn(
-              'mt-1 text-sm leading-snug text-muted-foreground',
+              'mt-2 text-sm leading-snug text-muted-foreground',
               tarefa.status === 'cancelada' && 'line-through opacity-60',
             )}
           >
