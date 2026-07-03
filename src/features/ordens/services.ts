@@ -162,6 +162,20 @@ export const getServicoDetalhe = async (id: number): Promise<ServicoDetalhe> => 
   return data;
 };
 
+// ── /api/servicos/servicos/ (todas as OS, para listagem/filtros) ─────────────
+
+export interface ServicoResumoItem {
+  id: number;
+  ordem_servico: number;
+  repositorio_nome: string | null;
+  descricao: string;
+}
+
+export const getServicosResumo = async (): Promise<ServicoResumoItem[]> => {
+  const { data } = await api.get<any>('/api/servicos/servicos/', { params: { page_size: 1000 } });
+  return data?.results ?? (Array.isArray(data) ? data : []);
+};
+
 // ── /api/tarefas/tarefas/?servico={id} ───────────────────────────────────────
 
 export interface TarefaDetalhe {
@@ -186,6 +200,20 @@ export const getTarefasDeServico = async (servicoId: number): Promise<TarefaDeta
   });
   const results = data?.results ?? (Array.isArray(data) ? data : []);
   return results as TarefaDetalhe[];
+};
+
+// ── /api/tarefas/tarefas/ (todas as tarefas, para listagem/filtros) ─────────
+
+export interface TarefaResumoItem {
+  id: number;
+  servico: number;
+  responsavel: number;
+  responsavel_nome: string;
+}
+
+export const getTarefasResumo = async (): Promise<TarefaResumoItem[]> => {
+  const { data } = await api.get<any>('/api/tarefas/tarefas/', { params: { page_size: 1000 } });
+  return data?.results ?? (Array.isArray(data) ? data : []);
 };
 
 // ── Mutations: Tarefa ─────────────────────────────────────────────────────────

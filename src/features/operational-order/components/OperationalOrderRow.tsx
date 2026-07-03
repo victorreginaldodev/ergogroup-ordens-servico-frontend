@@ -1,5 +1,6 @@
 import { ArrowRight } from 'lucide-react';
 import { TableCell, TableRow } from '@/components/ui/table';
+import { avatarColor, initials } from '@/lib/avatar';
 import { OperationalOrderItem } from '../services';
 import { STATUS_DOT, getStatusLabel, formatDate } from '../utils';
 
@@ -27,10 +28,23 @@ export function OperationalOrderRow({ item, canManage, onEdit }: OperationalOrde
           <span className="text-sm font-semibold uppercase">{item.clienteNome || '—'}</span>
           <div className="flex items-center gap-3 mt-1.5">
             {dotBadge(STATUS_DOT[item.status] ?? 'bg-muted-foreground', getStatusLabel(item.status))}
+            {dotBadge(item.faturada ? 'bg-green-600' : 'bg-muted-foreground', item.faturada ? 'Faturado' : 'Não faturado')}
+            <span className="font-mono text-[10px] text-muted-foreground">#{item.id}</span>
+          </div>
+          <div className="flex items-center gap-2 mt-1.5">
             <span className="text-[11px] text-muted-foreground uppercase truncate max-w-[200px]">
               {item.servicoNome || '—'}
             </span>
-            <span className="font-mono text-[10px] text-muted-foreground">#{item.id}</span>
+            {item.responsavelNome && (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-background/60 py-0.5 pl-0.5 pr-2 text-[11px] font-medium text-foreground/80">
+                <span
+                  className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[9px] font-bold ${avatarColor(item.responsavelNome)}`}
+                >
+                  {initials(item.responsavelNome)}
+                </span>
+                {item.responsavelNome}
+              </span>
+            )}
           </div>
         </div>
       </TableCell>

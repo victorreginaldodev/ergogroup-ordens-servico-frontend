@@ -8,14 +8,18 @@ import {
   getOrdensLista,
   getServicoDetalhe,
   getServicosDeOrdem,
+  getServicosResumo,
   getTarefasDeServico,
+  getTarefasResumo,
   updateTarefa,
   type CreateTarefaPayload,
   type OrdemServicoDetalhe,
   type OrdemServicoItem,
   type RegistroAuditoria,
   type ServicoDetalhe,
+  type ServicoResumoItem,
   type TarefaDetalhe,
+  type TarefaResumoItem,
   type UpdateTarefaPayload,
 } from './services';
 
@@ -85,6 +89,20 @@ export const useTarefasDeServicos = (servicos?: ServicoDetalhe[]) => {
     isFetching: tarefasQueries.some((query) => query.isFetching),
   };
 };
+
+export const useServicosResumo = () =>
+  useQuery<ServicoResumoItem[]>({
+    queryKey: ['servicos-resumo'],
+    queryFn: getServicosResumo,
+    staleTime: 1000 * 60 * 2,
+  });
+
+export const useTarefasResumo = () =>
+  useQuery<TarefaResumoItem[]>({
+    queryKey: ['tarefas-resumo'],
+    queryFn: getTarefasResumo,
+    staleTime: 1000 * 60 * 2,
+  });
 
 export const useAuditoriaTimeline = (ordemId?: number) =>
   useQuery<RegistroAuditoria[]>({

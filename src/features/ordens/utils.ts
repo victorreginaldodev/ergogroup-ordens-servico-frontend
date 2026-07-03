@@ -47,3 +47,5 @@ export const PRIORITY_DOT: Record<string, string> = {
   media: 'bg-yellow-500',
   alta:  'bg-red-600',
 };
+
+export { avatarColor, initials } from '@/lib/avatar';

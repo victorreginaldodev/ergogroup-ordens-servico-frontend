@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, FileText, ArrowRight } from 'lucide-react';
+import { Plus, FileText, ArrowRight, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import {
@@ -23,8 +23,9 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useUserRole } from '@/hooks/useUserRole';
-import { useOrdensLista } from '../hooks';
-import { formatDate, formatCurrency, formatDaysCount, getStatusLabel, getPriorityLabel, STATUS_DOT, PRIORITY_DOT } from '../utils';
+import { useUsers } from '@/services/users';
+import { useOrdensLista, useServicosResumo, useTarefasResumo } from '../hooks';
+import { avatarColor, formatDate, formatCurrency, formatDaysCount, getStatusLabel, getPriorityLabel, initials, STATUS_DOT, PRIORITY_DOT } from '../utils';
 import { OrdemServicoFiltros, defaultFilters, type FiltersState } from '../components/OrdemServicoFiltros';
 import { OrdemServicoFiltrosAtivos } from '../components/OrdemServicoFiltrosAtivos';
 
@@ -60,12 +61,51 @@ const OrdemServicoListPage = () => {
   const { data: ordens = [], isLoading } = useOrdensLista();
   const { canViewOrderValues, canManageOrders } = useUserRole();
 
+  const { data: usuarios = [] } = useUsers();
+  const { data: servicosResumo = [], isLoading: loadingServicosResumo } = useServicosResumo();
+  const { data: tarefasResumo = [], isLoading: loadingTarefasResumo } = useTarefasResumo();
+  const loadingEquipe = loadingServicosResumo || loadingTarefasResumo;
+
+  const technicianOptions = useMemo(
+    () =>
+      usuarios
+        .filter((u) => u.tipo_usuario === 'tecnico' || u.tipo_usuario === 'sub_gestor_tecnico')
+        .map((u) => ({ value: String(u.id), label: u.nome_completo || u.username })),
+    [usuarios],
+  );
+
+  const servicosPorOrdem = useMemo(() => {
+    const acc: Record<number, typeof servicosResumo> = {};
+    servicosResumo.forEach((s) => {
+      (acc[s.ordem_servico] ??= []).push(s);
+    });
+    return acc;
+  }, [servicosResumo]);
+
+  const servicoIdParaOrdem = useMemo(() => {
+    const acc: Record<number, number> = {};
+    servicosResumo.forEach((s) => { acc[s.id] = s.ordem_servico; });
+    return acc;
+  }, [servicosResumo]);
+
+  const tecnicosPorOrdem = useMemo(() => {
+    const acc: Record<number, Map<number, string>> = {};
+    tarefasResumo.forEach((t) => {
+      const ordemId = servicoIdParaOrdem[t.servico];
+      if (ordemId === undefined) return;
+      const map = acc[ordemId] ??= new Map();
+      map.set(t.responsavel, t.responsavel_nome);
+    });
+    return acc;
+  }, [tarefasResumo, servicoIdParaOrdem]);
+
   const filteredOrdens = ordens.filter((ordem) => {
     const q = filters.search.toLowerCase();
     const matchesText =
       !q ||
       (ordem.cliente_detail?.nome ?? '').toLowerCase().includes(q) ||
-      String(ordem.id).includes(q);
+      String(ordem.id).includes(q) ||
+      (servicosPorOrdem[ordem.id] ?? []).some((s) => (s.repositorio_nome ?? '').toLowerCase().includes(q));
 
     const matchesStatus   = filters.status.length === 0 || filters.status.includes(ordem.status);
     const matchesPriority = filters.priority.length === 0 || (!!ordem.prioridade && filters.priority.includes(ordem.prioridade));
@@ -75,6 +115,9 @@ const OrdemServicoListPage = () => {
       (filters.billing === 'released' && !ordem.faturada && ordem.liberada_para_faturamento) ||
       (filters.billing === 'unpaid'   && !ordem.faturada && !ordem.liberada_para_faturamento);
     const matchesContract = !filters.contractOnly || ordem.contrato;
+    const matchesTechnician =
+      filters.technicianIds.length === 0 ||
+      filters.technicianIds.some((tid) => tecnicosPorOrdem[ordem.id]?.has(Number(tid)));
 
     const created = new Date(ordem.data_criacao ?? ordem.criada_em);
     const start = filters.dateRange.from
@@ -85,7 +128,7 @@ const OrdemServicoListPage = () => {
       : undefined;
     const matchesDate = (!start || created >= start) && (!end || created <= end);
 
-    return matchesText && matchesStatus && matchesPriority && matchesBilling && matchesContract && matchesDate;
+    return matchesText && matchesStatus && matchesPriority && matchesBilling && matchesContract && matchesDate && matchesTechnician;
   });
 
   const sortedOrdens = [...filteredOrdens].sort((a, b) => {
@@ -120,8 +163,8 @@ const OrdemServicoListPage = () => {
       </div>
 
       <div className="space-y-2">
-        <OrdemServicoFiltros filters={filters} onChange={setFilters} />
-        <OrdemServicoFiltrosAtivos filters={filters} onChange={setFilters} />
+        <OrdemServicoFiltros filters={filters} onChange={setFilters} technicianOptions={technicianOptions} />
+        <OrdemServicoFiltrosAtivos filters={filters} onChange={setFilters} technicianOptions={technicianOptions} />
       </div>
 
       <Card className="bg-card border-border">
@@ -134,6 +177,7 @@ const OrdemServicoListPage = () => {
                   <TableHead className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground py-2 px-3 w-[90px]">Prioridade</TableHead>
                   <TableHead className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground py-2 px-3 w-[90px]">Criação</TableHead>
                   <TableHead className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground py-2 px-3 w-[110px]">Tempo</TableHead>
+                  <TableHead className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground py-2 px-3 w-[170px]">Equipe</TableHead>
                   {canViewOrderValues && (
                     <TableHead className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground py-2 px-3 w-[110px] text-right">Valor</TableHead>
                   )}
@@ -158,6 +202,7 @@ const OrdemServicoListPage = () => {
                         <TableCell className="py-3 px-3"><Skeleton className="h-3 w-14" /></TableCell>
                         <TableCell className="py-3 px-3"><Skeleton className="h-3 w-20" /></TableCell>
                         <TableCell className="py-3 px-3"><Skeleton className="h-8 w-20" /></TableCell>
+                        <TableCell className="py-3 px-3"><Skeleton className="h-6 w-28" /></TableCell>
                         {canViewOrderValues && <TableCell className="py-3 px-3"><Skeleton className="h-4 w-20 ml-auto" /></TableCell>}
                         <TableCell className="py-3 px-3" />
                       </TableRow>
@@ -188,6 +233,21 @@ const OrdemServicoListPage = () => {
                                   )}
                                   <span className="font-mono text-[10px] text-muted-foreground">#{ordem.id}</span>
                                 </div>
+                                {(() => {
+                                  if (loadingServicosResumo) {
+                                    return <Skeleton className="mt-1.5 h-3 w-40" />;
+                                  }
+                                  const nomes = (servicosPorOrdem[ordem.id] ?? [])
+                                    .map((s) => s.repositorio_nome)
+                                    .filter((nome): nome is string => !!nome);
+                                  if (nomes.length === 0) return null;
+                                  const texto = nomes.join(', ');
+                                  return (
+                                    <p className="mt-1.5 max-w-[360px] truncate text-[11px] text-muted-foreground" title={texto}>
+                                      {texto}
+                                    </p>
+                                  );
+                                })()}
                               </div>
                             </TableCell>
 
@@ -213,6 +273,46 @@ const OrdemServicoListPage = () => {
                                   {duration.label}
                                 </p>
                               </div>
+                            </TableCell>
+
+                            <TableCell className="py-3 px-3">
+                              {loadingEquipe ? (
+                                <Skeleton className="h-6 w-28" />
+                              ) : (() => {
+                                const tecnicos = Array.from(tecnicosPorOrdem[ordem.id]?.entries() ?? []);
+                                const servicosCount = servicosPorOrdem[ordem.id]?.length ?? 0;
+                                if (tecnicos.length === 0 && servicosCount === 0) {
+                                  return <span className="text-[11px] text-muted-foreground">—</span>;
+                                }
+                                return (
+                                  <div className="space-y-1">
+                                    <div className="flex items-center -space-x-1.5">
+                                      {tecnicos.slice(0, 3).map(([tid, nome]) => (
+                                        <span
+                                          key={tid}
+                                          title={nome}
+                                          className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 border-card text-[10px] font-bold ${avatarColor(nome)}`}
+                                        >
+                                          {initials(nome)}
+                                        </span>
+                                      ))}
+                                      {tecnicos.length > 3 && (
+                                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 border-card bg-muted text-[10px] font-bold text-muted-foreground">
+                                          +{tecnicos.length - 3}
+                                        </span>
+                                      )}
+                                      {tecnicos.length === 0 && (
+                                        <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                                          <Users className="h-3 w-3" /> sem técnico
+                                        </span>
+                                      )}
+                                    </div>
+                                    <p className="text-[10px] text-muted-foreground">
+                                      {servicosCount} serviço{servicosCount !== 1 ? 's' : ''}
+                                    </p>
+                                  </div>
+                                );
+                              })()}
                             </TableCell>
 
                             {canViewOrderValues && (

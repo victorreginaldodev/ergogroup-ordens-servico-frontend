@@ -17,6 +17,7 @@ export interface FiltersState {
   billing: 'all' | 'paid' | 'released' | 'unpaid';
   contractOnly: boolean;
   dateRange: { from?: Date; to?: Date };
+  technicianIds: string[];
 }
 
 export const defaultFilters: FiltersState = {
@@ -26,6 +27,7 @@ export const defaultFilters: FiltersState = {
   billing: 'all',
   contractOnly: false,
   dateRange: {},
+  technicianIds: [],
 };
 
 const STATUS_OPTIONS: { value: OrdemStatus; label: string }[] = [
@@ -48,18 +50,25 @@ const BILLING_OPTIONS: { value: FiltersState['billing']; label: string }[] = [
   { value: 'unpaid',   label: 'Não faturado' },
 ];
 
-const toInputDate = (d: Date) => d.toISOString().slice(0, 10);
+const toInputDate = (d: Date) => {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 
 const MultiSelect = ({
   label,
   options,
   selected,
   onToggle,
+  contentClassName = 'w-44',
 }: {
   label: string;
   options: { value: string; label: string }[];
   selected: string[];
   onToggle: (value: string) => void;
+  contentClassName?: string;
 }) => (
   <Popover>
     <PopoverTrigger asChild>
@@ -73,7 +82,7 @@ const MultiSelect = ({
         <ChevronDown className="w-3.5 h-3.5 opacity-60" />
       </Button>
     </PopoverTrigger>
-    <PopoverContent className="w-44 p-1.5" align="start">
+    <PopoverContent className={`${contentClassName} p-1.5`} align="start">
       {options.map((opt) => (
         <label
           key={opt.value}
@@ -93,9 +102,10 @@ const MultiSelect = ({
 interface OrdemServicoFiltrosProps {
   filters: FiltersState;
   onChange: (f: FiltersState) => void;
+  technicianOptions?: { value: string; label: string }[];
 }
 
-export function OrdemServicoFiltros({ filters, onChange }: OrdemServicoFiltrosProps) {
+export function OrdemServicoFiltros({ filters, onChange, technicianOptions = [] }: OrdemServicoFiltrosProps) {
   const set = (partial: Partial<FiltersState>) => onChange({ ...filters, ...partial });
 
   const toggleStatus = (v: string) =>
@@ -112,6 +122,13 @@ export function OrdemServicoFiltros({ filters, onChange }: OrdemServicoFiltrosPr
         : [...filters.priority, v as OrdemPrioridade],
     });
 
+  const toggleTechnician = (v: string) =>
+    set({
+      technicianIds: filters.technicianIds.includes(v)
+        ? filters.technicianIds.filter((t) => t !== v)
+        : [...filters.technicianIds, v],
+    });
+
   const moreCount = [
     filters.billing !== 'all',
     filters.contractOnly,
@@ -123,7 +140,7 @@ export function OrdemServicoFiltros({ filters, onChange }: OrdemServicoFiltrosPr
       <div className="relative flex-1 min-w-[200px]">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
         <Input
-          placeholder="Buscar por cliente ou ID..."
+          placeholder="Buscar por cliente, ID ou serviço..."
           value={filters.search}
           onChange={(e) => set({ search: e.target.value })}
           className="pl-10 bg-secondary border-border h-9"
@@ -143,6 +160,16 @@ export function OrdemServicoFiltros({ filters, onChange }: OrdemServicoFiltrosPr
         selected={filters.priority}
         onToggle={togglePriority}
       />
+
+      {technicianOptions.length > 0 && (
+        <MultiSelect
+          label="Técnico"
+          options={technicianOptions}
+          selected={filters.technicianIds}
+          onToggle={toggleTechnician}
+          contentClassName="w-72"
+        />
+      )}
 
       <Popover>
         <PopoverTrigger asChild>

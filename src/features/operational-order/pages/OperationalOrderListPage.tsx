@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Zap } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -22,7 +22,8 @@ import {
   PaginationPrevious,
 } from '@/components/ui/pagination';
 import { useUserRole } from '@/hooks/useUserRole';
-import { useOperationalOrderList } from '../hooks';
+import { useUsers } from '@/services/users';
+import { useOperationalOrderPage } from '../hooks';
 import { OperationalOrderItem } from '../services';
 import { STATUS_ORDER } from '../utils';
 import {
@@ -30,10 +31,12 @@ import {
   OperationalOrderFiltersState,
   defaultFilters,
 } from '../components/OperationalOrderFilters';
+import { OperationalOrderActiveFilters } from '../components/OperationalOrderActiveFilters';
 import { OperationalOrderRow } from '../components/OperationalOrderRow';
 import { OperationalOrderForm } from '../components/OperationalOrderForm';
 
 const PAGE_SIZE = 10;
+const SEARCH_DEBOUNCE_MS = 300;
 
 function buildPageEntries(current: number, total: number): (number | 'ellipsis')[] {
   if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
@@ -48,38 +51,52 @@ function buildPageEntries(current: number, total: number): (number | 'ellipsis')
 }
 
 const OperationalOrderListPage = () => {
-  const { data: items = [], isLoading, error } = useOperationalOrderList();
   const { canManageQuickTasks: canManage } = useUserRole();
 
   const [filters, setFilters] = useState<OperationalOrderFiltersState>(defaultFilters);
+  const [debouncedSearch, setDebouncedSearch] = useState(filters.search);
   const [page, setPage] = useState(1);
   const [formOpen, setFormOpen] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
 
-  const filtered = useMemo(() => {
-    const term = filters.search.toLowerCase();
-    return items.filter((item) => {
-      const matchesSearch =
-        !term ||
-        item.clienteNome.toLowerCase().includes(term) ||
-        item.servicoNome.toLowerCase().includes(term);
-      const matchesStatus = filters.status === 'all' || item.status === filters.status;
-      return matchesSearch && matchesStatus;
-    });
-  }, [items, filters]);
+  const { data: usuarios = [] } = useUsers();
+  const technicianOptions = useMemo(
+    () =>
+      usuarios
+        .filter((u) => u.tipo_usuario === 'tecnico')
+        .map((u) => ({ value: String(u.id), label: u.nome_completo || u.username })),
+    [usuarios],
+  );
+
+  useEffect(() => {
+    const timeout = setTimeout(() => setDebouncedSearch(filters.search), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timeout);
+  }, [filters.search]);
+
+  const { data: pageResult, isLoading, error } = useOperationalOrderPage({
+    page,
+    pageSize: PAGE_SIZE,
+    q: debouncedSearch || undefined,
+    status: filters.status !== 'all' ? filters.status : undefined,
+    faturada: filters.faturada !== 'all' ? filters.faturada : undefined,
+    responsavel: filters.responsavel !== 'all' ? Number(filters.responsavel) : undefined,
+  });
+
+  const items = pageResult?.items ?? [];
+  const totalCount = pageResult?.count ?? 0;
+  const totalPages = pageResult?.totalPages ?? 1;
 
   const sorted = useMemo(
     () =>
-      [...filtered].sort((a, b) => {
+      [...items].sort((a, b) => {
         const diff = (STATUS_ORDER[a.status] ?? 0) - (STATUS_ORDER[b.status] ?? 0);
         if (diff !== 0) return diff;
         return b.id - a.id;
       }),
-    [filtered],
+    [items],
   );
 
-  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
-  const paginated = sorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  useEffect(() => { setPage(1); }, [debouncedSearch, filters.status, filters.faturada, filters.responsavel]);
 
   const openCreate = () => {
     if (!canManage) return;
@@ -91,11 +108,6 @@ const OperationalOrderListPage = () => {
     if (!canManage) return;
     setEditId(item.id);
     setFormOpen(true);
-  };
-
-  const handleFiltersChange = (f: OperationalOrderFiltersState) => {
-    setFilters(f);
-    setPage(1);
   };
 
   if (error) {
@@ -116,7 +128,10 @@ const OperationalOrderListPage = () => {
         )}
       </div>
 
-      <OperationalOrderFilters filters={filters} onChange={handleFiltersChange} />
+      <div className="space-y-2">
+        <OperationalOrderFilters filters={filters} onChange={setFilters} technicianOptions={technicianOptions} />
+        <OperationalOrderActiveFilters filters={filters} onChange={setFilters} technicianOptions={technicianOptions} />
+      </div>
 
       <Card className="bg-card border-border">
         <CardContent className="p-0">
@@ -152,7 +167,7 @@ const OperationalOrderListPage = () => {
                         <TableCell className="py-3 px-3" />
                       </TableRow>
                     ))
-                  : paginated.map((item) => (
+                  : sorted.map((item) => (
                       <OperationalOrderRow
                         key={item.id}
                         item={item}
@@ -168,7 +183,7 @@ const OperationalOrderListPage = () => {
             <Separator className="flex-1" />
             {!isLoading && (
               <span className="px-3 py-2 text-xs text-muted-foreground whitespace-nowrap tabular-nums">
-                {filtered.length} {filtered.length === 1 ? 'ordem' : 'ordens'}
+                {totalCount} {totalCount === 1 ? 'ordem' : 'ordens'}
               </span>
             )}
           </div>
@@ -211,7 +226,7 @@ const OperationalOrderListPage = () => {
             </div>
           )}
 
-          {!isLoading && sorted.length === 0 && (
+          {!isLoading && totalCount === 0 && (
             <div className="text-center py-12">
               <Zap className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
               <h3 className="text-lg font-semibold mb-2">Nenhuma OS Operacional encontrada</h3>

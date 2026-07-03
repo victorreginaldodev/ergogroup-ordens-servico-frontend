@@ -24,9 +24,10 @@ const Chip = ({ label, onRemove }: { label: string; onRemove: () => void }) => (
 interface OrdemServicoFiltrosAtivosProps {
   filters: FiltersState;
   onChange: (f: FiltersState) => void;
+  technicianOptions?: { value: string; label: string }[];
 }
 
-export function OrdemServicoFiltrosAtivos({ filters, onChange }: OrdemServicoFiltrosAtivosProps) {
+export function OrdemServicoFiltrosAtivos({ filters, onChange, technicianOptions = [] }: OrdemServicoFiltrosAtivosProps) {
   const set = (partial: Partial<FiltersState>) => onChange({ ...filters, ...partial });
 
   const chips: { key: string; label: string; onRemove: () => void }[] = [];
@@ -38,6 +39,11 @@ export function OrdemServicoFiltrosAtivos({ filters, onChange }: OrdemServicoFil
   filters.priority.forEach((p) =>
     chips.push({ key: `priority-${p}`, label: PRIORITY_LABELS[p] ?? p, onRemove: () => set({ priority: filters.priority.filter((x) => x !== p) }) })
   );
+
+  filters.technicianIds.forEach((t) => {
+    const label = technicianOptions.find((opt) => opt.value === t)?.label ?? t;
+    chips.push({ key: `technician-${t}`, label, onRemove: () => set({ technicianIds: filters.technicianIds.filter((x) => x !== t) }) });
+  });
 
   if (filters.billing !== 'all') {
     chips.push({ key: 'billing', label: BILLING_LABELS[filters.billing] ?? filters.billing, onRemove: () => set({ billing: 'all' }) });
