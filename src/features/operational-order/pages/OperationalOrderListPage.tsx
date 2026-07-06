@@ -22,7 +22,7 @@ import {
   PaginationPrevious,
 } from '@/components/ui/pagination';
 import { useUserRole } from '@/hooks/useUserRole';
-import { useUsers } from '@/services/users';
+import { useUsers } from '@/features/usuarios/hooks';
 import { useOperationalOrderPage } from '../hooks';
 import { OperationalOrderItem } from '../services';
 import { STATUS_ORDER } from '../utils';

@@ -23,7 +23,7 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useUserRole } from '@/hooks/useUserRole';
-import { useUsers } from '@/services/users';
+import { useUsers } from '@/features/usuarios/hooks';
 import { useOrdensLista, useServicosResumo, useTarefasResumo } from '../hooks';
 import { avatarColor, formatDate, formatCurrency, formatDaysCount, getStatusLabel, getPriorityLabel, initials, STATUS_DOT, PRIORITY_DOT } from '../utils';
 import { OrdemServicoFiltros, defaultFilters, type FiltersState } from '../components/OrdemServicoFiltros';

@@ -11,7 +11,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { avatarColor, formatDate, initials } from '../utils';
-import type { UsuarioApi } from '@/services/users';
+import type { UsuarioApi } from '@/features/usuarios/services';
 import type { TarefaDetalhe, UpdateTarefaPayload } from '../services';
 
 // ── Status ───────────────────────────────────────────────────────────────────

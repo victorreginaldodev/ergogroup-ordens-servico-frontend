@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useUserRole } from '@/hooks/useUserRole';
-import { useUsers } from '@/services/users';
+import { useUsers } from '@/features/usuarios/hooks';
 import { authService } from '@/services/auth';
 import {
   useOrdemDetalhe,

@@ -1,5 +1,5 @@
 import type { OrdemServicoDetalhe, ServicoDetalhe, TarefaDetalhe } from './services';
-import type { UsuarioApi } from '@/services/users';
+import type { UsuarioApi } from '@/features/usuarios/services';
 
 // ID da usuária "Daniele Menezes" no mock — usada para o badge "VOCÊ" e filtro "Minhas tarefas"
 export const MOCK_CURRENT_USER_ID = 6;

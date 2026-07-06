@@ -21,7 +21,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useUserRole } from '@/hooks/useUserRole';
-import { useUsers } from '@/services/users';
+import { useUsers } from '@/features/usuarios/hooks';
 import {
   useCreateTarefa,
   useDeleteTarefa,

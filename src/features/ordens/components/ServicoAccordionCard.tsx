@@ -27,7 +27,7 @@ import {
 } from '../hooks';
 import { TarefaRow } from './TarefaRow';
 import type { ServicoDetalhe, TarefaDetalhe, UpdateTarefaPayload } from '../services';
-import type { UsuarioApi } from '@/services/users';
+import type { UsuarioApi } from '@/features/usuarios/services';
 
 // ── Estilo da barra lateral por status ───────────────────────────────────────
 

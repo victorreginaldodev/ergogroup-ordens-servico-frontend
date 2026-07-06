@@ -16,17 +16,27 @@ import OrdemServicoListPage from '@/features/ordens/pages/OrdemServicoListPage';
 import OrdemServicoFormPage from '@/features/ordens/pages/OrdemServicoFormPage';
 import OrdemDetalhePage from '@/features/ordens/pages/OrdemDetalhePage';
 
-// Páginas existentes (migrar para features/ conforme forem tocadas)
-import FinancialPage from '@/pages/dashboard/FinancialPage';
-import UserProfilePage from '@/pages/dashboard/UserProfilePage';
-import UsersManagementPage from '@/pages/dashboard/UsersManagementPage';
-import CompanySettingsPage from '@/pages/dashboard/CompanySettingsPage';
-import ClientsPage from '@/pages/dashboard/ClientsPage';
-import ClientFormPage from '@/pages/dashboard/ClientFormPage';
-import ContactsPage from '@/pages/dashboard/ContactsPage';
-import ContactFormPage from '@/pages/dashboard/ContactFormPage';
-import CatalogPage from '@/pages/dashboard/CatalogPage';
-import CatalogFormPage from '@/pages/dashboard/CatalogFormPage';
+// Empresa
+import CompanySettingsPage from '@/features/empresa/pages/CompanySettingsPage';
+
+// Catálogo
+import CatalogListPage from '@/features/catalogo/pages/CatalogListPage';
+import CatalogFormPage from '@/features/catalogo/pages/CatalogFormPage';
+
+// Clientes e Contatos
+import ClientListPage from '@/features/clientes/pages/ClientListPage';
+import ClientFormPage from '@/features/clientes/pages/ClientFormPage';
+import ContactListPage from '@/features/clientes/pages/ContactListPage';
+import ContactFormPage from '@/features/clientes/pages/ContactFormPage';
+
+// Usuários
+import UserProfilePage from '@/features/usuarios/pages/UserProfilePage';
+import UsersManagementPage from '@/features/usuarios/pages/UsersManagementPage';
+
+// Faturamento
+import FaturamentoPage from '@/features/faturamento/pages/FaturamentoPage';
+
+// Operational Orders
 import OperationalOrderListPage from '@/features/operational-order/pages/OperationalOrderListPage';
 import OperationalOrderCatalogListPage from '@/features/operational-order/pages/OperationalOrderCatalogListPage';
 import OperationalOrderCatalogFormPage from '@/features/operational-order/pages/OperationalOrderCatalogFormPage';
@@ -58,20 +68,20 @@ const AppRoutes = () => (
     <Route path="/dashboard/quick-tasks/catalog/:id/edit" element={w(<OperationalOrderCatalogFormPage />)} />
 
     {/* Clientes e Contatos */}
-    <Route path="/dashboard/clients" element={w(<ClientsPage />)} />
+    <Route path="/dashboard/clients" element={w(<ClientListPage />)} />
     <Route path="/dashboard/clients/new" element={w(<ClientFormPage />)} />
     <Route path="/dashboard/clients/:id/edit" element={w(<ClientFormPage />)} />
-    <Route path="/dashboard/contacts" element={w(<ContactsPage />)} />
+    <Route path="/dashboard/contacts" element={w(<ContactListPage />)} />
     <Route path="/dashboard/contacts/new" element={w(<ContactFormPage />)} />
     <Route path="/dashboard/contacts/:id/edit" element={w(<ContactFormPage />)} />
 
     {/* Catálogo */}
-    <Route path="/dashboard/catalog" element={w(<CatalogPage />)} />
+    <Route path="/dashboard/catalog" element={w(<CatalogListPage />)} />
     <Route path="/dashboard/catalog/new" element={w(<CatalogFormPage />)} />
     <Route path="/dashboard/catalog/:id/edit" element={w(<CatalogFormPage />)} />
 
     {/* Financeiro operacional */}
-    <Route path="/dashboard/financial" element={w(<FinancialPage />)} />
+    <Route path="/dashboard/financial" element={w(<FaturamentoPage />)} />
 
     {/* Usuários e configurações */}
     <Route path="/dashboard/profile" element={w(<UserProfilePage />)} />

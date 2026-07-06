@@ -12,8 +12,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useClients } from '@/services/clients';
-import { useUsers } from '@/services/users';
+import { useClients } from '@/features/clientes/hooks';
+import { useUsers } from '@/features/usuarios/hooks';
 import {
   useOperationalOrderCatalog,
   useOperationalOrderDetail,

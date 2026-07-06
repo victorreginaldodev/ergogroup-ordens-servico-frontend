@@ -153,6 +153,20 @@ As query keys seguem o padrão `['<dominio>-<recurso>', <id?>]`:
 | Analytics operacional | `['analytics-dashboard']` |
 | KPIs financeiros | `['analytics-financeiro-kpis']` |
 | Produtividade | `['analytics-produtividade']` |
+| Dados da empresa | `['empresa-detalhe']` |
+| Lista de catálogo | `['catalogo-lista']` / `['catalogo-lista-paginada', params]` |
+| Detalhe de catálogo | `['catalogo-detalhe', id]` |
+| Lista de clientes | `['clientes-lista']` / `['clientes-lista-paginada', params]` |
+| Detalhe de cliente | `['clientes-detalhe', id]` |
+| Contatos (sub-recurso de cliente) | `['clientes-contatos']` |
+| Detalhe de contato | `['clientes-contato-detalhe', id]` |
+| Lista de usuários | `['usuarios-lista']` |
+| Perfil autenticado | `['usuarios-perfil-me']` |
+| Detalhe de perfil | `['usuarios-perfil-detalhe', id]` |
+| KPIs de faturamento | `['faturamento-kpis']` |
+| Ordens para faturamento | `['faturamento-ordens-pagina', params]` |
+| Tarefas rápidas para faturamento | `['faturamento-mini-os-pagina', params]` |
+| Detalhe de tarefa rápida | `['faturamento-mini-os-detalhe', id]` |
 
 Stale time padrão: **2 minutos** (ordens), **5 minutos** (analytics).
 
@@ -204,6 +218,46 @@ Indicadores operacionais e financeiros em gráficos.
 
 **Componentes:** `KpiCard`, `MonthlyBarChart`, `DonutTableCard`, `DualBarChart`, `StatusPieChart`, `HorizontalBarChart`
 
+### `features/empresa/`
+
+Dados cadastrais da empresa (nome, CNPJ, contato, logo). Persistência local (localStorage) — ainda não migrado para API real.
+
+**Páginas:** `CompanySettingsPage`
+
+### `features/catalogo/`
+
+Catálogo de serviços/repositórios oferecidos.
+
+**Páginas:** `CatalogListPage`, `CatalogFormPage`
+
+Consumido também por `features/ordens` (seleção de serviço ao montar uma OS).
+
+### `features/clientes/`
+
+Gerencia clientes e seus contatos. Contatos são representantes embarcados no mesmo endpoint/registro de cliente (`/api/clientes/clientes/`), por isso vivem no mesmo módulo em vez de um módulo `contatos` separado.
+
+**Páginas:** `ClientListPage`, `ClientFormPage`, `ContactListPage`, `ContactFormPage`
+
+Consumido também por `features/ordens` e `features/operational-order` (seleção de cliente).
+
+### `features/usuarios/`
+
+Gestão de usuários do sistema e perfil do usuário autenticado (dados pessoais, troca de senha).
+
+**Páginas:** `UsersManagementPage`, `UserProfilePage`
+
+Consumido também por `features/ordens` e `features/operational-order` (seleção de executor/responsável). `authService` (`@/services/auth`) permanece fora da feature por ser transversal (login, logout, sessão).
+
+### `features/faturamento/`
+
+Faturamento operacional: liberação e cobrança de Ordens de Serviço e Tarefas Rápidas (mini-OS).
+
+**Páginas:** `FaturamentoPage`
+
+**Componentes:** `KpiCard`, `PillFilter`, `DotBadge`, `BillingPager`, `OrdemBillingSheet`, `MiniOsBillingDialog`
+
+> `useServiceOrder`/`useUpdateServiceOrderBilling` (usados por `OrdemBillingSheet`) ainda vêm do serviço legado `@/services/orders`, que não foi consolidado com `features/ordens/services.ts`. Consolidar essas duas fontes de dados de OS é um follow-up pendente.
+
 ---
 
 ## Adicionando uma nova feature
@@ -223,10 +277,15 @@ Indicadores operacionais e financeiros em gráficos.
 
 O projeto está migrando de uma arquitetura centralizada por tipo para feature slices:
 
-| Aspecto | Legado (`src/services/`, `src/pages/`) | Novo (`src/features/`) |
-|---------|----------------------------------------|------------------------|
+| Aspecto | Legado (`src/services/`) | Novo (`src/features/`) |
+|---------|---------------------------|------------------------|
 | Organização | Por tipo de arquivo | Por domínio de negócio |
 | Estado | Em migração gradual | Desenvolvimento ativo |
-| Imports | `@/services/orders`, `@/pages/dashboard/*` | `@/features/ordens/*` |
+| Imports | `@/services/orders` | `@/features/ordens/*` |
+
+`src/pages/dashboard/` foi totalmente migrado para `src/features/` e removido. `src/services/` foi limpo de código morto (`catalog.ts`, `checklist.ts`, `comentarios.ts`, `executores.ts`, `serviceList.ts`, `serviceManagement.ts`, `tasks.ts` — sem nenhum consumidor). Restam apenas:
+
+- `orders.ts` — ainda usado por `OrderSearch`, `HeaderSearch`, `OrdemServicoFormPage` e `OrdemBillingSheet`; duplica parcialmente `features/ordens/services.ts` (mesmo endpoint de detalhe de OS) e concentra as únicas mutations de criar/editar/excluir OS, que ainda não existem em `features/ordens`. Candidato a consolidação futura: migrar essas mutations para `features/ordens` e atualizar os 4 consumidores.
+- `api.ts`, `auth.ts`, `pagination.ts` — utilitários transversais (cliente HTTP, sessão/login, paginação), usados por várias features. Permanecem fora de qualquer feature intencionalmente.
 
 Todo código novo deve ser criado dentro de `src/features/`.
