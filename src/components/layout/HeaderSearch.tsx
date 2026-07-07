@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, FileText } from 'lucide-react';
 import { useServiceOrders } from '@/services/orders';
@@ -24,6 +24,19 @@ const HeaderSearch = () => {
   const inputRef            = useRef<HTMLInputElement>(null);
   const navigate            = useNavigate();
   const { data: orders = [] } = useServiceOrders();
+
+  useEffect(() => {
+    const handleShortcut = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        inputRef.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', handleShortcut);
+    return () => window.removeEventListener('keydown', handleShortcut);
+  }, []);
+
+  const isMac = typeof navigator !== 'undefined' && navigator.platform.toLowerCase().includes('mac');
 
   const q = query.trim().toLowerCase();
   const results = q.length
@@ -57,10 +70,15 @@ const HeaderSearch = () => {
             if (e.key === 'Escape') { setQuery(''); setOpen(false); inputRef.current?.blur(); }
           }}
           className={
-            'w-full h-9 pl-9 pr-3 rounded-md border border-input bg-background text-sm ' +
+            'w-full h-9 pl-9 pr-14 rounded-md border border-input bg-muted text-sm ' +
             'placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-0'
           }
         />
+        {!query && (
+          <kbd className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none inline-flex items-center gap-0.5 rounded border border-input bg-background px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+            {isMac ? '⌘K' : 'Ctrl+K'}
+          </kbd>
+        )}
       </div>
 
       {open && q.length > 0 && (

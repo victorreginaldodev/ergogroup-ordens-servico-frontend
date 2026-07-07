@@ -4,14 +4,13 @@ info:
   version: 1.0.0
   description: Documentação completa das APIs do sistema ErgoApp
 paths:
-  /api/analise/dados/:
+  /api/analise/financeiro/:
     get:
-      operationId: analise_dados_retrieve
-      description: |-
-        Métricas agregadas dos últimos 12 meses: ordens de serviço, serviços, tarefas, mini OS e clientes.
-
-        Os campos `ordens_servico.vendas_por_mes` e o bloco `clientes` envolvem valores monetários e são omitidos da resposta para os perfis Sub-Líder Técnico, Técnico, Gestor Administrativo e Administrativo.
-      summary: Análise de dados
+      operationId: analise_financeiro_retrieve
+      description: KPIs de cobrança, ticket médio, vendas mensais e ranking de clientes.
+        Indisponível (403) para os perfis Sub-Líder Técnico, Técnico, Gestor Administrativo
+        e Administrativo.
+      summary: Análise financeira
       tags:
       - analise
       security:
@@ -23,43 +22,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AnaliseDadosResponse'
-          description: ''
-  /api/analise/financeiro/kpis/:
-    get:
-      operationId: analise_financeiro_kpis_retrieve
-      description: |-
-        Retorna três totalizadores:
-        - **total_faturado**: soma das OS já faturadas.
-        - **total_para_faturar**: soma das OS liberadas e ainda não faturadas.
-        - **total_sem_liberacao**: soma das OS em aberto sem liberação para faturamento.
-
-        Indisponível (403) para os perfis Sub-Líder Técnico, Técnico, Gestor Administrativo e Administrativo.
-      summary: KPIs financeiros
-      tags:
-      - analise
-      security:
-      - jwtAuth: []
-      - basicAuth: []
-      - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/FinanceiroKPIs'
+                $ref: '#/components/schemas/FinanceiroAnaliseResponse'
           description: ''
         '403':
           description: Sem permissão para ver valores financeiros.
-  /api/analise/produtividade/:
+  /api/analise/operacional/:
     get:
-      operationId: analise_produtividade_retrieve
-      description: 'Indicadores operacionais dos últimos 12 meses: tempos médios de
-        execução, taxa de cancelamento e análise individual por técnico (concluídos,
-        carga de trabalho atual e tempo médio). Não contém valores monetários nem
-        dados de clientes — disponível para qualquer perfil autenticado. Técnicos
-        veem apenas a própria linha em `por_tecnico`.'
-      summary: Indicadores de execução técnica
+      operationId: analise_operacional_retrieve
+      description: Métricas agregadas de ordens de serviço, serviços, tarefas, OS
+        operacionais, tempos médios, cancelamento, cumprimento de prazo e produtividade
+        por técnico. Não contém valores monetários nem dados de clientes ranqueados
+        por valor — disponível para qualquer perfil autenticado. Técnicos veem apenas
+        a própria linha em `por_tecnico`.
+      summary: Análise operacional
       tags:
       - analise
       security:
@@ -71,7 +46,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ProdutividadeResponse'
+                $ref: '#/components/schemas/OperacionalAnaliseResponse'
           description: ''
   /api/auditoria/registros/:
     get:
@@ -88,6 +63,7 @@ paths:
           enum:
           - atualizacao
           - backfill
+          - cobranca_realizada
           - contrato
           - criacao
           - exclusao
@@ -186,6 +162,7 @@ paths:
           enum:
           - atualizacao
           - backfill
+          - cobranca_realizada
           - contrato
           - criacao
           - exclusao
@@ -265,6 +242,7 @@ paths:
           enum:
           - atualizacao
           - backfill
+          - cobranca_realizada
           - contrato
           - criacao
           - exclusao
@@ -330,6 +308,536 @@ paths:
                 items:
                   $ref: '#/components/schemas/RegistroAuditoria'
           description: ''
+  /api/catalogo/catalogos/:
+    get:
+      operationId: catalogo_catalogos_list
+      description: Retorna a lista de catálogos com seus subitens. Suporta busca por
+        nome ou descrição.
+      summary: Listar catálogos
+      parameters:
+      - in: query
+        name: q
+        schema:
+          type: string
+        description: Busca por nome ou descrição (parcial).
+      tags:
+      - catalogo
+      security:
+      - jwtAuth: []
+      - basicAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Catalogo'
+          description: ''
+    post:
+      operationId: catalogo_catalogos_create
+      description: Cria um novo catálogo.
+      summary: Criar catálogo
+      tags:
+      - catalogo
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CatalogoRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CatalogoRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CatalogoRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - basicAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Catalogo'
+          description: ''
+  /api/catalogo/catalogos-operacionais/:
+    get:
+      operationId: catalogo_catalogos_operacionais_list
+      description: Retorna o catálogo de serviços disponíveis para Ordens de Serviço
+        Operacionais. Suporta busca por nome ou descrição.
+      summary: Listar catálogos operacionais
+      parameters:
+      - in: query
+        name: q
+        schema:
+          type: string
+        description: Busca por nome ou descrição (parcial).
+      tags:
+      - catalogo
+      security:
+      - jwtAuth: []
+      - basicAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CatalogoOperacional'
+          description: ''
+    post:
+      operationId: catalogo_catalogos_operacionais_create
+      description: Cria um novo serviço no catálogo operacional.
+      summary: Criar catálogo operacional
+      tags:
+      - catalogo
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CatalogoOperacionalRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CatalogoOperacionalRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CatalogoOperacionalRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - basicAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CatalogoOperacional'
+          description: ''
+  /api/catalogo/catalogos-operacionais/{id}/:
+    get:
+      operationId: catalogo_catalogos_operacionais_retrieve
+      description: Retorna todos os campos de um catálogo operacional pelo seu ID.
+      summary: Detalhar catálogo operacional
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Catálogo Operacional.
+        required: true
+      tags:
+      - catalogo
+      security:
+      - jwtAuth: []
+      - basicAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CatalogoOperacional'
+          description: ''
+    put:
+      operationId: catalogo_catalogos_operacionais_update
+      description: Substitui integralmente os dados de um catálogo operacional.
+      summary: Atualizar catálogo operacional
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Catálogo Operacional.
+        required: true
+      tags:
+      - catalogo
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CatalogoOperacionalRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CatalogoOperacionalRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CatalogoOperacionalRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - basicAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CatalogoOperacional'
+          description: ''
+    patch:
+      operationId: catalogo_catalogos_operacionais_partial_update
+      description: Atualiza um ou mais campos de um catálogo operacional.
+      summary: Atualizar catálogo operacional parcialmente
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Catálogo Operacional.
+        required: true
+      tags:
+      - catalogo
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedCatalogoOperacionalRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedCatalogoOperacionalRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedCatalogoOperacionalRequest'
+      security:
+      - jwtAuth: []
+      - basicAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CatalogoOperacional'
+          description: ''
+    delete:
+      operationId: catalogo_catalogos_operacionais_destroy
+      description: Remove permanentemente um catálogo operacional.
+      summary: Remover catálogo operacional
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Catálogo Operacional.
+        required: true
+      tags:
+      - catalogo
+      security:
+      - jwtAuth: []
+      - basicAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/catalogo/catalogos/{id}/:
+    get:
+      operationId: catalogo_catalogos_retrieve
+      description: Retorna todos os campos de um catálogo, incluindo seus subitens.
+      summary: Detalhar catálogo
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Catálogo.
+        required: true
+      tags:
+      - catalogo
+      security:
+      - jwtAuth: []
+      - basicAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Catalogo'
+          description: ''
+    put:
+      operationId: catalogo_catalogos_update
+      description: Substitui integralmente os dados de um catálogo.
+      summary: Atualizar catálogo
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Catálogo.
+        required: true
+      tags:
+      - catalogo
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CatalogoRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CatalogoRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CatalogoRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - basicAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Catalogo'
+          description: ''
+    patch:
+      operationId: catalogo_catalogos_partial_update
+      description: Atualiza um ou mais campos de um catálogo.
+      summary: Atualizar catálogo parcialmente
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Catálogo.
+        required: true
+      tags:
+      - catalogo
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedCatalogoRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedCatalogoRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedCatalogoRequest'
+      security:
+      - jwtAuth: []
+      - basicAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Catalogo'
+          description: ''
+    delete:
+      operationId: catalogo_catalogos_destroy
+      description: Remove permanentemente um catálogo e todos os seus subitens.
+      summary: Remover catálogo
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Catálogo.
+        required: true
+      tags:
+      - catalogo
+      security:
+      - jwtAuth: []
+      - basicAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/catalogo/subitens/:
+    get:
+      operationId: catalogo_subitens_list
+      description: Retorna a lista de subitens de catálogo. Suporta filtragem por
+        catálogo, status e busca textual.
+      summary: Listar subitens de catálogo
+      parameters:
+      - in: query
+        name: ativo
+        schema:
+          type: string
+          enum:
+          - 'false'
+          - 'true'
+        description: Filtrar por status de ativação.
+      - in: query
+        name: catalogo
+        schema:
+          type: integer
+        description: Filtrar pelo ID do catálogo.
+      - in: query
+        name: q
+        schema:
+          type: string
+        description: Busca por nome ou descrição (parcial).
+      tags:
+      - catalogo
+      security:
+      - jwtAuth: []
+      - basicAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SubitemCatalogo'
+          description: ''
+    post:
+      operationId: catalogo_subitens_create
+      description: Cria um novo subitem vinculado a um catálogo. O par (catálogo,
+        nome) deve ser único.
+      summary: Criar subitem de catálogo
+      tags:
+      - catalogo
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubitemCatalogoRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/SubitemCatalogoRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SubitemCatalogoRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - basicAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubitemCatalogo'
+          description: ''
+  /api/catalogo/subitens/{id}/:
+    get:
+      operationId: catalogo_subitens_retrieve
+      description: Retorna todos os campos de um subitem de catálogo pelo seu ID.
+      summary: Detalhar subitem de catálogo
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Subitem de catálogo.
+        required: true
+      tags:
+      - catalogo
+      security:
+      - jwtAuth: []
+      - basicAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubitemCatalogo'
+          description: ''
+    put:
+      operationId: catalogo_subitens_update
+      description: Substitui integralmente os dados de um subitem de catálogo.
+      summary: Atualizar subitem de catálogo
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Subitem de catálogo.
+        required: true
+      tags:
+      - catalogo
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubitemCatalogoRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/SubitemCatalogoRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SubitemCatalogoRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - basicAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubitemCatalogo'
+          description: ''
+    patch:
+      operationId: catalogo_subitens_partial_update
+      description: Atualiza um ou mais campos de um subitem de catálogo.
+      summary: Atualizar subitem de catálogo parcialmente
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Subitem de catálogo.
+        required: true
+      tags:
+      - catalogo
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedSubitemCatalogoRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedSubitemCatalogoRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedSubitemCatalogoRequest'
+      security:
+      - jwtAuth: []
+      - basicAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubitemCatalogo'
+          description: ''
+    delete:
+      operationId: catalogo_subitens_destroy
+      description: Remove permanentemente um subitem de catálogo.
+      summary: Remover subitem de catálogo
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Subitem de catálogo.
+        required: true
+      tags:
+      - catalogo
+      security:
+      - jwtAuth: []
+      - basicAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
   /api/clientes/clientes/:
     get:
       operationId: clientes_clientes_list
@@ -960,880 +1468,55 @@ paths:
                 items:
                   $ref: '#/components/schemas/TipoOpcao'
           description: ''
-  /api/ordem-servico/ordens/:
+  /api/ordens-servico/operacionais/:
     get:
-      operationId: ordem_servico_ordens_list
-      description: Retorna a lista paginada de ordens de serviço com campos resumidos,
-        ordenadas por status de faturamento e data de criação. Suporta busca textual
-        e filtragem por cliente, conclusão, faturamento e liberação.
-      summary: Listar ordens de serviço
+      operationId: ordens_servico_operacionais_list
+      description: Retorna a lista paginada de Ordens de Serviço Operacionais. Técnicos
+        veem apenas as próprias; demais perfis veem todas.
+      summary: Listar Ordens de Serviço Operacionais
       parameters:
+      - in: query
+        name: atrasada
+        schema:
+          type: string
+          enum:
+          - 'true'
+        description: Se "true", retorna apenas OSOs com prazo vencido e não finalizadas.
       - in: query
         name: cliente
         schema:
           type: integer
         description: Filtrar pelo ID do cliente.
       - in: query
-        name: concluida
+        name: cobranca_realizada
         schema:
           type: string
           enum:
           - 'false'
           - 'true'
-        description: Filtrar por conclusão.
+        description: Filtrar por status de cobrança.
       - in: query
-        name: faturada
+        name: ordering
         schema:
           type: string
           enum:
-          - 'false'
-          - 'true'
-        description: Filtrar por status de faturamento.
+          - -prazo
+          - prazo
+        description: Ordenar por prazo. Use "prazo" ou "-prazo".
       - in: query
-        name: liberada
+        name: prioridade
         schema:
           type: string
           enum:
-          - 'false'
-          - 'true'
-        description: Filtrar por liberação para faturamento.
+          - alta
+          - baixa
+          - media
+        description: Filtrar por prioridade.
       - in: query
         name: q
         schema:
           type: string
-        description: Busca por nome do cliente ou observação (parcial).
-      tags:
-      - ordem-servico
-      security:
-      - jwtAuth: []
-      - basicAuth: []
-      - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/OrdemServicoList'
-          description: ''
-    post:
-      operationId: ordem_servico_ordens_create
-      description: Cria uma nova ordem de serviço. O campo `criado_por` é preenchido
-        automaticamente com o usuário autenticado. Se `cobranca_imediata=true`, a
-        OS já é criada com `liberada_para_faturamento=true`.
-      summary: Criar ordem de serviço
-      tags:
-      - ordem-servico
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/OrdemServicoRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/OrdemServicoRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/OrdemServicoRequest'
-        required: true
-      security:
-      - jwtAuth: []
-      - basicAuth: []
-      - cookieAuth: []
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/OrdemServico'
-          description: ''
-  /api/ordem-servico/ordens/{id}/:
-    get:
-      operationId: ordem_servico_ordens_retrieve
-      description: Retorna todos os campos de uma ordem de serviço pelo seu ID.
-      summary: Detalhar ordem de serviço
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this Ordem de Serviço.
-        required: true
-      tags:
-      - ordem-servico
-      security:
-      - jwtAuth: []
-      - basicAuth: []
-      - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/OrdemServico'
-          description: ''
-    put:
-      operationId: ordem_servico_ordens_update
-      description: Substitui integralmente os dados de uma OS. Campos calculados (`status`,
-        `concluida`, `liberada_para_faturamento`) são somente leitura e ignorados
-        no body.
-      summary: Atualizar ordem de serviço
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this Ordem de Serviço.
-        required: true
-      tags:
-      - ordem-servico
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/OrdemServicoRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/OrdemServicoRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/OrdemServicoRequest'
-        required: true
-      security:
-      - jwtAuth: []
-      - basicAuth: []
-      - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/OrdemServico'
-          description: ''
-    patch:
-      operationId: ordem_servico_ordens_partial_update
-      description: Atualiza um ou mais campos de uma OS. Campos calculados (`status`,
-        `concluida`, `liberada_para_faturamento`) são somente leitura e ignorados
-        no body.
-      summary: Atualizar ordem de serviço parcialmente
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this Ordem de Serviço.
-        required: true
-      tags:
-      - ordem-servico
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PatchedOrdemServicoRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/PatchedOrdemServicoRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/PatchedOrdemServicoRequest'
-      security:
-      - jwtAuth: []
-      - basicAuth: []
-      - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/OrdemServico'
-          description: ''
-    delete:
-      operationId: ordem_servico_ordens_destroy
-      description: Remove permanentemente uma ordem de serviço.
-      summary: Remover ordem de serviço
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this Ordem de Serviço.
-        required: true
-      tags:
-      - ordem-servico
-      security:
-      - jwtAuth: []
-      - basicAuth: []
-      - cookieAuth: []
-      responses:
-        '204':
-          description: No response body
-  /api/ordem-servico/ordens/{id}/faturar/:
-    patch:
-      operationId: ordem_servico_ordens_faturar_partial_update
-      description: Marca a OS como faturada, registrando número da NF, data e o usuário
-        responsável. Retorna 400 se a OS não estiver liberada para faturamento.
-      summary: Faturar ordem de serviço
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this Ordem de Serviço.
-        required: true
-      tags:
-      - ordem-servico
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PatchedFaturarRequestRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/PatchedFaturarRequestRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/PatchedFaturarRequestRequest'
-      security:
-      - jwtAuth: []
-      - basicAuth: []
-      - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/OrdemServico'
-          description: ''
-        '400':
-          description: No response body
-  /api/ordem-servico/ordens/{id}/liberada-faturamento/:
-    get:
-      operationId: ordem_servico_ordens_liberada_faturamento_retrieve
-      description: Retorna o status de liberação para faturamento da OS, com data
-        e responsável pela liberação.
-      summary: Verificar liberação para faturamento
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this Ordem de Serviço.
-        required: true
-      tags:
-      - ordem-servico
-      security:
-      - jwtAuth: []
-      - basicAuth: []
-      - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/LiberadaFaturamento'
-          description: ''
-  /api/servicos/repositorios/:
-    get:
-      operationId: servicos_repositorios_list
-      description: Retorna a lista de repositórios com seus subitens. Suporta busca
-        por nome ou descrição.
-      summary: Listar repositórios
-      parameters:
-      - in: query
-        name: q
-        schema:
-          type: string
-        description: Busca por nome ou descrição (parcial).
-      tags:
-      - servicos
-      security:
-      - jwtAuth: []
-      - basicAuth: []
-      - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Repositorio'
-          description: ''
-    post:
-      operationId: servicos_repositorios_create
-      description: Cria um novo repositório.
-      summary: Criar repositório
-      tags:
-      - servicos
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/RepositorioRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/RepositorioRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/RepositorioRequest'
-        required: true
-      security:
-      - jwtAuth: []
-      - basicAuth: []
-      - cookieAuth: []
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Repositorio'
-          description: ''
-  /api/servicos/repositorios/{id}/:
-    get:
-      operationId: servicos_repositorios_retrieve
-      description: Retorna todos os campos de um repositório, incluindo seus subitens.
-      summary: Detalhar repositório
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this Repositório.
-        required: true
-      tags:
-      - servicos
-      security:
-      - jwtAuth: []
-      - basicAuth: []
-      - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Repositorio'
-          description: ''
-    put:
-      operationId: servicos_repositorios_update
-      description: Substitui integralmente os dados de um repositório.
-      summary: Atualizar repositório
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this Repositório.
-        required: true
-      tags:
-      - servicos
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/RepositorioRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/RepositorioRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/RepositorioRequest'
-        required: true
-      security:
-      - jwtAuth: []
-      - basicAuth: []
-      - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Repositorio'
-          description: ''
-    patch:
-      operationId: servicos_repositorios_partial_update
-      description: Atualiza um ou mais campos de um repositório.
-      summary: Atualizar repositório parcialmente
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this Repositório.
-        required: true
-      tags:
-      - servicos
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PatchedRepositorioRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/PatchedRepositorioRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/PatchedRepositorioRequest'
-      security:
-      - jwtAuth: []
-      - basicAuth: []
-      - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Repositorio'
-          description: ''
-    delete:
-      operationId: servicos_repositorios_destroy
-      description: Remove permanentemente um repositório e todos os seus subitens.
-      summary: Remover repositório
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this Repositório.
-        required: true
-      tags:
-      - servicos
-      security:
-      - jwtAuth: []
-      - basicAuth: []
-      - cookieAuth: []
-      responses:
-        '204':
-          description: No response body
-  /api/servicos/servicos/:
-    get:
-      operationId: servicos_servicos_list
-      description: Retorna a lista paginada de serviços com campos resumidos. Suporta
-        filtragem por OS, status e repositório.
-      summary: Listar serviços
-      parameters:
-      - in: query
-        name: ordem_servico
-        schema:
-          type: integer
-        description: Filtrar pelo ID da ordem de serviço.
-      - in: query
-        name: repositorio
-        schema:
-          type: integer
-        description: Filtrar pelo ID do repositório.
-      - in: query
-        name: status
-        schema:
-          type: string
-          enum:
-          - aberto
-          - cancelado
-          - concluida
-          - em_andamento
-        description: Filtrar por status.
-      tags:
-      - servicos
-      security:
-      - jwtAuth: []
-      - basicAuth: []
-      - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/ServicoList'
-          description: ''
-    post:
-      operationId: servicos_servicos_create
-      description: Cria um novo serviço vinculado a uma OS. Campos calculados (`status`,
-        `data_inicio`, `data_termino`, `data_conclusao`, `terminado_por`) são somente
-        leitura e gerenciados automaticamente pelas tarefas.
-      summary: Criar serviço
-      tags:
-      - servicos
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ServicoRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/ServicoRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/ServicoRequest'
-        required: true
-      security:
-      - jwtAuth: []
-      - basicAuth: []
-      - cookieAuth: []
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Servico'
-          description: ''
-  /api/servicos/servicos/{id}/:
-    get:
-      operationId: servicos_servicos_retrieve
-      description: Retorna todos os campos de um serviço pelo seu ID.
-      summary: Detalhar serviço
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this Serviço.
-        required: true
-      tags:
-      - servicos
-      security:
-      - jwtAuth: []
-      - basicAuth: []
-      - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Servico'
-          description: ''
-    put:
-      operationId: servicos_servicos_update
-      description: Substitui integralmente os dados de um serviço. Campos calculados
-        são somente leitura e ignorados no body.
-      summary: Atualizar serviço
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this Serviço.
-        required: true
-      tags:
-      - servicos
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ServicoRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/ServicoRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/ServicoRequest'
-        required: true
-      security:
-      - jwtAuth: []
-      - basicAuth: []
-      - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Servico'
-          description: ''
-    patch:
-      operationId: servicos_servicos_partial_update
-      description: Atualiza um ou mais campos de um serviço. Campos calculados são
-        somente leitura e ignorados no body.
-      summary: Atualizar serviço parcialmente
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this Serviço.
-        required: true
-      tags:
-      - servicos
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PatchedServicoRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/PatchedServicoRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/PatchedServicoRequest'
-      security:
-      - jwtAuth: []
-      - basicAuth: []
-      - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Servico'
-          description: ''
-    delete:
-      operationId: servicos_servicos_destroy
-      description: Remove permanentemente um serviço e suas tarefas vinculadas.
-      summary: Remover serviço
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this Serviço.
-        required: true
-      tags:
-      - servicos
-      security:
-      - jwtAuth: []
-      - basicAuth: []
-      - cookieAuth: []
-      responses:
-        '204':
-          description: No response body
-  /api/servicos/servicos/{id}/sincronizar/:
-    post:
-      operationId: servicos_servicos_sincronizar_create
-      description: Força a ressincronização do status, datas e responsável do serviço
-        com base no estado atual de suas tarefas. Normalmente executado automaticamente
-        por signals — use este endpoint apenas para corrigir inconsistências manualmente.
-      summary: Sincronizar status do serviço
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this Serviço.
-        required: true
-      tags:
-      - servicos
-      security:
-      - jwtAuth: []
-      - basicAuth: []
-      - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Servico'
-          description: ''
-  /api/servicos/subitens-repositorio/:
-    get:
-      operationId: servicos_subitens_repositorio_list
-      description: Retorna a lista de subitens de repositório. Suporta filtragem por
-        repositório, status e busca textual.
-      summary: Listar subitens de repositório
-      parameters:
-      - in: query
-        name: ativo
-        schema:
-          type: string
-          enum:
-          - 'false'
-          - 'true'
-        description: Filtrar por status de ativação.
-      - in: query
-        name: q
-        schema:
-          type: string
-        description: Busca por nome ou descrição (parcial).
-      - in: query
-        name: repositorio
-        schema:
-          type: integer
-        description: Filtrar pelo ID do repositório.
-      tags:
-      - servicos
-      security:
-      - jwtAuth: []
-      - basicAuth: []
-      - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/SubitemRepositorio'
-          description: ''
-    post:
-      operationId: servicos_subitens_repositorio_create
-      description: Cria um novo subitem vinculado a um repositório. O par (repositório,
-        nome) deve ser único.
-      summary: Criar subitem de repositório
-      tags:
-      - servicos
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/SubitemRepositorioRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/SubitemRepositorioRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/SubitemRepositorioRequest'
-        required: true
-      security:
-      - jwtAuth: []
-      - basicAuth: []
-      - cookieAuth: []
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SubitemRepositorio'
-          description: ''
-  /api/servicos/subitens-repositorio/{id}/:
-    get:
-      operationId: servicos_subitens_repositorio_retrieve
-      description: Retorna todos os campos de um subitem de repositório pelo seu ID.
-      summary: Detalhar subitem de repositório
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this Subitem de repositorio.
-        required: true
-      tags:
-      - servicos
-      security:
-      - jwtAuth: []
-      - basicAuth: []
-      - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SubitemRepositorio'
-          description: ''
-    put:
-      operationId: servicos_subitens_repositorio_update
-      description: Substitui integralmente os dados de um subitem de repositório.
-      summary: Atualizar subitem de repositório
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this Subitem de repositorio.
-        required: true
-      tags:
-      - servicos
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/SubitemRepositorioRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/SubitemRepositorioRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/SubitemRepositorioRequest'
-        required: true
-      security:
-      - jwtAuth: []
-      - basicAuth: []
-      - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SubitemRepositorio'
-          description: ''
-    patch:
-      operationId: servicos_subitens_repositorio_partial_update
-      description: Atualiza um ou mais campos de um subitem de repositório.
-      summary: Atualizar subitem de repositório parcialmente
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this Subitem de repositorio.
-        required: true
-      tags:
-      - servicos
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PatchedSubitemRepositorioRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/PatchedSubitemRepositorioRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/PatchedSubitemRepositorioRequest'
-      security:
-      - jwtAuth: []
-      - basicAuth: []
-      - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SubitemRepositorio'
-          description: ''
-    delete:
-      operationId: servicos_subitens_repositorio_destroy
-      description: Remove permanentemente um subitem de repositório.
-      summary: Remover subitem de repositório
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this Subitem de repositorio.
-        required: true
-      tags:
-      - servicos
-      security:
-      - jwtAuth: []
-      - basicAuth: []
-      - cookieAuth: []
-      responses:
-        '204':
-          description: No response body
-  /api/tarefas/mini-os/:
-    get:
-      operationId: tarefas_mini_os_list
-      description: Retorna a lista paginada de Mini OS. Técnicos veem apenas as próprias
-        Mini OS; demais perfis veem todas.
-      summary: Listar Mini OS
-      parameters:
-      - in: query
-        name: cliente
-        schema:
-          type: integer
-        description: Filtrar pelo ID do cliente.
-      - in: query
-        name: faturada
-        schema:
-          type: string
-          enum:
-          - 'false'
-          - 'true'
-        description: Filtrar por status de faturamento.
-      - in: query
-        name: q
-        schema:
-          type: string
-        description: Busca por nome do cliente ou serviço (parcial).
+        description: Busca por nome do cliente ou catálogo operacional (parcial).
       - in: query
         name: responsavel
         schema:
@@ -1849,7 +1532,7 @@ paths:
           - nao_iniciado
         description: Filtrar por status.
       tags:
-      - tarefas
+      - ordens-servico
       security:
       - jwtAuth: []
       - basicAuth: []
@@ -1861,27 +1544,27 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/MiniOSList'
+                  $ref: '#/components/schemas/OrdemServicoOperacionalList'
           description: ''
     post:
-      operationId: tarefas_mini_os_create
-      description: Cria uma nova Mini OS. Se `revisao_cliente=true`, `gera_cobranca`
-        é definido automaticamente como `true` e, ao finalizar, `data_liberacao_cobranca`
+      operationId: ordens_servico_operacionais_create
+      description: Cria uma nova Ordem de Serviço Operacional. Se `revisao_cliente=true`,
+        `gera_cobranca` é definido automaticamente como `true` e, ao finalizar, `data_liberacao_cobranca`
         e `liberada_cobranca_por` são preenchidos automaticamente.
-      summary: Criar Mini OS
+      summary: Criar Ordem de Serviço Operacional
       tags:
-      - tarefas
+      - ordens-servico
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/MiniOSRequest'
+              $ref: '#/components/schemas/OrdemServicoOperacionalRequest'
           application/x-www-form-urlencoded:
             schema:
-              $ref: '#/components/schemas/MiniOSRequest'
+              $ref: '#/components/schemas/OrdemServicoOperacionalRequest'
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/MiniOSRequest'
+              $ref: '#/components/schemas/OrdemServicoOperacionalRequest'
         required: true
       security:
       - jwtAuth: []
@@ -1892,22 +1575,23 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/MiniOS'
+                $ref: '#/components/schemas/OrdemServicoOperacional'
           description: ''
-  /api/tarefas/mini-os/{id}/:
+  /api/ordens-servico/operacionais/{id}/:
     get:
-      operationId: tarefas_mini_os_retrieve
-      description: Retorna todos os campos de uma Mini OS pelo seu ID.
-      summary: Detalhar Mini OS
+      operationId: ordens_servico_operacionais_retrieve
+      description: Retorna todos os campos de uma Ordem de Serviço Operacional pelo
+        seu ID.
+      summary: Detalhar Ordem de Serviço Operacional
       parameters:
       - in: path
         name: id
         schema:
           type: integer
-        description: A unique integer value identifying this Mini OS.
+        description: A unique integer value identifying this Ordem de Serviço Operacional.
         required: true
       tags:
-      - tarefas
+      - ordens-servico
       security:
       - jwtAuth: []
       - basicAuth: []
@@ -1917,34 +1601,34 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/MiniOS'
+                $ref: '#/components/schemas/OrdemServicoOperacional'
           description: ''
     put:
-      operationId: tarefas_mini_os_update
-      description: Substitui integralmente os dados de uma Mini OS. Campos calculados
-        (`gera_cobranca`, `data_liberacao_cobranca`, `liberada_cobranca_por`, `faturada_por`)
-        são somente leitura.
-      summary: Atualizar Mini OS
+      operationId: ordens_servico_operacionais_update
+      description: Substitui integralmente os dados de uma Ordem de Serviço Operacional.
+        Campos calculados (`gera_cobranca`, `data_liberacao_cobranca`, `liberada_cobranca_por`,
+        `cobranca_realizada_por`) são somente leitura.
+      summary: Atualizar Ordem de Serviço Operacional
       parameters:
       - in: path
         name: id
         schema:
           type: integer
-        description: A unique integer value identifying this Mini OS.
+        description: A unique integer value identifying this Ordem de Serviço Operacional.
         required: true
       tags:
-      - tarefas
+      - ordens-servico
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/MiniOSRequest'
+              $ref: '#/components/schemas/OrdemServicoOperacionalRequest'
           application/x-www-form-urlencoded:
             schema:
-              $ref: '#/components/schemas/MiniOSRequest'
+              $ref: '#/components/schemas/OrdemServicoOperacionalRequest'
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/MiniOSRequest'
+              $ref: '#/components/schemas/OrdemServicoOperacionalRequest'
         required: true
       security:
       - jwtAuth: []
@@ -1955,33 +1639,33 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/MiniOS'
+                $ref: '#/components/schemas/OrdemServicoOperacional'
           description: ''
     patch:
-      operationId: tarefas_mini_os_partial_update
-      description: Atualiza um ou mais campos de uma Mini OS. Campos calculados são
-        somente leitura e ignorados no body.
-      summary: Atualizar Mini OS parcialmente
+      operationId: ordens_servico_operacionais_partial_update
+      description: Atualiza um ou mais campos de uma Ordem de Serviço Operacional.
+        Campos calculados são somente leitura e ignorados no body.
+      summary: Atualizar Ordem de Serviço Operacional parcialmente
       parameters:
       - in: path
         name: id
         schema:
           type: integer
-        description: A unique integer value identifying this Mini OS.
+        description: A unique integer value identifying this Ordem de Serviço Operacional.
         required: true
       tags:
-      - tarefas
+      - ordens-servico
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/PatchedMiniOSRequest'
+              $ref: '#/components/schemas/PatchedOrdemServicoOperacionalRequest'
           application/x-www-form-urlencoded:
             schema:
-              $ref: '#/components/schemas/PatchedMiniOSRequest'
+              $ref: '#/components/schemas/PatchedOrdemServicoOperacionalRequest'
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/PatchedMiniOSRequest'
+              $ref: '#/components/schemas/PatchedOrdemServicoOperacionalRequest'
       security:
       - jwtAuth: []
       - basicAuth: []
@@ -1991,21 +1675,21 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/MiniOS'
+                $ref: '#/components/schemas/OrdemServicoOperacional'
           description: ''
     delete:
-      operationId: tarefas_mini_os_destroy
-      description: Remove permanentemente uma Mini OS.
-      summary: Remover Mini OS
+      operationId: ordens_servico_operacionais_destroy
+      description: Remove permanentemente uma Ordem de Serviço Operacional.
+      summary: Remover Ordem de Serviço Operacional
       parameters:
       - in: path
         name: id
         schema:
           type: integer
-        description: A unique integer value identifying this Mini OS.
+        description: A unique integer value identifying this Ordem de Serviço Operacional.
         required: true
       tags:
-      - tarefas
+      - ordens-servico
       security:
       - jwtAuth: []
       - basicAuth: []
@@ -2013,33 +1697,33 @@ paths:
       responses:
         '204':
           description: No response body
-  /api/tarefas/mini-os/{id}/faturar/:
+  /api/ordens-servico/operacionais/{id}/cobranca/:
     patch:
-      operationId: tarefas_mini_os_faturar_partial_update
-      description: Marca a Mini OS como faturada, registrando o número da NF e o usuário
-        responsável. Retorna 400 se a Mini OS não gerar cobrança ou ainda não estiver
-        liberada para cobrança.
-      summary: Faturar Mini OS
+      operationId: ordens_servico_operacionais_cobranca_partial_update
+      description: Marca a Ordem de Serviço Operacional como tendo a cobrança realizada,
+        registrando o número da NF e o usuário responsável. Retorna 400 se ela não
+        gerar cobrança ou ainda não estiver liberada para cobrança.
+      summary: Registrar cobrança da Ordem de Serviço Operacional
       parameters:
       - in: path
         name: id
         schema:
           type: integer
-        description: A unique integer value identifying this Mini OS.
+        description: A unique integer value identifying this Ordem de Serviço Operacional.
         required: true
       tags:
-      - tarefas
+      - ordens-servico
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/PatchedFaturarMiniOSRequestRequest'
+              $ref: '#/components/schemas/PatchedRegistrarCobrancaOSORequestRequest'
           application/x-www-form-urlencoded:
             schema:
-              $ref: '#/components/schemas/PatchedFaturarMiniOSRequestRequest'
+              $ref: '#/components/schemas/PatchedRegistrarCobrancaOSORequestRequest'
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/PatchedFaturarMiniOSRequestRequest'
+              $ref: '#/components/schemas/PatchedRegistrarCobrancaOSORequestRequest'
       security:
       - jwtAuth: []
       - basicAuth: []
@@ -2049,24 +1733,54 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/MiniOS'
+                $ref: '#/components/schemas/OrdemServicoOperacional'
           description: ''
         '400':
           description: No response body
-  /api/tarefas/repositorios/:
+  /api/ordens-servico/ordens/:
     get:
-      operationId: tarefas_repositorios_list
-      description: Retorna o catálogo de serviços disponíveis para Mini OS. Suporta
-        busca por nome ou descrição.
-      summary: Listar repositórios de Mini OS
+      operationId: ordens_servico_ordens_list
+      description: Retorna a lista paginada de ordens de serviço com campos resumidos,
+        ordenadas por status de cobrança e data da venda. Suporta busca textual e
+        filtragem por cliente, conclusão, cobrança e liberação.
+      summary: Listar ordens de serviço
       parameters:
+      - in: query
+        name: cliente
+        schema:
+          type: integer
+        description: Filtrar pelo ID do cliente.
+      - in: query
+        name: cobranca_realizada
+        schema:
+          type: string
+          enum:
+          - 'false'
+          - 'true'
+        description: Filtrar por status de cobrança.
+      - in: query
+        name: concluida
+        schema:
+          type: string
+          enum:
+          - 'false'
+          - 'true'
+        description: Filtrar por conclusão.
+      - in: query
+        name: liberada
+        schema:
+          type: string
+          enum:
+          - 'false'
+          - 'true'
+        description: Filtrar por liberação para cobrança.
       - in: query
         name: q
         schema:
           type: string
-        description: Busca por nome ou descrição (parcial).
+        description: Busca por nome do cliente ou observação (parcial).
       tags:
-      - tarefas
+      - ordens-servico
       security:
       - jwtAuth: []
       - basicAuth: []
@@ -2078,25 +1792,27 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/RepositorioMiniOS'
+                  $ref: '#/components/schemas/OrdemServicoList'
           description: ''
     post:
-      operationId: tarefas_repositorios_create
-      description: Cria um novo serviço no catálogo de Mini OS.
-      summary: Criar repositório de Mini OS
+      operationId: ordens_servico_ordens_create
+      description: Cria uma nova ordem de serviço. O campo `criado_por` é preenchido
+        automaticamente com o usuário autenticado. Se `cobranca_imediata=true`, a
+        OS já é criada com `liberada_para_cobranca=true`.
+      summary: Criar ordem de serviço
       tags:
-      - tarefas
+      - ordens-servico
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/RepositorioMiniOSRequest'
+              $ref: '#/components/schemas/OrdemServicoRequest'
           application/x-www-form-urlencoded:
             schema:
-              $ref: '#/components/schemas/RepositorioMiniOSRequest'
+              $ref: '#/components/schemas/OrdemServicoRequest'
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/RepositorioMiniOSRequest'
+              $ref: '#/components/schemas/OrdemServicoRequest'
         required: true
       security:
       - jwtAuth: []
@@ -2107,22 +1823,22 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RepositorioMiniOS'
+                $ref: '#/components/schemas/OrdemServico'
           description: ''
-  /api/tarefas/repositorios/{id}/:
+  /api/ordens-servico/ordens/{id}/:
     get:
-      operationId: tarefas_repositorios_retrieve
-      description: Retorna todos os campos de um repositório de Mini OS pelo seu ID.
-      summary: Detalhar repositório de Mini OS
+      operationId: ordens_servico_ordens_retrieve
+      description: Retorna todos os campos de uma ordem de serviço pelo seu ID.
+      summary: Detalhar ordem de serviço
       parameters:
       - in: path
         name: id
         schema:
           type: integer
-        description: A unique integer value identifying this Repositório Mini OS.
+        description: A unique integer value identifying this Ordem de Serviço.
         required: true
       tags:
-      - tarefas
+      - ordens-servico
       security:
       - jwtAuth: []
       - basicAuth: []
@@ -2132,32 +1848,34 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RepositorioMiniOS'
+                $ref: '#/components/schemas/OrdemServico'
           description: ''
     put:
-      operationId: tarefas_repositorios_update
-      description: Substitui integralmente os dados de um repositório de Mini OS.
-      summary: Atualizar repositório de Mini OS
+      operationId: ordens_servico_ordens_update
+      description: Substitui integralmente os dados de uma OS. Campos calculados (`status`,
+        `concluida`, `liberada_para_cobranca`) são somente leitura e ignorados no
+        body.
+      summary: Atualizar ordem de serviço
       parameters:
       - in: path
         name: id
         schema:
           type: integer
-        description: A unique integer value identifying this Repositório Mini OS.
+        description: A unique integer value identifying this Ordem de Serviço.
         required: true
       tags:
-      - tarefas
+      - ordens-servico
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/RepositorioMiniOSRequest'
+              $ref: '#/components/schemas/OrdemServicoRequest'
           application/x-www-form-urlencoded:
             schema:
-              $ref: '#/components/schemas/RepositorioMiniOSRequest'
+              $ref: '#/components/schemas/OrdemServicoRequest'
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/RepositorioMiniOSRequest'
+              $ref: '#/components/schemas/OrdemServicoRequest'
         required: true
       security:
       - jwtAuth: []
@@ -2168,32 +1886,34 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RepositorioMiniOS'
+                $ref: '#/components/schemas/OrdemServico'
           description: ''
     patch:
-      operationId: tarefas_repositorios_partial_update
-      description: Atualiza um ou mais campos de um repositório de Mini OS.
-      summary: Atualizar repositório de Mini OS parcialmente
+      operationId: ordens_servico_ordens_partial_update
+      description: Atualiza um ou mais campos de uma OS. Campos calculados (`status`,
+        `concluida`, `liberada_para_cobranca`) são somente leitura e ignorados no
+        body.
+      summary: Atualizar ordem de serviço parcialmente
       parameters:
       - in: path
         name: id
         schema:
           type: integer
-        description: A unique integer value identifying this Repositório Mini OS.
+        description: A unique integer value identifying this Ordem de Serviço.
         required: true
       tags:
-      - tarefas
+      - ordens-servico
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/PatchedRepositorioMiniOSRequest'
+              $ref: '#/components/schemas/PatchedOrdemServicoRequest'
           application/x-www-form-urlencoded:
             schema:
-              $ref: '#/components/schemas/PatchedRepositorioMiniOSRequest'
+              $ref: '#/components/schemas/PatchedOrdemServicoRequest'
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/PatchedRepositorioMiniOSRequest'
+              $ref: '#/components/schemas/PatchedOrdemServicoRequest'
       security:
       - jwtAuth: []
       - basicAuth: []
@@ -2203,21 +1923,21 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RepositorioMiniOS'
+                $ref: '#/components/schemas/OrdemServico'
           description: ''
     delete:
-      operationId: tarefas_repositorios_destroy
-      description: Remove permanentemente um repositório de Mini OS.
-      summary: Remover repositório de Mini OS
+      operationId: ordens_servico_ordens_destroy
+      description: Remove permanentemente uma ordem de serviço.
+      summary: Remover ordem de serviço
       parameters:
       - in: path
         name: id
         schema:
           type: integer
-        description: A unique integer value identifying this Repositório Mini OS.
+        description: A unique integer value identifying this Ordem de Serviço.
         required: true
       tags:
-      - tarefas
+      - ordens-servico
       security:
       - jwtAuth: []
       - basicAuth: []
@@ -2225,13 +1945,345 @@ paths:
       responses:
         '204':
           description: No response body
-  /api/tarefas/tarefas/:
+  /api/ordens-servico/ordens/{id}/cobranca/:
+    patch:
+      operationId: ordens_servico_ordens_cobranca_partial_update
+      description: Marca a OS como tendo a cobrança realizada, registrando número
+        da NF, data e o usuário responsável. Retorna 400 se a OS não estiver liberada
+        para cobrança.
+      summary: Registrar cobrança da ordem de serviço
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Ordem de Serviço.
+        required: true
+      tags:
+      - ordens-servico
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedRegistrarCobrancaRequestRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedRegistrarCobrancaRequestRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedRegistrarCobrancaRequestRequest'
+      security:
+      - jwtAuth: []
+      - basicAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrdemServico'
+          description: ''
+        '400':
+          description: No response body
+  /api/ordens-servico/ordens/{id}/liberada-cobranca/:
     get:
-      operationId: tarefas_tarefas_list
+      operationId: ordens_servico_ordens_liberada_cobranca_retrieve
+      description: Retorna o status de liberação para cobrança da OS, com data e responsável
+        pela liberação.
+      summary: Verificar liberação para cobrança
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Ordem de Serviço.
+        required: true
+      tags:
+      - ordens-servico
+      security:
+      - jwtAuth: []
+      - basicAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LiberadaCobranca'
+          description: ''
+  /api/ordens-servico/servicos/:
+    get:
+      operationId: ordens_servico_servicos_list
+      description: Retorna a lista paginada de serviços com campos resumidos. Suporta
+        filtragem por OS, status e catálogo.
+      summary: Listar serviços
+      parameters:
+      - in: query
+        name: atrasada
+        schema:
+          type: string
+          enum:
+          - 'true'
+        description: Se "true", retorna apenas serviços com prazo vencido e não concluídos/cancelados.
+      - in: query
+        name: catalogo
+        schema:
+          type: integer
+        description: Filtrar pelo ID do catálogo.
+      - in: query
+        name: ordem_servico
+        schema:
+          type: integer
+        description: Filtrar pelo ID da ordem de serviço.
+      - in: query
+        name: ordering
+        schema:
+          type: string
+          enum:
+          - -prazo
+          - prazo
+        description: Ordenar por prazo. Use "prazo" ou "-prazo".
+      - in: query
+        name: prioridade
+        schema:
+          type: string
+          enum:
+          - alta
+          - baixa
+          - media
+        description: Filtrar por prioridade.
+      - in: query
+        name: status
+        schema:
+          type: string
+          enum:
+          - aberto
+          - cancelado
+          - concluida
+          - em_andamento
+        description: Filtrar por status.
+      tags:
+      - ordens-servico
+      security:
+      - jwtAuth: []
+      - basicAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ServicoList'
+          description: ''
+    post:
+      operationId: ordens_servico_servicos_create
+      description: Cria um novo serviço vinculado a uma OS. Campos calculados (`status`,
+        `data_inicio`, `data_termino`, `data_conclusao`, `terminado_por`) são somente
+        leitura e gerenciados automaticamente pelas tarefas.
+      summary: Criar serviço
+      tags:
+      - ordens-servico
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServicoRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ServicoRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ServicoRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - basicAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Servico'
+          description: ''
+  /api/ordens-servico/servicos/{id}/:
+    get:
+      operationId: ordens_servico_servicos_retrieve
+      description: Retorna todos os campos de um serviço pelo seu ID.
+      summary: Detalhar serviço
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Serviço.
+        required: true
+      tags:
+      - ordens-servico
+      security:
+      - jwtAuth: []
+      - basicAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Servico'
+          description: ''
+    put:
+      operationId: ordens_servico_servicos_update
+      description: Substitui integralmente os dados de um serviço. Campos calculados
+        são somente leitura e ignorados no body.
+      summary: Atualizar serviço
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Serviço.
+        required: true
+      tags:
+      - ordens-servico
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServicoRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ServicoRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ServicoRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - basicAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Servico'
+          description: ''
+    patch:
+      operationId: ordens_servico_servicos_partial_update
+      description: Atualiza um ou mais campos de um serviço. Campos calculados são
+        somente leitura e ignorados no body.
+      summary: Atualizar serviço parcialmente
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Serviço.
+        required: true
+      tags:
+      - ordens-servico
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedServicoRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedServicoRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedServicoRequest'
+      security:
+      - jwtAuth: []
+      - basicAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Servico'
+          description: ''
+    delete:
+      operationId: ordens_servico_servicos_destroy
+      description: Remove permanentemente um serviço e suas tarefas vinculadas.
+      summary: Remover serviço
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Serviço.
+        required: true
+      tags:
+      - ordens-servico
+      security:
+      - jwtAuth: []
+      - basicAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/ordens-servico/servicos/{id}/sincronizar/:
+    post:
+      operationId: ordens_servico_servicos_sincronizar_create
+      description: Força a ressincronização do status, datas e responsável do serviço
+        com base no estado atual de suas tarefas. Normalmente executado automaticamente
+        por signals — use este endpoint apenas para corrigir inconsistências manualmente.
+      summary: Sincronizar status do serviço
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Serviço.
+        required: true
+      tags:
+      - ordens-servico
+      security:
+      - jwtAuth: []
+      - basicAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Servico'
+          description: ''
+  /api/ordens-servico/tarefas/:
+    get:
+      operationId: ordens_servico_tarefas_list
       description: Retorna a lista paginada de tarefas. Técnicos veem apenas as próprias
         tarefas; demais perfis veem todas.
       summary: Listar tarefas
       parameters:
+      - in: query
+        name: atrasada
+        schema:
+          type: string
+          enum:
+          - 'true'
+        description: Se "true", retorna apenas tarefas com prazo vencido e não concluídas/canceladas.
+      - in: query
+        name: ordering
+        schema:
+          type: string
+          enum:
+          - -prazo
+          - prazo
+        description: Ordenar por prazo. Use "prazo" ou "-prazo".
+      - in: query
+        name: prioridade
+        schema:
+          type: string
+          enum:
+          - alta
+          - baixa
+          - media
+        description: Filtrar por prioridade.
       - in: query
         name: responsavel
         schema:
@@ -2253,7 +2305,7 @@ paths:
           - em_andamento
         description: Filtrar por status.
       tags:
-      - tarefas
+      - ordens-servico
       security:
       - jwtAuth: []
       - basicAuth: []
@@ -2268,13 +2320,13 @@ paths:
                   $ref: '#/components/schemas/TarefaList'
           description: ''
     post:
-      operationId: tarefas_tarefas_create
+      operationId: ordens_servico_tarefas_create
       description: Cria uma nova tarefa vinculada a um serviço. Campos calculados
         (`data_inicio`, `data_termino`) são gerenciados automaticamente conforme o
         status da tarefa.
       summary: Criar tarefa
       tags:
-      - tarefas
+      - ordens-servico
       requestBody:
         content:
           application/json:
@@ -2298,9 +2350,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/Tarefa'
           description: ''
-  /api/tarefas/tarefas/{id}/:
+  /api/ordens-servico/tarefas/{id}/:
     get:
-      operationId: tarefas_tarefas_retrieve
+      operationId: ordens_servico_tarefas_retrieve
       description: Retorna todos os campos de uma tarefa pelo seu ID.
       summary: Detalhar tarefa
       parameters:
@@ -2311,7 +2363,7 @@ paths:
         description: A unique integer value identifying this Tarefa.
         required: true
       tags:
-      - tarefas
+      - ordens-servico
       security:
       - jwtAuth: []
       - basicAuth: []
@@ -2324,7 +2376,7 @@ paths:
                 $ref: '#/components/schemas/Tarefa'
           description: ''
     put:
-      operationId: tarefas_tarefas_update
+      operationId: ordens_servico_tarefas_update
       description: Substitui integralmente os dados de uma tarefa. Alterar o `status`
         para `em_andamento` ou `concluida` preenche `data_inicio` e `data_termino`
         automaticamente.
@@ -2337,7 +2389,7 @@ paths:
         description: A unique integer value identifying this Tarefa.
         required: true
       tags:
-      - tarefas
+      - ordens-servico
       requestBody:
         content:
           application/json:
@@ -2362,7 +2414,7 @@ paths:
                 $ref: '#/components/schemas/Tarefa'
           description: ''
     patch:
-      operationId: tarefas_tarefas_partial_update
+      operationId: ordens_servico_tarefas_partial_update
       description: Atualiza um ou mais campos de uma tarefa. Alterar o `status` para
         `em_andamento` ou `concluida` preenche `data_inicio` e `data_termino` automaticamente.
       summary: Atualizar tarefa parcialmente
@@ -2374,7 +2426,7 @@ paths:
         description: A unique integer value identifying this Tarefa.
         required: true
       tags:
-      - tarefas
+      - ordens-servico
       requestBody:
         content:
           application/json:
@@ -2398,7 +2450,7 @@ paths:
                 $ref: '#/components/schemas/Tarefa'
           description: ''
     delete:
-      operationId: tarefas_tarefas_destroy
+      operationId: ordens_servico_tarefas_destroy
       description: Remove permanentemente uma tarefa e ressincroniza o status do serviço
         vinculado.
       summary: Remover tarefa
@@ -2410,7 +2462,7 @@ paths:
         description: A unique integer value identifying this Tarefa.
         required: true
       tags:
-      - tarefas
+      - ordens-servico
       security:
       - jwtAuth: []
       - basicAuth: []
@@ -2430,6 +2482,7 @@ components:
       - liberacao_faturamento
       - faturamento
       - liberacao_cobranca
+      - cobranca_realizada
       - contrato
       - backfill
       type: string
@@ -2442,26 +2495,9 @@ components:
         * `liberacao_faturamento` - Liberação para Faturamento
         * `faturamento` - Faturamento
         * `liberacao_cobranca` - Liberação de Cobrança
+        * `cobranca_realizada` - Cobrança Realizada
         * `contrato` - Contrato
         * `backfill` - Backfill
-    AnaliseDadosResponse:
-      type: object
-      properties:
-        ordens_servico:
-          $ref: '#/components/schemas/OrdensServicoAnalise'
-        servicos:
-          $ref: '#/components/schemas/ServicoAnalise'
-        tarefas:
-          $ref: '#/components/schemas/TarefaAnalise'
-        minios:
-          $ref: '#/components/schemas/MiniOSAnalise'
-        clientes:
-          $ref: '#/components/schemas/ClientesAnalise'
-      required:
-      - minios
-      - ordens_servico
-      - servicos
-      - tarefas
     BlankEnum:
       enum:
       - ''
@@ -2480,6 +2516,150 @@ components:
       - canceladas
       - percentual
       - total
+    BlocoCumprimentoPrazo:
+      type: object
+      properties:
+        total_com_prazo:
+          type: integer
+        no_prazo:
+          type: integer
+        percentual:
+          type: number
+          format: double
+          nullable: true
+      required:
+      - no_prazo
+      - percentual
+      - total_com_prazo
+    CancelamentoPorCatalogo:
+      type: object
+      properties:
+        catalogo_id:
+          type: integer
+        catalogo_nome:
+          type: string
+        total:
+          type: integer
+        canceladas:
+          type: integer
+        percentual:
+          type: number
+          format: double
+          nullable: true
+      required:
+      - canceladas
+      - catalogo_id
+      - catalogo_nome
+      - percentual
+      - total
+    Catalogo:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        subitens:
+          type: array
+          items:
+            $ref: '#/components/schemas/SubitemCatalogo'
+          readOnly: true
+        nome:
+          type: string
+          maxLength: 100
+        descricao:
+          type: string
+          nullable: true
+        horas_estimadas:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+          nullable: true
+        complexidade:
+          nullable: true
+          minimum: 0
+          maximum: 65535
+          oneOf:
+          - $ref: '#/components/schemas/ComplexidadeEnum'
+          - $ref: '#/components/schemas/NullEnum'
+      required:
+      - id
+      - nome
+      - subitens
+    CatalogoOperacional:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        nome:
+          type: string
+          maxLength: 50
+        descricao:
+          type: string
+          nullable: true
+        horas_estimadas:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+          nullable: true
+        complexidade:
+          nullable: true
+          minimum: 0
+          maximum: 65535
+          oneOf:
+          - $ref: '#/components/schemas/ComplexidadeEnum'
+          - $ref: '#/components/schemas/NullEnum'
+      required:
+      - id
+      - nome
+    CatalogoOperacionalRequest:
+      type: object
+      properties:
+        nome:
+          type: string
+          minLength: 1
+          maxLength: 50
+        descricao:
+          type: string
+          nullable: true
+        horas_estimadas:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+          nullable: true
+        complexidade:
+          nullable: true
+          minimum: 0
+          maximum: 65535
+          oneOf:
+          - $ref: '#/components/schemas/ComplexidadeEnum'
+          - $ref: '#/components/schemas/NullEnum'
+      required:
+      - nome
+    CatalogoRequest:
+      type: object
+      properties:
+        nome:
+          type: string
+          minLength: 1
+          maxLength: 100
+        descricao:
+          type: string
+          nullable: true
+        horas_estimadas:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+          nullable: true
+        complexidade:
+          nullable: true
+          minimum: 0
+          maximum: 65535
+          oneOf:
+          - $ref: '#/components/schemas/ComplexidadeEnum'
+          - $ref: '#/components/schemas/NullEnum'
+      required:
+      - nome
     Cliente:
       type: object
       properties:
@@ -2545,21 +2725,21 @@ components:
       - nome
       - tipo_cliente_display
       - tipo_inscricao_display
-    ClienteFaturamento:
+    ClienteCobranca:
       type: object
       properties:
         cliente_id:
           type: integer
         cliente_nome:
           type: string
-        total_valor_faturado:
+        total_valor_cobrado:
           type: string
           format: decimal
           pattern: ^-?\d{0,12}(?:\.\d{0,2})?$
       required:
       - cliente_id
       - cliente_nome
-      - total_valor_faturado
+      - total_valor_cobrado
     ClienteList:
       type: object
       properties:
@@ -2676,17 +2856,27 @@ components:
     ClientesAnalise:
       type: object
       properties:
-        mais_faturamento:
+        mais_cobranca:
           type: array
           items:
-            $ref: '#/components/schemas/ClienteFaturamento'
+            $ref: '#/components/schemas/ClienteCobranca'
         mais_vendas:
           type: array
           items:
             $ref: '#/components/schemas/ClienteVendas'
       required:
-      - mais_faturamento
+      - mais_cobranca
       - mais_vendas
+    ComplexidadeEnum:
+      enum:
+      - 1
+      - 2
+      - 3
+      type: integer
+      description: |-
+        * `1` - Baixa
+        * `2` - Média
+        * `3` - Alta
     Detalhe:
       type: object
       properties:
@@ -2725,14 +2915,14 @@ components:
         * `servico` - Serviço
         * `tarefa` - Tarefa
         * `mini_os` - OS Operacional
-    FinanceiroKPIs:
+    FinanceiroAnaliseResponse:
       type: object
       properties:
-        total_faturado:
+        total_cobrado:
           type: string
           format: decimal
           pattern: ^-?\d{0,12}(?:\.\d{0,2})?$
-        total_para_faturar:
+        total_para_cobrar:
           type: string
           format: decimal
           pattern: ^-?\d{0,12}(?:\.\d{0,2})?$
@@ -2740,10 +2930,24 @@ components:
           type: string
           format: decimal
           pattern: ^-?\d{0,12}(?:\.\d{0,2})?$
+        ticket_medio:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,2})?$
+          nullable: true
+        vendas_por_mes:
+          type: array
+          items:
+            $ref: '#/components/schemas/MesDecimal'
+        clientes:
+          $ref: '#/components/schemas/ClientesAnalise'
       required:
-      - total_faturado
-      - total_para_faturar
+      - clientes
+      - ticket_medio
+      - total_cobrado
+      - total_para_cobrar
       - total_sem_liberacao
+      - vendas_por_mes
     FormaPagamentoEnum:
       enum:
       - pix
@@ -2764,7 +2968,7 @@ components:
         * `dinheiro` - Dinheiro
         * `cheque` - Cheque
         * `outro` - Outro
-    LiberadaFaturamento:
+    LiberadaCobranca:
       type: object
       properties:
         liberada:
@@ -2844,115 +3048,6 @@ components:
       - ano
       - mes
       - total
-    MiniOS:
-      type: object
-      properties:
-        id:
-          type: integer
-          readOnly: true
-        cliente:
-          type: integer
-        cliente_detail:
-          allOf:
-          - $ref: '#/components/schemas/ClienteList'
-          readOnly: true
-        servico:
-          type: integer
-        servico_detail:
-          allOf:
-          - $ref: '#/components/schemas/RepositorioMiniOS'
-          readOnly: true
-        responsavel:
-          type: integer
-        responsavel_nome:
-          type: string
-          readOnly: true
-        quantidade:
-          type: integer
-          maximum: 4294967295
-          minimum: 0
-          format: int64
-        descricao:
-          type: string
-          nullable: true
-        data_recebimento:
-          type: string
-          format: date
-          nullable: true
-        data_inicio:
-          type: string
-          format: date
-          readOnly: true
-          nullable: true
-        data_termino:
-          type: string
-          format: date
-          readOnly: true
-          nullable: true
-        status:
-          $ref: '#/components/schemas/StatusMiniOSEnum'
-        status_display:
-          type: string
-          readOnly: true
-        revisao_cliente:
-          type: boolean
-        gera_cobranca:
-          type: boolean
-          readOnly: true
-        data_liberacao_cobranca:
-          type: string
-          format: date-time
-          readOnly: true
-          nullable: true
-        liberada_cobranca_por:
-          type: integer
-          readOnly: true
-          nullable: true
-        liberada_cobranca_por_nome:
-          type: string
-          nullable: true
-          readOnly: true
-        faturada:
-          type: boolean
-        numero_nf:
-          type: string
-          nullable: true
-          maxLength: 10
-        faturada_por:
-          type: integer
-          readOnly: true
-          nullable: true
-        faturada_por_nome:
-          type: string
-          nullable: true
-          readOnly: true
-        criada_em:
-          type: string
-          format: date-time
-          readOnly: true
-        atualizado_em:
-          type: string
-          format: date-time
-          readOnly: true
-      required:
-      - atualizado_em
-      - cliente
-      - cliente_detail
-      - criada_em
-      - data_inicio
-      - data_liberacao_cobranca
-      - data_termino
-      - faturada_por
-      - faturada_por_nome
-      - gera_cobranca
-      - id
-      - liberada_cobranca_por
-      - liberada_cobranca_por_nome
-      - responsavel
-      - responsavel_nome
-      - servico
-      - servico_detail
-      - status_display
     MiniOSAnalise:
       type: object
       properties:
@@ -2990,131 +3085,39 @@ components:
       - revisoes_por_cliente
       - total
       - total_revisao_cliente
-    MiniOSList:
-      type: object
-      properties:
-        id:
-          type: integer
-          readOnly: true
-        cliente:
-          type: integer
-        cliente_nome:
-          type: string
-          readOnly: true
-        servico:
-          type: integer
-        servico_nome:
-          type: string
-          readOnly: true
-        responsavel:
-          type: integer
-        responsavel_nome:
-          type: string
-          readOnly: true
-        status:
-          $ref: '#/components/schemas/StatusMiniOSEnum'
-        status_display:
-          type: string
-          readOnly: true
-        revisao_cliente:
-          type: boolean
-        gera_cobranca:
-          type: boolean
-        data_liberacao_cobranca:
-          type: string
-          format: date-time
-          nullable: true
-        liberada_cobranca_por:
-          type: integer
-          nullable: true
-        liberada_cobranca_por_nome:
-          type: string
-          nullable: true
-          readOnly: true
-        faturada:
-          type: boolean
-        numero_nf:
-          type: string
-          nullable: true
-          maxLength: 10
-        faturada_por:
-          type: integer
-          nullable: true
-        faturada_por_nome:
-          type: string
-          nullable: true
-          readOnly: true
-        data_recebimento:
-          type: string
-          format: date
-          nullable: true
-        data_inicio:
-          type: string
-          format: date
-          nullable: true
-        data_termino:
-          type: string
-          format: date
-          nullable: true
-        criada_em:
-          type: string
-          format: date-time
-          readOnly: true
-        atualizado_em:
-          type: string
-          format: date-time
-          readOnly: true
-      required:
-      - atualizado_em
-      - cliente
-      - cliente_nome
-      - criada_em
-      - faturada_por_nome
-      - id
-      - liberada_cobranca_por_nome
-      - responsavel
-      - responsavel_nome
-      - servico
-      - servico_nome
-      - status_display
-    MiniOSRequest:
-      type: object
-      properties:
-        cliente:
-          type: integer
-        servico:
-          type: integer
-        responsavel:
-          type: integer
-        quantidade:
-          type: integer
-          maximum: 4294967295
-          minimum: 0
-          format: int64
-        descricao:
-          type: string
-          nullable: true
-        data_recebimento:
-          type: string
-          format: date
-          nullable: true
-        status:
-          $ref: '#/components/schemas/StatusMiniOSEnum'
-        revisao_cliente:
-          type: boolean
-        faturada:
-          type: boolean
-        numero_nf:
-          type: string
-          nullable: true
-          maxLength: 10
-      required:
-      - cliente
-      - responsavel
-      - servico
     NullEnum:
       enum:
       - null
+    OperacionalAnaliseResponse:
+      type: object
+      properties:
+        ordens_servico:
+          $ref: '#/components/schemas/OrdensServicoAnalise'
+        servicos:
+          $ref: '#/components/schemas/ServicoAnalise'
+        tarefas:
+          $ref: '#/components/schemas/TarefaAnalise'
+        minios:
+          $ref: '#/components/schemas/MiniOSAnalise'
+        tempos_medios:
+          $ref: '#/components/schemas/TemposMedios'
+        taxa_cancelamento:
+          $ref: '#/components/schemas/TaxaCancelamento'
+        taxa_cumprimento_prazo:
+          $ref: '#/components/schemas/TaxaCumprimentoPrazo'
+        por_tecnico:
+          type: array
+          items:
+            $ref: '#/components/schemas/TecnicoProdutividade'
+      required:
+      - minios
+      - ordens_servico
+      - por_tecnico
+      - servicos
+      - tarefas
+      - taxa_cancelamento
+      - taxa_cumprimento_prazo
+      - tempos_medios
     OrdemServico:
       type: object
       properties:
@@ -3135,7 +3138,7 @@ components:
           type: string
           nullable: true
           readOnly: true
-        data_criacao:
+        data_venda:
           type: string
           format: date
         criada_em:
@@ -3154,6 +3157,10 @@ components:
         prioridade_display:
           type: string
           readOnly: true
+        prazo:
+          type: string
+          format: date
+          nullable: true
         valor:
           type: string
           format: decimal
@@ -3170,6 +3177,10 @@ components:
           nullable: true
         cobranca_imediata:
           type: boolean
+        data_acordada_cobranca:
+          type: string
+          format: date
+          nullable: true
         nome_contato_envio_nf:
           type: string
           maxLength: 50
@@ -3210,38 +3221,38 @@ components:
         concluida:
           type: boolean
           readOnly: true
-        faturada:
+        cobranca_realizada:
           type: boolean
         numero_nf:
           type: integer
           maximum: 2147483647
           minimum: -2147483648
           nullable: true
-        data_faturamento:
+        data_cobranca:
           type: string
           format: date
           nullable: true
-        faturada_por:
+        cobranca_realizada_por:
           type: integer
           readOnly: true
           nullable: true
-        faturada_por_nome:
+        cobranca_realizada_por_nome:
           type: string
           nullable: true
           readOnly: true
-        liberada_para_faturamento:
+        liberada_para_cobranca:
           type: boolean
           readOnly: true
-        liberada_para_faturamento_em:
+        liberada_para_cobranca_em:
           type: string
           format: date-time
           readOnly: true
           nullable: true
-        liberada_para_faturamento_por:
+        liberada_para_cobranca_por:
           type: integer
           readOnly: true
           nullable: true
-        liberada_para_faturamento_por_nome:
+        liberada_para_cobranca_por_nome:
           type: string
           nullable: true
           readOnly: true
@@ -3273,24 +3284,24 @@ components:
       - atualizado_por
       - cliente
       - cliente_detail
+      - cobranca_realizada_por
+      - cobranca_realizada_por_nome
       - concluida
       - criada_em
       - criado_por
       - criado_por_nome
       - data_atualizacao
       - data_conclusao_os
-      - data_criacao
+      - data_venda
       - dias_em_aberto
       - dias_entre_criacao_e_conclusao
-      - faturada_por
-      - faturada_por_nome
       - finalizador_nome
       - forma_pagamento_display
       - id
-      - liberada_para_faturamento
-      - liberada_para_faturamento_em
-      - liberada_para_faturamento_por
-      - liberada_para_faturamento_por_nome
+      - liberada_para_cobranca
+      - liberada_para_cobranca_em
+      - liberada_para_cobranca_por
+      - liberada_para_cobranca_por_nome
       - prioridade_display
       - status
       - status_display
@@ -3305,7 +3316,7 @@ components:
         cliente_nome:
           type: string
           readOnly: true
-        data_criacao:
+        data_venda:
           type: string
           format: date
         valor:
@@ -3327,21 +3338,25 @@ components:
         prioridade_display:
           type: string
           readOnly: true
+        prazo:
+          type: string
+          format: date
+          nullable: true
         concluida:
           type: boolean
-        faturada:
+        cobranca_realizada:
           type: boolean
         cobranca_imediata:
           type: boolean
         contrato:
           type: boolean
-        liberada_para_faturamento:
+        liberada_para_cobranca:
           type: boolean
-        liberada_para_faturamento_em:
+        liberada_para_cobranca_em:
           type: string
           format: date-time
           nullable: true
-        liberada_para_faturamento_por_nome:
+        liberada_para_cobranca_por_nome:
           type: string
           nullable: true
           readOnly: true
@@ -3356,24 +3371,355 @@ components:
       required:
       - cliente
       - cliente_nome
-      - data_criacao
+      - data_venda
       - dias_em_aberto
       - dias_entre_criacao_e_conclusao
       - forma_pagamento_display
       - id
-      - liberada_para_faturamento_por_nome
+      - liberada_para_cobranca_por_nome
       - prioridade_display
       - status_display
+    OrdemServicoOperacional:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        cliente:
+          type: integer
+        cliente_detail:
+          allOf:
+          - $ref: '#/components/schemas/ClienteList'
+          readOnly: true
+        catalogo_operacional:
+          type: integer
+        catalogo_operacional_detail:
+          allOf:
+          - $ref: '#/components/schemas/CatalogoOperacional'
+          readOnly: true
+        responsavel:
+          type: integer
+        responsavel_nome:
+          type: string
+          readOnly: true
+        quantidade:
+          type: integer
+          maximum: 4294967295
+          minimum: 0
+          format: int64
+        descricao:
+          type: string
+          nullable: true
+        prioridade:
+          $ref: '#/components/schemas/PrioridadeEnum'
+        prioridade_display:
+          type: string
+          readOnly: true
+        prazo:
+          type: string
+          format: date
+          nullable: true
+        horas_estimadas:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+          nullable: true
+        horas_estimadas_efetivas:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+          readOnly: true
+          nullable: true
+        complexidade:
+          nullable: true
+          minimum: 0
+          maximum: 65535
+          oneOf:
+          - $ref: '#/components/schemas/ComplexidadeEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        complexidade_display:
+          type: string
+          nullable: true
+          readOnly: true
+        complexidade_efetiva:
+          type: integer
+          readOnly: true
+          nullable: true
+        data_recebimento:
+          type: string
+          format: date
+          nullable: true
+        data_inicio:
+          type: string
+          format: date
+          readOnly: true
+          nullable: true
+        data_termino:
+          type: string
+          format: date
+          readOnly: true
+          nullable: true
+        status:
+          $ref: '#/components/schemas/StatusMiniOSEnum'
+        status_display:
+          type: string
+          readOnly: true
+        revisao_cliente:
+          type: boolean
+        gera_cobranca:
+          type: boolean
+          readOnly: true
+        data_liberacao_cobranca:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        liberada_cobranca_por:
+          type: integer
+          readOnly: true
+          nullable: true
+        liberada_cobranca_por_nome:
+          type: string
+          nullable: true
+          readOnly: true
+        cobranca_realizada:
+          type: boolean
+        numero_nf:
+          type: string
+          nullable: true
+          maxLength: 10
+        cobranca_realizada_por:
+          type: integer
+          readOnly: true
+          nullable: true
+        cobranca_realizada_por_nome:
+          type: string
+          nullable: true
+          readOnly: true
+        criada_em:
+          type: string
+          format: date-time
+          readOnly: true
+        atualizado_em:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - atualizado_em
+      - catalogo_operacional
+      - catalogo_operacional_detail
+      - cliente
+      - cliente_detail
+      - cobranca_realizada_por
+      - cobranca_realizada_por_nome
+      - complexidade_display
+      - complexidade_efetiva
+      - criada_em
+      - data_inicio
+      - data_liberacao_cobranca
+      - data_termino
+      - gera_cobranca
+      - horas_estimadas_efetivas
+      - id
+      - liberada_cobranca_por
+      - liberada_cobranca_por_nome
+      - prioridade_display
+      - responsavel
+      - responsavel_nome
+      - status_display
+    OrdemServicoOperacionalList:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        cliente:
+          type: integer
+        cliente_nome:
+          type: string
+          readOnly: true
+        catalogo_operacional:
+          type: integer
+        catalogo_operacional_nome:
+          type: string
+          readOnly: true
+        responsavel:
+          type: integer
+        responsavel_nome:
+          type: string
+          readOnly: true
+        status:
+          $ref: '#/components/schemas/StatusMiniOSEnum'
+        status_display:
+          type: string
+          readOnly: true
+        prioridade:
+          $ref: '#/components/schemas/PrioridadeEnum'
+        prioridade_display:
+          type: string
+          readOnly: true
+        prazo:
+          type: string
+          format: date
+          nullable: true
+        horas_estimadas:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+          nullable: true
+        horas_estimadas_efetivas:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+          readOnly: true
+          nullable: true
+        complexidade:
+          nullable: true
+          minimum: 0
+          maximum: 65535
+          oneOf:
+          - $ref: '#/components/schemas/ComplexidadeEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        complexidade_display:
+          type: string
+          nullable: true
+          readOnly: true
+        complexidade_efetiva:
+          type: integer
+          readOnly: true
+          nullable: true
+        revisao_cliente:
+          type: boolean
+        gera_cobranca:
+          type: boolean
+        data_liberacao_cobranca:
+          type: string
+          format: date-time
+          nullable: true
+        liberada_cobranca_por:
+          type: integer
+          nullable: true
+        liberada_cobranca_por_nome:
+          type: string
+          nullable: true
+          readOnly: true
+        cobranca_realizada:
+          type: boolean
+        numero_nf:
+          type: string
+          nullable: true
+          maxLength: 10
+        cobranca_realizada_por:
+          type: integer
+          nullable: true
+        cobranca_realizada_por_nome:
+          type: string
+          nullable: true
+          readOnly: true
+        data_recebimento:
+          type: string
+          format: date
+          nullable: true
+        data_inicio:
+          type: string
+          format: date
+          nullable: true
+        data_termino:
+          type: string
+          format: date
+          nullable: true
+        criada_em:
+          type: string
+          format: date-time
+          readOnly: true
+        atualizado_em:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - atualizado_em
+      - catalogo_operacional
+      - catalogo_operacional_nome
+      - cliente
+      - cliente_nome
+      - cobranca_realizada_por_nome
+      - complexidade_display
+      - complexidade_efetiva
+      - criada_em
+      - horas_estimadas_efetivas
+      - id
+      - liberada_cobranca_por_nome
+      - prioridade_display
+      - responsavel
+      - responsavel_nome
+      - status_display
+    OrdemServicoOperacionalRequest:
+      type: object
+      properties:
+        cliente:
+          type: integer
+        catalogo_operacional:
+          type: integer
+        responsavel:
+          type: integer
+        quantidade:
+          type: integer
+          maximum: 4294967295
+          minimum: 0
+          format: int64
+        descricao:
+          type: string
+          nullable: true
+        prioridade:
+          $ref: '#/components/schemas/PrioridadeEnum'
+        prazo:
+          type: string
+          format: date
+          nullable: true
+        horas_estimadas:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+          nullable: true
+        complexidade:
+          nullable: true
+          minimum: 0
+          maximum: 65535
+          oneOf:
+          - $ref: '#/components/schemas/ComplexidadeEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        data_recebimento:
+          type: string
+          format: date
+          nullable: true
+        status:
+          $ref: '#/components/schemas/StatusMiniOSEnum'
+        revisao_cliente:
+          type: boolean
+        cobranca_realizada:
+          type: boolean
+        numero_nf:
+          type: string
+          nullable: true
+          maxLength: 10
+      required:
+      - catalogo_operacional
+      - cliente
+      - responsavel
     OrdemServicoRequest:
       type: object
       properties:
         cliente:
           type: integer
-        data_criacao:
+        data_venda:
           type: string
           format: date
         prioridade:
           $ref: '#/components/schemas/PrioridadeEnum'
+        prazo:
+          type: string
+          format: date
+          nullable: true
         valor:
           type: string
           format: decimal
@@ -3387,6 +3733,10 @@ components:
           nullable: true
         cobranca_imediata:
           type: boolean
+        data_acordada_cobranca:
+          type: string
+          format: date
+          nullable: true
         nome_contato_envio_nf:
           type: string
           minLength: 1
@@ -3426,20 +3776,20 @@ components:
         observacao:
           type: string
           nullable: true
-        faturada:
+        cobranca_realizada:
           type: boolean
         numero_nf:
           type: integer
           maximum: 2147483647
           minimum: -2147483648
           nullable: true
-        data_faturamento:
+        data_cobranca:
           type: string
           format: date
           nullable: true
       required:
       - cliente
-      - data_criacao
+      - data_venda
     OrdensServicoAnalise:
       type: object
       properties:
@@ -3467,10 +3817,6 @@ components:
           type: integer
         em_aberto:
           type: integer
-        vendas_por_mes:
-          type: array
-          items:
-            $ref: '#/components/schemas/MesDecimal'
       required:
       - abertas_mes_anterior
       - abertas_mes_atual
@@ -3509,6 +3855,50 @@ components:
           type: string
           writeOnly: true
           minLength: 1
+    PatchedCatalogoOperacionalRequest:
+      type: object
+      properties:
+        nome:
+          type: string
+          minLength: 1
+          maxLength: 50
+        descricao:
+          type: string
+          nullable: true
+        horas_estimadas:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+          nullable: true
+        complexidade:
+          nullable: true
+          minimum: 0
+          maximum: 65535
+          oneOf:
+          - $ref: '#/components/schemas/ComplexidadeEnum'
+          - $ref: '#/components/schemas/NullEnum'
+    PatchedCatalogoRequest:
+      type: object
+      properties:
+        nome:
+          type: string
+          minLength: 1
+          maxLength: 100
+        descricao:
+          type: string
+          nullable: true
+        horas_estimadas:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+          nullable: true
+        complexidade:
+          nullable: true
+          minimum: 0
+          maximum: 65535
+          oneOf:
+          - $ref: '#/components/schemas/ComplexidadeEnum'
+          - $ref: '#/components/schemas/NullEnum'
     PatchedClienteRequest:
       type: object
       properties:
@@ -3556,30 +3946,12 @@ components:
           type: boolean
         ativo:
           type: boolean
-    PatchedFaturarMiniOSRequestRequest:
-      type: object
-      properties:
-        numero_nf:
-          type: string
-          nullable: true
-          minLength: 1
-          maxLength: 10
-    PatchedFaturarRequestRequest:
-      type: object
-      properties:
-        numero_nf:
-          type: integer
-          nullable: true
-        data_faturamento:
-          type: string
-          format: date
-          nullable: true
-    PatchedMiniOSRequest:
+    PatchedOrdemServicoOperacionalRequest:
       type: object
       properties:
         cliente:
           type: integer
-        servico:
+        catalogo_operacional:
           type: integer
         responsavel:
           type: integer
@@ -3591,6 +3963,24 @@ components:
         descricao:
           type: string
           nullable: true
+        prioridade:
+          $ref: '#/components/schemas/PrioridadeEnum'
+        prazo:
+          type: string
+          format: date
+          nullable: true
+        horas_estimadas:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+          nullable: true
+        complexidade:
+          nullable: true
+          minimum: 0
+          maximum: 65535
+          oneOf:
+          - $ref: '#/components/schemas/ComplexidadeEnum'
+          - $ref: '#/components/schemas/NullEnum'
         data_recebimento:
           type: string
           format: date
@@ -3599,7 +3989,7 @@ components:
           $ref: '#/components/schemas/StatusMiniOSEnum'
         revisao_cliente:
           type: boolean
-        faturada:
+        cobranca_realizada:
           type: boolean
         numero_nf:
           type: string
@@ -3610,11 +4000,15 @@ components:
       properties:
         cliente:
           type: integer
-        data_criacao:
+        data_venda:
           type: string
           format: date
         prioridade:
           $ref: '#/components/schemas/PrioridadeEnum'
+        prazo:
+          type: string
+          format: date
+          nullable: true
         valor:
           type: string
           format: decimal
@@ -3628,6 +4022,10 @@ components:
           nullable: true
         cobranca_imediata:
           type: boolean
+        data_acordada_cobranca:
+          type: string
+          format: date
+          nullable: true
         nome_contato_envio_nf:
           type: string
           minLength: 1
@@ -3667,49 +4065,65 @@ components:
         observacao:
           type: string
           nullable: true
-        faturada:
+        cobranca_realizada:
           type: boolean
         numero_nf:
           type: integer
           maximum: 2147483647
           minimum: -2147483648
           nullable: true
-        data_faturamento:
+        data_cobranca:
           type: string
           format: date
           nullable: true
-    PatchedRepositorioMiniOSRequest:
+    PatchedRegistrarCobrancaOSORequestRequest:
       type: object
       properties:
-        nome:
-          type: string
-          minLength: 1
-          maxLength: 50
-        descricao:
+        numero_nf:
           type: string
           nullable: true
-    PatchedRepositorioRequest:
+          minLength: 1
+          maxLength: 10
+    PatchedRegistrarCobrancaRequestRequest:
       type: object
       properties:
-        nome:
+        numero_nf:
+          type: integer
+          nullable: true
+        data_cobranca:
           type: string
-          minLength: 1
-          maxLength: 100
-        descricao:
-          type: string
+          format: date
           nullable: true
     PatchedServicoRequest:
       type: object
       properties:
         ordem_servico:
           type: integer
-        repositorio:
+        catalogo:
           type: integer
           nullable: true
         descricao:
           type: string
           minLength: 1
-    PatchedSubitemRepositorioRequest:
+        prioridade:
+          $ref: '#/components/schemas/PrioridadeEnum'
+        prazo:
+          type: string
+          format: date
+          nullable: true
+        horas_estimadas:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+          nullable: true
+        complexidade:
+          nullable: true
+          minimum: 0
+          maximum: 65535
+          oneOf:
+          - $ref: '#/components/schemas/ComplexidadeEnum'
+          - $ref: '#/components/schemas/NullEnum'
+    PatchedSubitemCatalogoRequest:
       type: object
       properties:
         nome:
@@ -3726,7 +4140,7 @@ components:
           maximum: 4294967295
           minimum: 0
           format: int64
-        repositorio:
+        catalogo:
           type: integer
     PatchedTarefaRequest:
       type: object
@@ -3740,6 +4154,17 @@ components:
           nullable: true
         status:
           $ref: '#/components/schemas/StatusOSETarefaEnum'
+        prioridade:
+          $ref: '#/components/schemas/PrioridadeEnum'
+        prazo:
+          type: string
+          format: date
+          nullable: true
+        horas_estimadas:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+          nullable: true
     PatchedUsuarioUpdateRequest:
       type: object
       properties:
@@ -3774,21 +4199,6 @@ components:
         * `baixa` - Baixa
         * `media` - Média
         * `alta` - Alta
-    ProdutividadeResponse:
-      type: object
-      properties:
-        tempos_medios:
-          $ref: '#/components/schemas/TemposMedios'
-        taxa_cancelamento:
-          $ref: '#/components/schemas/TaxaCancelamento'
-        por_tecnico:
-          type: array
-          items:
-            $ref: '#/components/schemas/TecnicoProdutividade'
-      required:
-      - por_tecnico
-      - taxa_cancelamento
-      - tempos_medios
     RegistroAuditoria:
       type: object
       properties:
@@ -3893,66 +4303,6 @@ components:
       - user_agent
       - usuario
       - usuario_nome
-    Repositorio:
-      type: object
-      properties:
-        id:
-          type: integer
-          readOnly: true
-        subitens:
-          type: array
-          items:
-            $ref: '#/components/schemas/SubitemRepositorio'
-          readOnly: true
-        nome:
-          type: string
-          maxLength: 100
-        descricao:
-          type: string
-          nullable: true
-      required:
-      - id
-      - nome
-      - subitens
-    RepositorioMiniOS:
-      type: object
-      properties:
-        id:
-          type: integer
-          readOnly: true
-        nome:
-          type: string
-          maxLength: 50
-        descricao:
-          type: string
-          nullable: true
-      required:
-      - id
-      - nome
-    RepositorioMiniOSRequest:
-      type: object
-      properties:
-        nome:
-          type: string
-          minLength: 1
-          maxLength: 50
-        descricao:
-          type: string
-          nullable: true
-      required:
-      - nome
-    RepositorioRequest:
-      type: object
-      properties:
-        nome:
-          type: string
-          minLength: 1
-          maxLength: 100
-        descricao:
-          type: string
-          nullable: true
-      required:
-      - nome
     RevisaoPorCliente:
       type: object
       properties:
@@ -3962,9 +4312,14 @@ components:
           type: string
         total:
           type: integer
+        percentual:
+          type: number
+          format: double
+          nullable: true
       required:
       - cliente_id
       - cliente_nome
+      - percentual
       - total
     Servico:
       type: object
@@ -3974,12 +4329,12 @@ components:
           readOnly: true
         ordem_servico:
           type: integer
-        repositorio:
+        catalogo:
           type: integer
           nullable: true
-        repositorio_detail:
+        catalogo_detail:
           allOf:
-          - $ref: '#/components/schemas/Repositorio'
+          - $ref: '#/components/schemas/Catalogo'
           readOnly: true
         descricao:
           type: string
@@ -3990,6 +4345,41 @@ components:
         status_display:
           type: string
           readOnly: true
+        prioridade:
+          $ref: '#/components/schemas/PrioridadeEnum'
+        prioridade_display:
+          type: string
+          readOnly: true
+        prazo:
+          type: string
+          format: date
+          nullable: true
+        horas_estimadas:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+          nullable: true
+        horas_estimadas_efetivas:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+          readOnly: true
+          nullable: true
+        complexidade:
+          nullable: true
+          minimum: 0
+          maximum: 65535
+          oneOf:
+          - $ref: '#/components/schemas/ComplexidadeEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        complexidade_display:
+          type: string
+          nullable: true
+          readOnly: true
+        complexidade_efetiva:
+          type: integer
+          readOnly: true
+          nullable: true
         data_inicio:
           type: string
           format: date
@@ -4023,14 +4413,18 @@ components:
           readOnly: true
       required:
       - atualizado_em
+      - catalogo_detail
+      - complexidade_display
+      - complexidade_efetiva
       - criado_em
       - data_conclusao
       - data_inicio
       - data_termino
       - descricao
+      - horas_estimadas_efetivas
       - id
       - ordem_servico
-      - repositorio_detail
+      - prioridade_display
       - status
       - status_display
       - terminado_por
@@ -4065,10 +4459,10 @@ components:
           readOnly: true
         ordem_servico:
           type: integer
-        repositorio:
+        catalogo:
           type: integer
           nullable: true
-        repositorio_nome:
+        catalogo_nome:
           type: string
           readOnly: true
         descricao:
@@ -4078,6 +4472,41 @@ components:
         status_display:
           type: string
           readOnly: true
+        prioridade:
+          $ref: '#/components/schemas/PrioridadeEnum'
+        prioridade_display:
+          type: string
+          readOnly: true
+        prazo:
+          type: string
+          format: date
+          nullable: true
+        horas_estimadas:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+          nullable: true
+        horas_estimadas_efetivas:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+          readOnly: true
+          nullable: true
+        complexidade:
+          nullable: true
+          minimum: 0
+          maximum: 65535
+          oneOf:
+          - $ref: '#/components/schemas/ComplexidadeEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        complexidade_display:
+          type: string
+          nullable: true
+          readOnly: true
+        complexidade_efetiva:
+          type: integer
+          readOnly: true
+          nullable: true
         data_inicio:
           type: string
           format: date
@@ -4109,7 +4538,7 @@ components:
           type: string
           readOnly: true
           default: ''
-        data_criacao:
+        data_venda:
           type: string
           format: date
           readOnly: true
@@ -4118,13 +4547,17 @@ components:
           readOnly: true
       required:
       - atualizado_em
+      - catalogo_nome
       - cliente_nome
+      - complexidade_display
+      - complexidade_efetiva
       - criado_em
-      - data_criacao
+      - data_venda
       - descricao
+      - horas_estimadas_efetivas
       - id
       - ordem_servico
-      - repositorio_nome
+      - prioridade_display
       - status_display
       - tem_tarefas
       - terminado_por_nome
@@ -4144,27 +4577,50 @@ components:
     ServicoPrincipal:
       type: object
       properties:
-        repositorio_id:
+        catalogo_id:
           type: integer
-        repositorio_nome:
+        catalogo_nome:
           type: string
         total:
           type: integer
+        percentual:
+          type: number
+          format: double
+          nullable: true
       required:
-      - repositorio_id
-      - repositorio_nome
+      - catalogo_id
+      - catalogo_nome
+      - percentual
       - total
     ServicoRequest:
       type: object
       properties:
         ordem_servico:
           type: integer
-        repositorio:
+        catalogo:
           type: integer
           nullable: true
         descricao:
           type: string
           minLength: 1
+        prioridade:
+          $ref: '#/components/schemas/PrioridadeEnum'
+        prazo:
+          type: string
+          format: date
+          nullable: true
+        horas_estimadas:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+          nullable: true
+        complexidade:
+          nullable: true
+          minimum: 0
+          maximum: 65535
+          oneOf:
+          - $ref: '#/components/schemas/ComplexidadeEnum'
+          - $ref: '#/components/schemas/NullEnum'
       required:
       - descricao
       - ordem_servico
@@ -4202,7 +4658,7 @@ components:
         * `em_andamento` - Em Andamento
         * `concluida` - Concluído
         * `cancelado` - Cancelado
-    SubitemRepositorio:
+    SubitemCatalogo:
       type: object
       properties:
         id:
@@ -4229,15 +4685,15 @@ components:
           type: string
           format: date-time
           readOnly: true
-        repositorio:
+        catalogo:
           type: integer
       required:
       - atualizado_em
+      - catalogo
       - criado_em
       - id
       - nome
-      - repositorio
-    SubitemRepositorioRequest:
+    SubitemCatalogoRequest:
       type: object
       properties:
         nome:
@@ -4254,11 +4710,11 @@ components:
           maximum: 4294967295
           minimum: 0
           format: int64
-        repositorio:
+        catalogo:
           type: integer
       required:
+      - catalogo
       - nome
-      - repositorio
     Tarefa:
       type: object
       properties:
@@ -4280,6 +4736,30 @@ components:
         status_display:
           type: string
           readOnly: true
+        prioridade:
+          $ref: '#/components/schemas/PrioridadeEnum'
+        prioridade_display:
+          type: string
+          readOnly: true
+        prazo:
+          type: string
+          format: date
+          nullable: true
+        complexidade_servico:
+          type: integer
+          nullable: true
+          readOnly: true
+        horas_estimadas:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+          nullable: true
+        horas_estimadas_efetivas:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+          readOnly: true
+          nullable: true
         data_inicio:
           type: string
           format: date
@@ -4300,10 +4780,13 @@ components:
           readOnly: true
       required:
       - atualizado_em
+      - complexidade_servico
       - criada_em
       - data_inicio
       - data_termino
+      - horas_estimadas_efetivas
       - id
+      - prioridade_display
       - responsavel
       - responsavel_nome
       - servico
@@ -4338,8 +4821,12 @@ components:
         cliente_nome:
           type: string
           readOnly: true
-        repositorio_nome:
+        catalogo_nome:
           type: string
+          readOnly: true
+        complexidade_servico:
+          type: integer
+          nullable: true
           readOnly: true
         descricao:
           type: string
@@ -4349,6 +4836,26 @@ components:
         status_display:
           type: string
           readOnly: true
+        prioridade:
+          $ref: '#/components/schemas/PrioridadeEnum'
+        prioridade_display:
+          type: string
+          readOnly: true
+        prazo:
+          type: string
+          format: date
+          nullable: true
+        horas_estimadas:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+          nullable: true
+        horas_estimadas_efetivas:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+          readOnly: true
+          nullable: true
         data_inicio:
           type: string
           format: date
@@ -4367,10 +4874,13 @@ components:
           readOnly: true
       required:
       - atualizado_em
+      - catalogo_nome
       - cliente_nome
+      - complexidade_servico
       - criada_em
+      - horas_estimadas_efetivas
       - id
-      - repositorio_nome
+      - prioridade_display
       - responsavel
       - responsavel_nome
       - servico
@@ -4400,6 +4910,17 @@ components:
           nullable: true
         status:
           $ref: '#/components/schemas/StatusOSETarefaEnum'
+        prioridade:
+          $ref: '#/components/schemas/PrioridadeEnum'
+        prazo:
+          type: string
+          format: date
+          nullable: true
+        horas_estimadas:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+          nullable: true
       required:
       - responsavel
       - servico
@@ -4410,8 +4931,23 @@ components:
           $ref: '#/components/schemas/BlocoCancelamento'
         servicos:
           $ref: '#/components/schemas/BlocoCancelamento'
+        por_catalogo:
+          type: array
+          items:
+            $ref: '#/components/schemas/CancelamentoPorCatalogo'
       required:
+      - por_catalogo
       - servicos
+      - tarefas
+    TaxaCumprimentoPrazo:
+      type: object
+      properties:
+        tarefas:
+          $ref: '#/components/schemas/BlocoCumprimentoPrazo'
+        minios:
+          $ref: '#/components/schemas/BlocoCumprimentoPrazo'
+      required:
+      - minios
       - tarefas
     TecnicoProdutividade:
       type: object
@@ -4427,11 +4963,27 @@ components:
           type: number
           format: double
           nullable: true
+        complexidade_media_concluidas:
+          type: number
+          format: double
+          nullable: true
+        horas_estimadas_entregues:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,6}(?:\.\d{0,2})?$
         mini_os_concluidas:
           type: integer
         tarefas_em_aberto:
           type: integer
         mini_os_em_aberto:
+          type: integer
+        tarefas_atrasadas:
+          type: integer
+        mini_os_atrasadas:
+          type: integer
+        tarefas_alta_prioridade_abertas:
+          type: integer
+        mini_os_alta_prioridade_abertas:
           type: integer
         tarefas_concluidas_por_mes:
           type: array
@@ -4441,32 +4993,59 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Mes'
+        taxa_cumprimento_prazo_tarefas:
+          type: number
+          format: double
+          nullable: true
+        taxa_cumprimento_prazo_minios:
+          type: number
+          format: double
+          nullable: true
       required:
+      - complexidade_media_concluidas
+      - horas_estimadas_entregues
+      - mini_os_alta_prioridade_abertas
+      - mini_os_atrasadas
       - mini_os_concluidas
       - mini_os_concluidas_por_mes
       - mini_os_em_aberto
+      - tarefas_alta_prioridade_abertas
+      - tarefas_atrasadas
       - tarefas_concluidas
       - tarefas_concluidas_por_mes
       - tarefas_em_aberto
+      - taxa_cumprimento_prazo_minios
+      - taxa_cumprimento_prazo_tarefas
       - tecnico_id
       - tecnico_nome
       - tempo_medio_tarefa_dias
-    TempoPorRepositorio:
+    TempoPorCatalogo:
       type: object
+      description: Reutilizado tanto para Serviço/Catálogo quanto para OSO/CatalogoOperacional.
       properties:
-        repositorio_id:
+        catalogo_id:
           type: integer
-        repositorio_nome:
+        catalogo_nome:
           type: string
+        horas_estimadas:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+          nullable: true
+        complexidade:
+          type: integer
+          nullable: true
         total_concluidos:
           type: integer
         media_dias:
           type: number
           format: double
       required:
+      - catalogo_id
+      - catalogo_nome
+      - complexidade
+      - horas_estimadas
       - media_dias
-      - repositorio_id
-      - repositorio_nome
       - total_concluidos
     TemposMedios:
       type: object
@@ -4491,10 +5070,14 @@ components:
           type: number
           format: double
           nullable: true
-        tempo_por_repositorio:
+        tempo_por_catalogo_servico:
           type: array
           items:
-            $ref: '#/components/schemas/TempoPorRepositorio'
+            $ref: '#/components/schemas/TempoPorCatalogo'
+        tempo_por_catalogo_oso:
+          type: array
+          items:
+            $ref: '#/components/schemas/TempoPorCatalogo'
       required:
       - os_criacao_para_conclusao_dias
       - os_criacao_para_encerramento_dias
@@ -4502,7 +5085,8 @@ components:
       - os_total_com_data
       - servicos_inicio_para_fim_dias
       - tarefa_criacao_para_inicio_dias
-      - tempo_por_repositorio
+      - tempo_por_catalogo_oso
+      - tempo_por_catalogo_servico
     TipoClienteEnum:
       enum:
       - gestao

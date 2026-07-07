@@ -4,20 +4,22 @@ import { useEV1Modal } from '@/hooks/useEV1Modal';
 import { Link, useLocation } from 'react-router-dom';
 import {
   FileText,
-  Wrench,
+  Package,
   DollarSign,
   LogOut,
   User,
   Users,
+  Building2,
+  ClipboardList,
   Bell,
   AlertCircle,
   CheckCircle2,
   Clock,
-  Zap,
-  BookOpen,
   PanelLeft,
   BarChart2,
   Activity,
+  ChevronDown,
+  ChevronsUpDown,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -27,26 +29,40 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from '@/components/ui/breadcrumb';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Separator } from '@/components/ui/separator';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import ThemeToggle from '@/components/ThemeToggle';
 import HeaderSearch from '@/components/layout/HeaderSearch';
 import { authService, UserProfile as BackendUserProfile } from '@/services/auth';
+import { TIPO_USUARIO_OPTIONS } from '@/features/usuarios/services';
 import UnderDevelopmentOverlay from '@/components/UnderDevelopmentOverlay';
 import { useUserRole } from '@/hooks/useUserRole';
 
+const NOTIFICATIONS = [
+  { icon: AlertCircle, iconClassName: 'text-destructive', title: 'Uma OS precisa de atenção', time: 'Há 3 min' },
+  { icon: CheckCircle2, iconClassName: 'text-green-500', title: 'Pagamento confirmado', time: 'Há 20 min' },
+  { icon: Clock, iconClassName: 'text-yellow-500', title: 'Serviço agendado para amanhã', time: 'Há 1 h' },
+];
+
 const baseMenuItems = [
   { title: 'Ordens de Serviço',  url: '/dashboard/orders',        icon: FileText },
-  { title: 'OS Operacionais',     url: '/dashboard/quick-tasks',   icon: Zap },
-  { title: 'Financeiro',         url: '/dashboard/financial',     icon: DollarSign },
+  { title: 'OS Operacionais',     url: '/dashboard/quick-tasks',   icon: FileText },
+  { title: 'Cobranças',         url: '/dashboard/financial',     icon: DollarSign },
 ];
 
 const adminItems = [
-  { title: 'Clientes',                    url: '/dashboard/clients',              icon: Users },
-  { title: 'Catálogo',                    url: '/dashboard/catalog',              icon: Wrench },
-  { title: 'Catálogo OS Operacionais',    url: '/dashboard/quick-tasks/catalog',  icon: BookOpen },
+  { title: 'Clientes',                    url: '/dashboard/clients',              icon: Building2 },
+  { title: 'Catálogo',                    url: '/dashboard/catalog',              icon: Package },
+  { title: 'Catálogo OS Operacionais',    url: '/dashboard/quick-tasks/catalog',  icon: Package },
   { title: 'Usuários',                    url: '/dashboard/users',                icon: Users },
 ];
 
@@ -69,13 +85,17 @@ const NavItem = ({ item, isActive, collapsed }: NavItemProps) => (
       <Link
         to={item.url}
         className={cn(
-          'flex items-center gap-3 h-9 rounded-md px-2 text-sm font-medium',
+          'relative flex items-center h-9 rounded-md text-sm font-medium',
           'transition-colors duration-150 overflow-hidden whitespace-nowrap',
+          collapsed ? 'justify-center px-0 mx-1' : 'gap-3 pl-3 pr-2',
           isActive
             ? 'bg-primary/10 text-primary'
             : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground',
         )}
       >
+        {isActive && (
+          <span className="absolute left-0 top-1/2 -translate-y-1/2 h-[60%] w-[3px] rounded-full bg-primary" />
+        )}
         <item.icon className="w-5 h-5 flex-shrink-0" />
         <span className={cn(
           'transition-[opacity,max-width] duration-200 overflow-hidden',
@@ -153,6 +173,16 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
     return name || currentUser?.user.username || 'Usuário';
   }, [currentUser]);
 
+  const roleLabel = useMemo(
+    () => TIPO_USUARIO_OPTIONS.find((o) => o.value === currentUser?.tipo_usuario)?.label ?? '',
+    [currentUser],
+  );
+
+  const pageTitle = useMemo(() => {
+    const allItems = [...baseMenuItems, ...analyticsItems, ...adminItems];
+    return allItems.find((item) => location.pathname.startsWith(item.url))?.title ?? null;
+  }, [location.pathname]);
+
   return (
     <TooltipProvider delayDuration={200}>
       <div className="min-h-screen flex w-full bg-background">
@@ -163,11 +193,14 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
             'h-screen sticky top-0 flex-shrink-0 flex flex-col z-30',
             'bg-sidebar border-r border-border',
             'transition-[width] duration-200 ease-in-out overflow-hidden',
-            collapsed ? 'w-[52px]' : 'w-64',
+            collapsed ? 'w-20' : 'w-64',
           )}
         >
           {/* Logo */}
-          <div className="h-16 flex items-center px-2 border-b border-border flex-shrink-0">
+          <div className={cn(
+            'h-16 flex items-center border-b border-border flex-shrink-0',
+            collapsed ? 'justify-center px-0' : 'px-2',
+          )}>
             <Link to="/dashboard" className="flex items-center gap-2 min-w-0">
               <img
                 src="/images/logos/logo-ergo.png"
@@ -179,9 +212,8 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                 'transition-[opacity,max-width] duration-200 overflow-hidden',
                 collapsed ? 'opacity-0 max-w-0' : 'opacity-100 max-w-[160px]',
               )}>
-                <span className="text-[#256DB6]">ERGO</span>
-                <span className="text-[#000000] dark:text-white">GRO</span>
-                <span className="text-[#256DB6]">UP</span>
+                <span className="text-foreground">ERGO</span>
+                <span className="text-primary">GROUP</span>
               </div>
             </Link>
           </div>
@@ -194,7 +226,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
               </p>
             )}
 
-            <div className="space-y-0.5">
+            <div className="space-y-1">
               {visibleMenuItems.map((item) => {
                 const isActive =
                   location.pathname === item.url ||
@@ -203,36 +235,90 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
               })}
             </div>
 
-            {!collapsed && <Separator className="my-2" />}
-
             {!collapsed && (
-              <p className="px-2 py-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              <p className="px-2 py-1 mt-4 text-xs font-medium uppercase tracking-wider text-muted-foreground">
                 Análise
               </p>
             )}
 
-            <div className="space-y-0.5 mt-0.5">
+            <div className="space-y-1 mt-0.5">
               {visibleAnalyticsItems.map((item) => {
                 const isActive = location.pathname === item.url;
                 return <NavItem key={item.url} item={item} isActive={isActive} collapsed={collapsed} />;
               })}
             </div>
 
-            {!collapsed && <Separator className="my-2" />}
-
             {!collapsed && (
-              <p className="px-2 py-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              <p className="px-2 py-1 mt-4 text-xs font-medium uppercase tracking-wider text-muted-foreground">
                 Administração
               </p>
             )}
 
-            <div className="space-y-0.5 mt-0.5">
+            <div className="space-y-1 mt-0.5">
               {adminItems.map((item) => {
                 const isActive = location.pathname === item.url;
                 return <NavItem key={item.url} item={item} isActive={isActive} collapsed={collapsed} />;
               })}
             </div>
           </nav>
+
+          {/* User card */}
+          <div className="border-t border-border p-2 flex-shrink-0">
+            <DropdownMenu>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      className={cn(
+                        'w-full flex items-center gap-2 rounded-md p-1.5',
+                        'hover:bg-sidebar-accent transition-colors duration-150',
+                        collapsed && 'justify-center',
+                      )}
+                    >
+                      <div className="relative flex-shrink-0">
+                        <Avatar className="w-8 h-8">
+                          {currentUser?.foto_perfil ? <AvatarImage src={currentUser.foto_perfil} /> : null}
+                          <AvatarFallback className="bg-primary/20 text-primary">{initials}</AvatarFallback>
+                        </Avatar>
+                        <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-status-completed border-2 border-sidebar-background" />
+                      </div>
+                      <div className={cn(
+                        'flex-1 flex items-center gap-1.5 min-w-0 text-left',
+                        'transition-[opacity,max-width] duration-200 overflow-hidden',
+                        collapsed ? 'opacity-0 max-w-0' : 'opacity-100 max-w-[180px]',
+                      )}>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{displayName}</p>
+                          <p className="text-xs text-muted-foreground truncate">{roleLabel}</p>
+                        </div>
+                        <ChevronsUpDown className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                      </div>
+                    </button>
+                  </DropdownMenuTrigger>
+                </TooltipTrigger>
+                {collapsed && (
+                  <TooltipContent side="right" className="font-medium text-xs">
+                    {displayName}
+                  </TooltipContent>
+                )}
+              </Tooltip>
+              <DropdownMenuContent align="end" side="top" className="w-56">
+                <DropdownMenuItem asChild>
+                  <Link to="/dashboard/profile" className="flex items-center">
+                    <User className="w-4 h-4 mr-2" />
+                    Meu Perfil
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <Link to="/" className="flex items-center text-destructive">
+                    <LogOut className="w-4 h-4 mr-2" />
+                    Sair
+                  </Link>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </aside>
 
         {/* ── Main area ───────────────────────────────────────────────────── */}
@@ -240,46 +326,57 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
 
           {/* Header */}
           <header className="h-16 border-b border-border bg-card/50 backdrop-blur-sm flex items-center justify-between px-6 sticky top-0 z-40">
-            <div className="flex items-center gap-3">
-              <Button variant="ghost" size="icon" className="h-7 w-7 flex-shrink-0" onClick={toggle}>
+            <div className="flex items-center gap-4">
+              <Button variant="outline" size="icon" className="h-8 w-8 flex-shrink-0" onClick={toggle}>
                 <PanelLeft className="w-4 h-4" />
                 <span className="sr-only">Toggle Sidebar</span>
               </Button>
+
+              <Breadcrumb className="hidden md:block">
+                <BreadcrumbList>
+                  <BreadcrumbItem>
+                    <BreadcrumbLink asChild>
+                      <Link to="/dashboard">Dashboard</Link>
+                    </BreadcrumbLink>
+                  </BreadcrumbItem>
+                  {pageTitle && (
+                    <>
+                      <BreadcrumbSeparator />
+                      <BreadcrumbItem>
+                        <BreadcrumbPage className="font-semibold">{pageTitle}</BreadcrumbPage>
+                      </BreadcrumbItem>
+                    </>
+                  )}
+                </BreadcrumbList>
+              </Breadcrumb>
+
               <HeaderSearch />
             </div>
 
             <div className="flex items-center gap-4">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="relative h-9 w-9 p-0" aria-label="Notificações">
+                  <Button variant="outline" className="relative h-9 w-9 p-0" aria-label="Notificações">
                     <Bell className="w-5 h-5" />
-                    <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-destructive" />
+                    {NOTIFICATIONS.length > 0 && (
+                      <span className="absolute -top-1 -right-1 h-4 min-w-4 px-0.5 rounded-full bg-destructive text-destructive-foreground text-[10px] font-medium leading-4 text-center">
+                        {NOTIFICATIONS.length}
+                      </span>
+                    )}
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-80">
                   <div className="px-2 py-1.5 text-sm font-semibold">Notificações</div>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem className="flex items-start gap-2">
-                    <AlertCircle className="w-4 h-4 mt-0.5 text-destructive" />
-                    <div className="flex-1">
-                      <div className="text-sm">Uma OS precisa de atenção</div>
-                      <div className="text-xs text-muted-foreground">Há 3 min</div>
-                    </div>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem className="flex items-start gap-2">
-                    <CheckCircle2 className="w-4 h-4 mt-0.5 text-green-500" />
-                    <div className="flex-1">
-                      <div className="text-sm">Pagamento confirmado</div>
-                      <div className="text-xs text-muted-foreground">Há 20 min</div>
-                    </div>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem className="flex items-start gap-2">
-                    <Clock className="w-4 h-4 mt-0.5 text-yellow-500" />
-                    <div className="flex-1">
-                      <div className="text-sm">Serviço agendado para amanhã</div>
-                      <div className="text-xs text-muted-foreground">Há 1 h</div>
-                    </div>
-                  </DropdownMenuItem>
+                  {NOTIFICATIONS.map((notification) => (
+                    <DropdownMenuItem key={notification.title} className="flex items-start gap-2">
+                      <notification.icon className={cn('w-4 h-4 mt-0.5', notification.iconClassName)} />
+                      <div className="flex-1">
+                        <div className="text-sm">{notification.title}</div>
+                        <div className="text-xs text-muted-foreground">{notification.time}</div>
+                      </div>
+                    </DropdownMenuItem>
+                  ))}
                   <DropdownMenuSeparator />
                   <DropdownMenuItem className="justify-center text-primary">Ver todas</DropdownMenuItem>
                 </DropdownMenuContent>
@@ -289,12 +386,16 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="flex items-center gap-3 h-auto p-2">
+                  <Button variant="outline" className="flex items-center gap-2 h-auto py-1.5 px-2.5">
                     <Avatar className="w-8 h-8">
                       {currentUser?.foto_perfil ? <AvatarImage src={currentUser.foto_perfil} /> : null}
                       <AvatarFallback className="bg-primary/20 text-primary">{initials}</AvatarFallback>
                     </Avatar>
-                    <span className="hidden sm:block text-sm font-medium">{displayName}</span>
+                    <div className="hidden sm:flex flex-col items-start leading-tight">
+                      <span className="text-sm font-medium">{displayName}</span>
+                      <span className="text-xs text-muted-foreground">{roleLabel}</span>
+                    </div>
+                    <ChevronDown className="hidden sm:block w-4 h-4 text-muted-foreground" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48">
