@@ -6,29 +6,17 @@ import {
   createOperationalOrder,
   updateOperationalOrder,
   deleteOperationalOrder,
-  getOperationalOrderCatalog,
-  getOperationalOrderCatalogPage,
-  getOperationalOrderCatalogItem,
-  createOperationalOrderCatalogItem,
-  updateOperationalOrderCatalogItem,
-  deleteOperationalOrderCatalogItem,
+  registrarCobrancaOperacional,
   CreateOperationalOrderPayload,
   UpdateOperationalOrderPayload,
   OperationalOrderListParams,
-  OperationalOrderCatalogPageParams,
-} from './services';
+} from './servicesOperacional';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const invalidateList = (qc: ReturnType<typeof useQueryClient>) => {
   qc.invalidateQueries({ queryKey: ['operational-order-list'] });
   qc.invalidateQueries({ queryKey: ['operational-order-page'] });
-};
-
-const invalidateCatalog = (qc: ReturnType<typeof useQueryClient>, id?: number) => {
-  qc.invalidateQueries({ queryKey: ['operational-order-catalog'] });
-  qc.invalidateQueries({ queryKey: ['operational-order-catalog-page'] });
-  if (id !== undefined) qc.invalidateQueries({ queryKey: ['operational-order-catalog-item', id] });
 };
 
 // ── Operational Order queries ─────────────────────────────────────────────────
@@ -85,53 +73,14 @@ export const useDeleteOperationalOrder = () => {
   });
 };
 
-// ── Catalog queries ───────────────────────────────────────────────────────────
-
-export const useOperationalOrderCatalog = () =>
-  useQuery({
-    queryKey: ['operational-order-catalog'],
-    queryFn: getOperationalOrderCatalog,
-    staleTime: 1000 * 60 * 5,
-  });
-
-export const useOperationalOrderCatalogPage = (params: OperationalOrderCatalogPageParams) =>
-  useQuery({
-    queryKey: ['operational-order-catalog-page', params],
-    queryFn: () => getOperationalOrderCatalogPage(params),
-    staleTime: 1000 * 60 * 5,
-  });
-
-export const useOperationalOrderCatalogItem = (id?: number) =>
-  useQuery({
-    queryKey: ['operational-order-catalog-item', id],
-    queryFn: () => getOperationalOrderCatalogItem(id!),
-    enabled: !!id,
-    staleTime: 1000 * 60 * 5,
-  });
-
-// ── Catalog mutations ─────────────────────────────────────────────────────────
-
-export const useUpsertOperationalOrderCatalog = () => {
+export const useRegistrarCobrancaOperacional = () => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({
-      id,
-      payload,
-    }: {
-      id?: number;
-      payload: { nome: string; descricao?: string | null };
-    }) => {
-      if (id === undefined) return createOperationalOrderCatalogItem(payload);
-      return updateOperationalOrderCatalogItem(id, payload);
+    mutationFn: ({ id, numeroNf }: { id: number; numeroNf: string }) =>
+      registrarCobrancaOperacional(id, numeroNf),
+    onSuccess: (_, { id }) => {
+      invalidateList(qc);
+      qc.invalidateQueries({ queryKey: ['operational-order-detail', id] });
     },
-    onSuccess: (_, { id }) => invalidateCatalog(qc, id),
-  });
-};
-
-export const useDeleteOperationalOrderCatalog = () => {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: number) => deleteOperationalOrderCatalogItem(id),
-    onSuccess: (_, id) => invalidateCatalog(qc, id),
   });
 };

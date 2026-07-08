@@ -1,5 +1,6 @@
 import { X } from 'lucide-react';
-import { getStatusLabel } from '../utils';
+import { getStatusLabel } from '../utilsOperacional';
+import { getPriorityLabel } from '../utils';
 import { defaultFilters, type OperationalOrderFiltersState } from './OperationalOrderFilters';
 
 const Chip = ({ label, onRemove }: { label: string; onRemove: () => void }) => (
@@ -34,17 +35,33 @@ export function OperationalOrderActiveFilters({
     chips.push({ key: 'status', label: getStatusLabel(filters.status), onRemove: () => set({ status: 'all' }) });
   }
 
-  if (filters.faturada !== 'all') {
+  if (filters.prioridade !== 'all') {
+    chips.push({ key: 'prioridade', label: getPriorityLabel(filters.prioridade), onRemove: () => set({ prioridade: 'all' }) });
+  }
+
+  if (filters.cobrancaRealizada !== 'all') {
     chips.push({
-      key: 'faturada',
-      label: filters.faturada === 'true' ? 'Faturado' : 'Não faturado',
-      onRemove: () => set({ faturada: 'all' }),
+      key: 'cobrancaRealizada',
+      label: filters.cobrancaRealizada === 'true' ? 'Cobrança realizada' : 'Cobrança pendente',
+      onRemove: () => set({ cobrancaRealizada: 'all' }),
     });
   }
 
   if (filters.responsavel !== 'all') {
     const label = technicianOptions.find((opt) => opt.value === filters.responsavel)?.label ?? filters.responsavel;
     chips.push({ key: 'responsavel', label, onRemove: () => set({ responsavel: 'all' }) });
+  }
+
+  if (filters.atrasada) {
+    chips.push({ key: 'atrasada', label: 'Somente atrasadas', onRemove: () => set({ atrasada: false }) });
+  }
+
+  if (filters.ordering !== 'none') {
+    chips.push({
+      key: 'ordering',
+      label: filters.ordering === 'prazo' ? 'Prazo (mais próximo)' : 'Prazo (mais distante)',
+      onRemove: () => set({ ordering: 'none' }),
+    });
   }
 
   if (chips.length === 0) return null;

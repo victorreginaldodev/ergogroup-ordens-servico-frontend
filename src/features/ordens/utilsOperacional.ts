@@ -27,13 +27,3 @@ export const getStatusLabel = (status: string): string =>
 
 export const getStatusBadgeClass = (status: string): string =>
   STATUS_BADGE[status] ?? 'bg-secondary text-secondary-foreground border-border';
-
-export const formatDate = (value: string | null | undefined): string | null => {
-  if (!value) return null;
-  try {
-    const [year, month, day] = value.split('T')[0].split('-');
-    return `${day}/${month}/${year}`;
-  } catch {
-    return value;
-  }
-};

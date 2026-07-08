@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ClipboardCheck, Loader2, Plus } from 'lucide-react';
+import { CheckCircle2, Loader2, MoreVertical, Pencil, Plus, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -18,42 +18,62 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { formatDate } from '../utils';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { formatDate, isPrazoVencido, PRIORITY_DOT, STATUS_DOT } from '../utils';
 import {
   useCreateTarefa,
+  useDeleteServico,
   useDeleteTarefa,
   useTarefasDeServico,
   useUpdateTarefa,
 } from '../hooks';
 import { TarefaRow } from './TarefaRow';
+import { ServicoFormDialog } from './ServicoFormDialog';
 import type { ServicoDetalhe, TarefaDetalhe, UpdateTarefaPayload } from '../services';
 import type { UsuarioApi } from '@/features/usuarios/services';
 
-// ── Estilo da barra lateral por status ───────────────────────────────────────
+// ── Rótulos ──────────────────────────────────────────────────────────────────
 
 const STATUS_TEXT: Record<string, string> = {
   aberto:       'Aberto',
   em_andamento: 'Em andamento',
   concluida:    'Concluído',
   cancelado:    'Cancelado',
-  cancelada:    'Cancelado',
 };
 
-const STATUS_BADGE_STYLE: Record<string, string> = {
-  aberto:       'border-red-200 bg-red-50 text-red-700',
-  em_andamento: 'border-amber-200 bg-amber-50 text-amber-700',
-  concluida:    'border-green-200 bg-green-50 text-green-700',
-  cancelado:    'border-slate-200 bg-slate-100 text-slate-600',
-  cancelada:    'border-slate-200 bg-slate-100 text-slate-600',
+const STATUS_TEXT_CLASS: Record<string, string> = {
+  aberto:       'text-red-600 dark:text-red-400',
+  em_andamento: 'text-amber-600 dark:text-amber-400',
+  concluida:    'text-green-600 dark:text-green-400',
+  cancelado:    'text-muted-foreground',
 };
 
-const STATUS_DOT: Record<string, string> = {
-  aberto:       'bg-red-500',
-  em_andamento: 'bg-amber-400',
-  concluida:    'bg-green-500',
-  cancelado:    'bg-slate-400',
-  cancelada:    'bg-slate-400',
+// STATUS_DOT (utils.ts) é indexado pelas grafias de status de Ordem/Tarefa
+// ('aberta'/'cancelada'); ServicoDetalhe.status usa 'aberto'/'cancelado'.
+const SERVICO_STATUS_DOT: Record<string, string> = {
+  aberto:       STATUS_DOT.aberta,
+  em_andamento: STATUS_DOT.em_andamento,
+  concluida:    STATUS_DOT.concluida,
+  cancelado:    STATUS_DOT.cancelada,
 };
+
+const PRIORIDADE_LABEL: Record<string, string> = { baixa: 'Baixa', media: 'Média', alta: 'Alta' };
+const COMPLEXIDADE_LABEL: Record<number, string> = { 1: 'Baixa', 2: 'Média', 3: 'Alta' };
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -61,7 +81,12 @@ interface ServicoAccordionCardProps {
   servico: ServicoDetalhe;
   ordemId: number;
   usuarios: UsuarioApi[];
+  /** Líder/Sub-Líder Técnico: CRUD completo de serviço e tarefa. */
   canManageTasks: boolean;
+  /** Diretor (e quem já tem canManageTasks): pode criar novas tarefas, mesmo sem gerenciar o serviço. */
+  canCreateTasks?: boolean;
+  /** Técnico: pode avançar/reverter o status só das próprias tarefas. */
+  allowSelfStatusUpdate?: boolean;
   index: number;
   currentUserId?: number;
   filterUserId?: number;
@@ -75,7 +100,8 @@ export function ServicoAccordionCard({
   ordemId,
   usuarios,
   canManageTasks,
-  index,
+  canCreateTasks,
+  allowSelfStatusUpdate,
   currentUserId,
   filterUserId,
   initialTarefas,
@@ -83,9 +109,10 @@ export function ServicoAccordionCard({
   const [dialogOpen, setDialogOpen] = useState(false);
   const [novaDescricao, setNovaDescricao] = useState('');
   const [novaResponsavel, setNovaResponsavel] = useState('');
+  const [editServicoOpen, setEditServicoOpen] = useState(false);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
 
-  const nome = servico.repositorio_detail?.nome ?? servico.repositorio_nome ?? `Serviço #${servico.id}`;
-  const serviceTag = `#S-${String(servico.id).padStart(2, '0')}`;
+  const nome = servico.catalogo_detail?.nome ?? servico.catalogo_nome ?? `Serviço #${servico.id}`;
 
   const ctx = { servicoId: servico.id, ordemId };
   const { data: fetchedTarefas, isLoading: loadingFetched } = useTarefasDeServico(
@@ -101,6 +128,7 @@ export function ServicoAccordionCard({
   const createMutation = useCreateTarefa(ctx);
   const updateMutation = useUpdateTarefa(ctx);
   const deleteMutation = useDeleteTarefa(ctx);
+  const deleteServicoMutation = useDeleteServico({ ordemId });
   const isMutating = createMutation.isPending || updateMutation.isPending || deleteMutation.isPending;
 
   const handleOpenDialog = () => {
@@ -123,150 +151,168 @@ export function ServicoAccordionCard({
     );
   };
 
+  const handleConfirmDeleteServico = () => {
+    deleteServicoMutation.mutate(servico.id, { onSuccess: () => setConfirmDeleteOpen(false) });
+  };
+
+  const prazoOverdue = isPrazoVencido(servico.prazo) && servico.status !== 'concluida' && servico.status !== 'cancelado';
+  const isConcluido = servico.status === 'concluida';
+
+  const horasLabel = servico.horas_estimadas
+    ? `Est ${servico.horas_estimadas}h${servico.horas_estimadas_efetivas ? ` · Real ${servico.horas_estimadas_efetivas}h` : ''}`
+    : servico.horas_estimadas_efetivas
+      ? `Real ${servico.horas_estimadas_efetivas}h`
+      : '—';
+
+  const complexidadeLabel = servico.complexidade
+    ? (servico.complexidade_display ?? COMPLEXIDADE_LABEL[servico.complexidade])
+    : '—';
+  const complexidadeEfetivaLabel = servico.complexidade_efetiva
+    ? (COMPLEXIDADE_LABEL[servico.complexidade_efetiva] ?? String(servico.complexidade_efetiva))
+    : null;
+  const complexidadeDiverge = !!complexidadeEfetivaLabel && complexidadeEfetivaLabel !== complexidadeLabel;
+
+  const taskCount = loadingTarefas
+    ? '…'
+    : `${allTarefas?.filter((t) => t.status === 'concluida').length ?? 0}/${allTarefas?.length ?? 0} tarefas`;
+
   const metaItems = [
-    { label: 'Início',      value: formatDate(servico.data_inicio)  ?? '—' },
-    { label: 'Término',     value: formatDate(servico.data_termino) ?? '—' },
-    { label: 'Responsável', value: servico.terminado_por_nome       ?? '—' },
     {
-      label: 'Tarefas',
-      value: loadingTarefas ? '…' : `${allTarefas?.length ?? 0}`,
+      label: 'Prazo',
+      value: (
+        <span className={cn(prazoOverdue && 'text-red-500')}>{formatDate(servico.prazo) ?? '—'}</span>
+      ),
     },
+    { label: 'Horas (est / real)', value: horasLabel },
+    {
+      label: 'Complexidade',
+      value: (
+        <span className="inline-flex items-center gap-1.5">
+          <span>{complexidadeLabel}</span>
+          {complexidadeDiverge && (
+            <span className="text-[11px] font-semibold text-amber-500">efetiva: {complexidadeEfetivaLabel}</span>
+          )}
+        </span>
+      ),
+    },
+    { label: 'Início', value: formatDate(servico.data_inicio) ?? '—' },
+    { label: 'Término', value: formatDate(servico.data_termino) ?? '—' },
+    ...(isConcluido ? [{ label: 'Concluído por', value: servico.terminado_por_nome ?? '—' }] : []),
   ];
 
   return (
-    <div className="overflow-hidden rounded-[14px] border border-border bg-card shadow-[0_4px_20px_rgba(15,23,42,0.05)]">
+    <div className="overflow-hidden rounded-[14px] border border-border bg-card">
       {/* ── Cabeçalho ── */}
-      <div className="flex items-center justify-between gap-3 px-[22px] py-4">
-        <div className="min-w-0">
-          <h3 className="truncate text-base font-bold leading-snug tracking-tight text-foreground">
-            {nome}
-          </h3>
-        </div>
+      <div className="border-b border-border bg-muted/40 px-[18px] py-4">
+        <div className="flex items-start gap-3.5">
+          <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[9px] bg-muted text-muted-foreground">
+            <CheckCircle2 className="h-[17px] w-[17px]" strokeWidth={2} />
+          </div>
 
-        <div className="flex shrink-0 items-center gap-2">
-          <span className="text-xs font-semibold text-muted-foreground/70">
-            {serviceTag}
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <span className="text-[15.5px] font-bold tracking-tight text-foreground">{nome}</span>
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-background px-2.5 py-0.5 text-xs font-semibold">
+                <span className={cn('h-1.5 w-1.5 rounded-full', SERVICO_STATUS_DOT[servico.status] ?? STATUS_DOT.aberta)} />
+                <span className={STATUS_TEXT_CLASS[servico.status] ?? 'text-foreground'}>
+                  {STATUS_TEXT[servico.status] ?? servico.status_display}
+                </span>
+              </span>
+              <span className="inline-flex items-center gap-1.5 text-xs font-semibold">
+                <span className={cn('h-1.5 w-1.5 rounded-full', PRIORITY_DOT[servico.prioridade] ?? PRIORITY_DOT.baixa)} />
+                <span className={servico.prioridade === 'alta' ? 'text-red-500' : 'text-muted-foreground'}>
+                  {PRIORIDADE_LABEL[servico.prioridade] ?? servico.prioridade_display}
+                </span>
+              </span>
+            </div>
+            <p className="mt-[7px] max-w-[80ch] text-[13px] leading-relaxed text-muted-foreground">
+              {servico.descricao || 'Sem descrição.'}
+            </p>
+          </div>
+
+          <span className="shrink-0 whitespace-nowrap rounded-md bg-background px-2.5 py-1 text-xs font-semibold text-muted-foreground">
+            {taskCount}
           </span>
-          <span
-            className={cn(
-              'inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-bold',
-              STATUS_BADGE_STYLE[servico.status] ?? 'border-border bg-muted text-muted-foreground',
-            )}
-          >
-            <span className={cn('h-[7px] w-[7px] rounded-full', STATUS_DOT[servico.status] ?? 'bg-gray-400')} />
-            {STATUS_TEXT[servico.status] ?? servico.status_display}
-          </span>
-        </div>
-      </div>
 
-      {/* ── Descrição ── */}
-      {servico.descricao && (
-        <div className="border-t border-border px-[22px] py-4">
-          <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground/75">
-            Descrição
-          </p>
-          <p className="text-sm leading-relaxed text-muted-foreground">
-            {servico.descricao}
-          </p>
+          {canManageTasks && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setEditServicoOpen(true)}>
+                  <Pencil className="mr-2 h-3.5 w-3.5" /> Editar
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => setConfirmDeleteOpen(true)}
+                  className="text-destructive focus:text-destructive"
+                >
+                  <Trash2 className="mr-2 h-3.5 w-3.5" /> Excluir serviço
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
-      )}
 
-      {/* ── Meta strip — caixa com borda própria ── */}
-      <div className="px-[22px] pb-4 pt-1">
-        <div className="grid grid-cols-4 overflow-hidden rounded-[10px] border border-border divide-x divide-border">
+        {/* Metadados — alinhados sob o título (34px ícone + 14px gap = 48px) */}
+        <div className="mt-3.5 grid grid-cols-2 gap-x-5 gap-y-3.5 pl-[48px] sm:grid-cols-3 lg:grid-cols-6">
           {metaItems.map((m) => (
-            <div key={m.label} className="px-4 py-3">
-              <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground/70">
+            <div key={m.label} className="flex min-w-0 flex-col gap-1">
+              <span className="text-[10px] font-bold uppercase tracking-[0.07em] text-muted-foreground">
                 {m.label}
-              </p>
-              <p className="mt-0.5 truncate text-sm font-bold text-foreground">{m.value}</p>
+              </span>
+              <span className="truncate text-[13.5px] font-semibold text-foreground">{m.value}</span>
             </div>
           ))}
         </div>
       </div>
 
-      {/* ── Seção de tarefas ── */}
-      <div className="border-t border-border">
-        {/* Header da seção */}
-        <div className="flex items-center justify-between gap-3 px-[22px] py-3">
-          <div className="flex items-center gap-2">
-            <p className="text-sm font-semibold text-foreground">Tarefas</p>
-            {!loadingTarefas && allTarefas !== undefined && (
-              <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground">
-                {allTarefas.length}
-              </span>
-            )}
-          </div>
-          {canManageTasks && (
-            <Button
-              type="button"
-              variant="hero"
-              size="sm"
-              className="h-8 rounded-[9px] px-3.5 text-xs font-bold shadow-none"
-              onClick={handleOpenDialog}
-            >
-              <Plus className="mr-1.5 h-3.5 w-3.5" />
-              Nova tarefa
-            </Button>
-          )}
-        </div>
-
-        {/* Conteúdo da lista */}
+      {/* ── Tarefas ── */}
+      <div>
         {loadingTarefas ? (
-          <div className="space-y-px border-t border-border">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="flex items-start gap-3 px-[22px] py-3">
-                <Skeleton className="mt-0.5 h-8 w-8 shrink-0 rounded-full" />
-                <div className="flex-1 space-y-1.5">
-                  <Skeleton className="h-4 w-3/4 rounded" />
-                  <Skeleton className="h-3 w-1/2 rounded" />
-                </div>
-                <Skeleton className="h-6 w-24 rounded-full" />
+          [1, 2, 3].map((i) => (
+            <div key={i} className="flex items-center gap-3.5 border-t border-border px-[18px] py-3">
+              <Skeleton className="h-[30px] w-[190px] shrink-0 rounded-lg" />
+              <div className="flex-1 space-y-1.5">
+                <Skeleton className="h-3.5 w-2/3 rounded" />
+                <Skeleton className="h-2.5 w-1/3 rounded" />
               </div>
-            ))}
-          </div>
-        ) : tarefas?.length ? (
-          <div className="divide-y divide-border border-t border-border">
-            {tarefas.map((t) => (
-              <TarefaRow
-                key={t.id}
-                tarefa={t}
-                usuarios={usuarios}
-                onStatusChange={(id, status) => updateMutation.mutate({ id, payload: { status } })}
-                onEdit={(id, payload: UpdateTarefaPayload) => updateMutation.mutate({ id, payload })}
-                onDelete={(id) => deleteMutation.mutate(id)}
-                isPending={isMutating}
-                canManage={canManageTasks}
-                currentUserId={currentUserId}
-              />
-            ))}
-          </div>
-        ) : (
-          /* Empty state */
-          <div className="border-t border-border px-[22px] pb-[22px] pt-2">
-            <div className="flex min-h-[208px] flex-col items-center justify-center rounded-[10px] border border-dashed border-border bg-card text-center">
-              <div className="flex h-10 w-10 items-center justify-center rounded-[10px] bg-muted">
-                <ClipboardCheck className="h-6 w-6 text-muted-foreground/50" />
-              </div>
-              <div className="mt-3">
-                <p className="text-sm font-semibold text-foreground">Nenhuma tarefa neste serviço</p>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  Crie a primeira tarefa para começar.
-                </p>
-              </div>
-              {canManageTasks && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="mt-3 h-8 rounded-[9px] px-3.5 text-xs font-bold"
-                  onClick={handleOpenDialog}
-                >
-                  <Plus className="mr-1.5 h-3.5 w-3.5" />
-                  Criar primeira tarefa
-                </Button>
-              )}
+              <Skeleton className="h-[26px] w-[26px] shrink-0 rounded-full" />
             </div>
+          ))
+        ) : tarefas?.length ? (
+          tarefas.map((t) => (
+            <TarefaRow
+              key={t.id}
+              tarefa={t}
+              usuarios={usuarios}
+              onStatusChange={(id, status) => updateMutation.mutate({ id, payload: { status } })}
+              onEdit={(id, payload: UpdateTarefaPayload) => updateMutation.mutate({ id, payload })}
+              onDelete={(id) => deleteMutation.mutate(id)}
+              isPending={isMutating}
+              canManage={canManageTasks}
+              allowSelfStatusUpdate={allowSelfStatusUpdate}
+              currentUserId={currentUserId}
+            />
+          ))
+        ) : (
+          <div className="border-t border-border px-[18px] py-8 text-center">
+            <p className="text-sm font-semibold text-foreground">Nenhuma tarefa neste serviço</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">Crie a primeira tarefa para começar.</p>
           </div>
+        )}
+
+        {(canManageTasks || canCreateTasks) && (
+          <button
+            type="button"
+            onClick={handleOpenDialog}
+            className="flex w-full items-center gap-2 border-t border-border px-[18px] py-[11px] text-[13px] font-semibold text-muted-foreground transition-colors hover:bg-muted/30 hover:text-foreground"
+          >
+            <Plus className="h-[15px] w-[15px]" strokeWidth={2.2} />
+            Adicionar tarefa
+          </button>
         )}
       </div>
 
@@ -322,6 +368,31 @@ export function ServicoAccordionCard({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ── Modal — Editar serviço ── */}
+      <ServicoFormDialog open={editServicoOpen} onOpenChange={setEditServicoOpen} ordemId={ordemId} servico={servico} />
+
+      {/* ── Confirmação — Excluir serviço ── */}
+      <AlertDialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir "{nome}"?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Isso remove permanentemente o serviço e todas as suas tarefas. Essa ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDeleteServico}
+              className="bg-destructive hover:bg-destructive/90"
+              disabled={deleteServicoMutation.isPending}
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -1,73 +1,79 @@
 import api from '@/services/api';
 import { isPaginatedResponse, PageResult, toPageResult } from '@/services/pagination';
 
-const ENDPOINT = '/api/tarefas/mini-os/';
-const CATALOG_ENDPOINT = '/api/tarefas/repositorios/';
+const ENDPOINT = '/api/ordens-servico/operacionais/';
 
 // ── Types ────────────────────────────────────────────────────────────────────
+
+export type OperationalOrderStatus = 'nao_iniciado' | 'em_andamento' | 'finalizada';
+export type OperationalOrderPrioridade = 'baixa' | 'media' | 'alta';
 
 export interface OperationalOrderItem {
   id: number;
   clienteId: number;
   clienteNome: string;
-  servicoId: number;
-  servicoNome: string;
+  catalogoOperacionalId: number;
+  catalogoOperacionalNome: string;
   responsavelId: number;
   responsavelNome: string;
-  status: string;
+  status: OperationalOrderStatus;
   statusDisplay: string;
-  faturada: boolean;
-  dataRecebimento: string | null;
-}
-
-export interface OperationalOrderDetail extends OperationalOrderItem {
-  clienteDetalhe: { id: number; nome: string; tipoCliente: string | null } | null;
-  servicoDetalhe: { id: number; nome: string; descricao: string | null } | null;
-  quantidade: number;
-  descricao: string | null;
-  dataInicio: string | null;
-  dataTermino: string | null;
+  prioridade: OperationalOrderPrioridade;
+  prioridadeDisplay: string;
+  prazo: string | null;
+  horasEstimadas: string | null;
+  horasEstimadasEfetivas: string | null;
+  complexidade: number | null;
+  complexidadeDisplay: string | null;
   revisaoCliente: boolean;
   geraCobranca: boolean;
-  dataLiberacaoCobranca: string | null;
+  cobrancaRealizada: boolean;
   numeroNf: string | null;
-  faturadaPorNome: string | null;
+  cobrancaRealizadaPorNome: string | null;
+  dataLiberacaoCobranca: string | null;
+  liberadaCobrancaPorNome: string | null;
+  dataRecebimento: string | null;
+  dataInicio: string | null;
+  dataTermino: string | null;
   criadaEm: string;
   atualizadoEm: string;
 }
 
-export interface OperationalOrderCatalogItem {
-  id: number;
-  nome: string;
+export interface OperationalOrderDetail extends OperationalOrderItem {
+  clienteDetalhe: { id: number; nome: string; tipoCliente: string | null } | null;
+  catalogoOperacionalDetalhe: { id: number; nome: string; descricao: string | null } | null;
+  quantidade: number;
   descricao: string | null;
 }
 
 export interface CreateOperationalOrderPayload {
   cliente: number;
-  servico: number;
-  responsavel?: number;
+  catalogoOperacional: number;
+  responsavel: number;
   quantidade: number;
   descricao?: string | null;
   dataRecebimento: string;
-  dataInicio?: string | null;
-  dataTermino?: string | null;
-  status?: string;
+  prazo?: string | null;
+  prioridade?: OperationalOrderPrioridade;
+  status?: OperationalOrderStatus;
   revisaoCliente?: boolean;
+  horasEstimadas?: string | null;
+  complexidade?: number | null;
 }
 
 export interface UpdateOperationalOrderPayload {
   cliente?: number;
-  servico?: number;
+  catalogoOperacional?: number;
   responsavel?: number;
   quantidade?: number;
   descricao?: string | null;
   dataRecebimento?: string;
-  dataInicio?: string | null;
-  dataTermino?: string | null;
-  status?: string;
+  prazo?: string | null;
+  prioridade?: OperationalOrderPrioridade;
+  status?: OperationalOrderStatus;
   revisaoCliente?: boolean;
-  faturada?: boolean;
-  numeroNf?: string | null;
+  horasEstimadas?: string | null;
+  complexidade?: number | null;
 }
 
 export interface OperationalOrderListParams {
@@ -75,15 +81,12 @@ export interface OperationalOrderListParams {
   pageSize?: number;
   q?: string;
   status?: string;
-  faturada?: string;
+  prioridade?: string;
+  cobrancaRealizada?: string;
   responsavel?: number;
   cliente?: number;
-}
-
-export interface OperationalOrderCatalogPageParams {
-  page?: number;
-  pageSize?: number;
-  q?: string;
+  atrasada?: boolean;
+  ordering?: 'prazo' | '-prazo';
 }
 
 // ── Normalization ─────────────────────────────────────────────────────────────
@@ -92,14 +95,31 @@ const normalizeItem = (dto: any): OperationalOrderItem => ({
   id: dto.id,
   clienteId: dto.cliente,
   clienteNome: dto.cliente_nome ?? '',
-  servicoId: dto.servico,
-  servicoNome: dto.servico_nome ?? '',
+  catalogoOperacionalId: dto.catalogo_operacional,
+  catalogoOperacionalNome: dto.catalogo_operacional_nome ?? '',
   responsavelId: dto.responsavel,
   responsavelNome: dto.responsavel_nome ?? '',
   status: dto.status ?? 'nao_iniciado',
   statusDisplay: dto.status_display ?? '',
-  faturada: Boolean(dto.faturada),
+  prioridade: dto.prioridade ?? 'baixa',
+  prioridadeDisplay: dto.prioridade_display ?? '',
+  prazo: dto.prazo ?? null,
+  horasEstimadas: dto.horas_estimadas ?? null,
+  horasEstimadasEfetivas: dto.horas_estimadas_efetivas ?? null,
+  complexidade: dto.complexidade ?? null,
+  complexidadeDisplay: dto.complexidade_display ?? null,
+  revisaoCliente: Boolean(dto.revisao_cliente),
+  geraCobranca: Boolean(dto.gera_cobranca),
+  cobrancaRealizada: Boolean(dto.cobranca_realizada),
+  numeroNf: dto.numero_nf ?? null,
+  cobrancaRealizadaPorNome: dto.cobranca_realizada_por_nome ?? null,
+  dataLiberacaoCobranca: dto.data_liberacao_cobranca ?? null,
+  liberadaCobrancaPorNome: dto.liberada_cobranca_por_nome ?? null,
   dataRecebimento: dto.data_recebimento ?? null,
+  dataInicio: dto.data_inicio ?? null,
+  dataTermino: dto.data_termino ?? null,
+  criadaEm: dto.criada_em ?? '',
+  atualizadoEm: dto.atualizado_em ?? '',
 });
 
 const normalizeDetail = (dto: any): OperationalOrderDetail => ({
@@ -107,20 +127,15 @@ const normalizeDetail = (dto: any): OperationalOrderDetail => ({
   clienteDetalhe: dto.cliente_detail
     ? { id: dto.cliente_detail.id, nome: dto.cliente_detail.nome, tipoCliente: dto.cliente_detail.tipo_cliente ?? null }
     : null,
-  servicoDetalhe: dto.servico_detail
-    ? { id: dto.servico_detail.id, nome: dto.servico_detail.nome, descricao: dto.servico_detail.descricao ?? null }
+  catalogoOperacionalDetalhe: dto.catalogo_operacional_detail
+    ? {
+        id: dto.catalogo_operacional_detail.id,
+        nome: dto.catalogo_operacional_detail.nome,
+        descricao: dto.catalogo_operacional_detail.descricao ?? null,
+      }
     : null,
   quantidade: Number(dto.quantidade ?? 1),
   descricao: dto.descricao ?? null,
-  dataInicio: dto.data_inicio ?? null,
-  dataTermino: dto.data_termino ?? null,
-  revisaoCliente: Boolean(dto.revisao_cliente),
-  geraCobranca: Boolean(dto.gera_cobranca),
-  dataLiberacaoCobranca: dto.data_liberacao_cobranca ?? null,
-  numeroNf: dto.numero_nf ?? null,
-  faturadaPorNome: dto.faturada_por_nome ?? null,
-  criadaEm: dto.criada_em ?? '',
-  atualizadoEm: dto.atualizado_em ?? '',
 });
 
 // ── Operational Order functions ───────────────────────────────────────────────
@@ -138,9 +153,12 @@ export const getOperationalOrderPage = async (
   const queryParams: Record<string, string | number> = { page, page_size: pageSize };
   if (params.q) queryParams.q = params.q;
   if (params.status && params.status !== 'all') queryParams.status = params.status;
-  if (params.faturada !== undefined) queryParams.faturada = params.faturada;
+  if (params.prioridade && params.prioridade !== 'all') queryParams.prioridade = params.prioridade;
+  if (params.cobrancaRealizada !== undefined) queryParams.cobranca_realizada = params.cobrancaRealizada;
   if (params.responsavel) queryParams.responsavel = params.responsavel;
   if (params.cliente) queryParams.cliente = params.cliente;
+  if (params.atrasada) queryParams.atrasada = 'true';
+  if (params.ordering) queryParams.ordering = params.ordering;
 
   const { data } = await api.get(ENDPOINT, { params: queryParams });
   if (isPaginatedResponse<any>(data)) {
@@ -168,15 +186,17 @@ export const createOperationalOrder = async (
 ): Promise<OperationalOrderDetail> => {
   const { data } = await api.post(ENDPOINT, {
     cliente: payload.cliente,
-    servico: payload.servico,
+    catalogo_operacional: payload.catalogoOperacional,
     responsavel: payload.responsavel,
     quantidade: payload.quantidade,
     descricao: payload.descricao ?? null,
     data_recebimento: payload.dataRecebimento,
-    data_inicio: payload.dataInicio ?? null,
-    data_termino: payload.dataTermino ?? null,
+    prazo: payload.prazo ?? null,
+    prioridade: payload.prioridade ?? 'baixa',
     status: payload.status ?? 'nao_iniciado',
     revisao_cliente: payload.revisaoCliente ?? false,
+    horas_estimadas: payload.horasEstimadas ?? null,
+    complexidade: payload.complexidade ?? null,
   });
   return normalizeDetail(data);
 };
@@ -187,17 +207,17 @@ export const updateOperationalOrder = async (
 ): Promise<OperationalOrderDetail> => {
   const body: Record<string, any> = {};
   if (payload.cliente !== undefined) body.cliente = payload.cliente;
-  if (payload.servico !== undefined) body.servico = payload.servico;
+  if (payload.catalogoOperacional !== undefined) body.catalogo_operacional = payload.catalogoOperacional;
   if (payload.responsavel !== undefined) body.responsavel = payload.responsavel;
   if (payload.quantidade !== undefined) body.quantidade = payload.quantidade;
   if (payload.descricao !== undefined) body.descricao = payload.descricao;
   if (payload.dataRecebimento !== undefined) body.data_recebimento = payload.dataRecebimento;
-  if (payload.dataInicio !== undefined) body.data_inicio = payload.dataInicio;
-  if (payload.dataTermino !== undefined) body.data_termino = payload.dataTermino;
+  if (payload.prazo !== undefined) body.prazo = payload.prazo;
+  if (payload.prioridade !== undefined) body.prioridade = payload.prioridade;
   if (payload.status !== undefined) body.status = payload.status;
   if (payload.revisaoCliente !== undefined) body.revisao_cliente = payload.revisaoCliente;
-  if (payload.faturada !== undefined) body.faturada = payload.faturada;
-  if (payload.numeroNf !== undefined) body.numero_nf = payload.numeroNf;
+  if (payload.horasEstimadas !== undefined) body.horas_estimadas = payload.horasEstimadas;
+  if (payload.complexidade !== undefined) body.complexidade = payload.complexidade;
   const { data } = await api.patch(`${ENDPOINT}${id}/`, body);
   return normalizeDetail(data);
 };
@@ -206,58 +226,10 @@ export const deleteOperationalOrder = async (id: number): Promise<void> => {
   await api.delete(`${ENDPOINT}${id}/`);
 };
 
-// ── Catalog functions ─────────────────────────────────────────────────────────
-
-export const getOperationalOrderCatalog = async (): Promise<OperationalOrderCatalogItem[]> => {
-  const { data } = await api.get<OperationalOrderCatalogItem[]>(CATALOG_ENDPOINT);
-  return Array.isArray(data) ? data : [];
-};
-
-export const getOperationalOrderCatalogPage = async (
-  params: OperationalOrderCatalogPageParams,
-): Promise<PageResult<OperationalOrderCatalogItem>> => {
-  const page = params.page ?? 1;
-  const pageSize = params.pageSize ?? 10;
-  const queryParams: Record<string, string | number> = { page, page_size: pageSize };
-  if (params.q) queryParams.q = params.q;
-
-  const { data } = await api.get(CATALOG_ENDPOINT, { params: queryParams });
-  if (isPaginatedResponse<OperationalOrderCatalogItem>(data)) {
-    return { ...toPageResult(data, page, pageSize), items: data.results };
-  }
-  const items = Array.isArray(data) ? (data as OperationalOrderCatalogItem[]) : [];
-  return {
-    items,
-    count: items.length,
-    page,
-    pageSize,
-    totalPages: Math.max(1, Math.ceil(items.length / pageSize)),
-    next: null,
-    previous: null,
-  };
-};
-
-export const getOperationalOrderCatalogItem = async (id: number): Promise<OperationalOrderCatalogItem> => {
-  const { data } = await api.get<OperationalOrderCatalogItem>(`${CATALOG_ENDPOINT}${id}/`);
-  return data;
-};
-
-export const createOperationalOrderCatalogItem = async (payload: {
-  nome: string;
-  descricao?: string | null;
-}): Promise<OperationalOrderCatalogItem> => {
-  const { data } = await api.post<OperationalOrderCatalogItem>(CATALOG_ENDPOINT, payload);
-  return data;
-};
-
-export const updateOperationalOrderCatalogItem = async (
+export const registrarCobrancaOperacional = async (
   id: number,
-  payload: { nome?: string; descricao?: string | null },
-): Promise<OperationalOrderCatalogItem> => {
-  const { data } = await api.patch<OperationalOrderCatalogItem>(`${CATALOG_ENDPOINT}${id}/`, payload);
-  return data;
-};
-
-export const deleteOperationalOrderCatalogItem = async (id: number): Promise<void> => {
-  await api.delete(`${CATALOG_ENDPOINT}${id}/`);
+  numeroNf: string,
+): Promise<OperationalOrderDetail> => {
+  const { data } = await api.patch(`${ENDPOINT}${id}/cobranca/`, { numero_nf: numeroNf });
+  return normalizeDetail(data);
 };

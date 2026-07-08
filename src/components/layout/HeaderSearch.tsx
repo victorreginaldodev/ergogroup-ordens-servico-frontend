@@ -70,7 +70,7 @@ const HeaderSearch = () => {
             if (e.key === 'Escape') { setQuery(''); setOpen(false); inputRef.current?.blur(); }
           }}
           className={
-            'w-full h-9 pl-9 pr-14 rounded-md border border-input bg-muted text-sm ' +
+            'w-full h-10 pl-9 pr-14 rounded-md border border-input bg-muted text-sm ' +
             'placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-0'
           }
         />

@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   AlertCircle,
-  ArrowRight,
   Clock,
   DollarSign,
   ExternalLink,
@@ -41,16 +40,18 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { MoneyValue } from '@/components/common/MoneyValue';
-import { formatCurrency } from '@/data/mockData';
 import { useUserRole } from '@/hooks/useUserRole';
-import { useBillingKpis, useBillingServiceOrdersPage, useMiniOsPage } from '../hooks';
-import { safeFormatDate } from '../utils';
+import { formatCurrency, formatDate } from '@/features/ordens/utils';
+import { useOperationalOrderPage } from '@/features/ordens/hooksOperacional';
+import type { OperationalOrderItem } from '@/features/ordens/servicesOperacional';
+import { STATUS_DOT as OSO_STATUS_DOT, getStatusLabel as getOsoStatusLabel } from '@/features/ordens/utilsOperacional';
+import { OperationalOrderCobrancaDialog } from '@/features/ordens/components/OperationalOrderCobrancaDialog';
+import { useBillingKpis, useBillingServiceOrdersPage } from '../hooks';
 import { KpiCard } from '../components/KpiCard';
 import { PillFilter, PillOption } from '../components/PillFilter';
 import { DotBadge } from '../components/DotBadge';
 import { BillingPager } from '../components/BillingPager';
 import { OrdemBillingSheet } from '../components/OrdemBillingSheet';
-import { MiniOsBillingDialog } from '../components/MiniOsBillingDialog';
 
 const PAGE_SIZE = 20;
 
@@ -60,10 +61,10 @@ const STATUS_OPTIONS: PillOption<'all' | 'concluida' | 'andamento'>[] = [
   { value: 'andamento', label: 'Em andamento' },
 ];
 
-const BILLING_OPTIONS: PillOption<'all' | 'faturada' | 'nao_faturada'>[] = [
+const BILLING_OPTIONS: PillOption<'all' | 'realizada' | 'pendente'>[] = [
   { value: 'all', label: 'Todos' },
-  { value: 'faturada', label: 'Faturada' },
-  { value: 'nao_faturada', label: 'Não faturada' },
+  { value: 'realizada', label: 'Cobrada' },
+  { value: 'pendente', label: 'Não cobrada' },
 ];
 
 const FaturamentoPage = () => {
@@ -73,22 +74,21 @@ const FaturamentoPage = () => {
   // OS state
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'concluida' | 'andamento'>('all');
-  const [billingFilter, setBillingFilter] = useState<'all' | 'faturada' | 'nao_faturada'>('nao_faturada');
+  const [billingFilter, setBillingFilter] = useState<'all' | 'realizada' | 'pendente'>('pendente');
   const [ordersPage, setOrdersPage] = useState(1);
 
-  // MiniOS state
-  const [miniOsSearch, setMiniOsSearch] = useState('');
-  const [miniOsBillingFilter, setMiniOsBillingFilter] = useState<'all' | 'faturada' | 'nao_faturada'>('all');
-  const [miniPage, setMiniPage] = useState(1);
+  // OS Operacionais state
+  const [osoSearch, setOsoSearch] = useState('');
+  const [osoBillingFilter, setOsoBillingFilter] = useState<'all' | 'realizada' | 'pendente'>('all');
+  const [osoPage, setOsoPage] = useState(1);
 
   // Sheet state — OS
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [sheetTab, setSheetTab] = useState<'cobranca' | 'historico'>('cobranca');
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
 
-  // Dialog state — MiniOS
-  const [isMiniDialogOpen, setIsMiniDialogOpen] = useState(false);
-  const [selectedMiniId, setSelectedMiniId] = useState<number | null>(null);
+  // Dialog state — OS Operacional
+  const [cobrancaItem, setCobrancaItem] = useState<OperationalOrderItem | null>(null);
 
   const { data: ordersPageData, isLoading, isError } = useBillingServiceOrdersPage({
     page: ordersPage,
@@ -97,37 +97,34 @@ const FaturamentoPage = () => {
     liberada: 'true',
     concluida:
       statusFilter === 'concluida' ? 'true' : statusFilter === 'andamento' ? 'false' : 'all',
-    faturada:
-      billingFilter === 'faturada' ? 'true' : billingFilter === 'nao_faturada' ? 'false' : 'all',
+    cobrancaRealizada:
+      billingFilter === 'realizada' ? 'true' : billingFilter === 'pendente' ? 'false' : 'all',
   });
   const orders = ordersPageData?.items ?? [];
   const ordersTotalPages = ordersPageData?.totalPages ?? 1;
 
-  const { data: miniOsPageData, isLoading: isMiniOsLoading, isError: isMiniOsError } = useMiniOsPage({
-    page: miniPage,
-    pageSize: PAGE_SIZE,
-    q: miniOsSearch,
-    faturada:
-      miniOsBillingFilter === 'faturada'
-        ? 'true'
-        : miniOsBillingFilter === 'nao_faturada'
-        ? 'false'
-        : 'all',
+  // A API não expõe filtro por `gera_cobranca` — busca um lote amplo e filtra/pagina no cliente.
+  const { data: osoPageData, isLoading: isOsoLoading, isError: isOsoError } = useOperationalOrderPage({
+    page: 1,
+    pageSize: 500,
+    q: osoSearch || undefined,
+    cobrancaRealizada: osoBillingFilter === 'all' ? undefined : osoBillingFilter === 'realizada' ? 'true' : 'false',
   });
-  const miniOs = miniOsPageData?.items ?? [];
-  const miniOsTotalPages = miniOsPageData?.totalPages ?? 1;
+  const osoBillableItems = (osoPageData?.items ?? []).filter((item) => item.geraCobranca);
+  const osoTotalPages = Math.max(1, Math.ceil(osoBillableItems.length / PAGE_SIZE));
+  const osoItems = osoBillableItems.slice((osoPage - 1) * PAGE_SIZE, osoPage * PAGE_SIZE);
 
   const { canAccessFinancials } = useUserRole();
 
   // Reset pages on filter change
   useEffect(() => { setOrdersPage(1); }, [searchTerm, statusFilter, billingFilter]);
-  useEffect(() => { setMiniPage(1); }, [miniOsSearch, miniOsBillingFilter]);
+  useEffect(() => { setOsoPage(1); }, [osoSearch, osoBillingFilter]);
   useEffect(() => {
     if (ordersPage > ordersTotalPages) setOrdersPage(ordersTotalPages);
   }, [ordersPage, ordersTotalPages]);
   useEffect(() => {
-    if (miniPage > miniOsTotalPages) setMiniPage(miniOsTotalPages);
-  }, [miniPage, miniOsTotalPages]);
+    if (osoPage > osoTotalPages) setOsoPage(osoTotalPages);
+  }, [osoPage, osoTotalPages]);
 
   const openSheet = (id: number, tab: 'cobranca' | 'historico') => {
     setSheetTab(tab);
@@ -137,11 +134,6 @@ const FaturamentoPage = () => {
   const handleDialogChange = (open: boolean) => {
     setIsDialogOpen(open);
     if (!open) setSelectedOrderId(null);
-  };
-  const handleMiniEditClick = (id: number) => { setSelectedMiniId(id); setIsMiniDialogOpen(true); };
-  const handleMiniDialogChange = (open: boolean) => {
-    setIsMiniDialogOpen(open);
-    if (!open) setSelectedMiniId(null);
   };
 
   if (!canAccessFinancials) {
@@ -165,16 +157,16 @@ const FaturamentoPage = () => {
   }
 
   // KPI proportions
-  const kpiTotal = (kpis?.total_faturado ?? 0) + (kpis?.total_para_faturar ?? 0) + (kpis?.total_sem_liberacao ?? 0);
-  const pctFaturado     = kpiTotal > 0 ? ((kpis?.total_faturado     ?? 0) / kpiTotal) * 100 : 0;
-  const pctParaFaturar  = kpiTotal > 0 ? ((kpis?.total_para_faturar  ?? 0) / kpiTotal) * 100 : 0;
-  const pctSemLiberacao = kpiTotal > 0 ? ((kpis?.total_sem_liberacao ?? 0) / kpiTotal) * 100 : 0;
+  const kpiTotal = (kpis?.totalCobrado ?? 0) + (kpis?.totalParaCobrar ?? 0) + (kpis?.totalSemLiberacao ?? 0);
+  const pctCobrado       = kpiTotal > 0 ? ((kpis?.totalCobrado ?? 0) / kpiTotal) * 100 : 0;
+  const pctParaCobrar    = kpiTotal > 0 ? ((kpis?.totalParaCobrar ?? 0) / kpiTotal) * 100 : 0;
+  const pctSemLiberacao  = kpiTotal > 0 ? ((kpis?.totalSemLiberacao ?? 0) / kpiTotal) * 100 : 0;
 
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
         <h1 className="text-2xl font-bold">Financeiro</h1>
-        <p className="text-muted-foreground">Ordens de serviço disponíveis para faturamento</p>
+        <p className="text-muted-foreground">Ordens de serviço disponíveis para cobrança</p>
       </div>
 
       {/* ── KPIs ────────────────────────────────────────────────────────────── */}
@@ -195,7 +187,7 @@ const FaturamentoPage = () => {
       {!isKpiLoading && isKpiError && (
         <Card className="border-destructive bg-destructive/10">
           <CardContent className="p-4 text-destructive text-sm">
-            Não foi possível carregar os indicadores de faturamento.
+            Não foi possível carregar os indicadores financeiros.
           </CardContent>
         </Card>
       )}
@@ -203,24 +195,24 @@ const FaturamentoPage = () => {
       {!isKpiLoading && !isKpiError && kpis && (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <KpiCard
-            label="Total faturado"
-            value={kpis.total_faturado ?? 0}
+            label="Total cobrado"
+            value={kpis.totalCobrado}
             icon={DollarSign}
             iconColor="bg-green-500/10 text-green-600 dark:text-green-400"
             barColor="bg-green-500"
-            pct={pctFaturado}
+            pct={pctCobrado}
           />
           <KpiCard
-            label="Para faturar"
-            value={kpis.total_para_faturar ?? 0}
+            label="Para cobrar"
+            value={kpis.totalParaCobrar}
             icon={Clock}
             iconColor="bg-amber-500/10 text-amber-600 dark:text-amber-400"
             barColor="bg-amber-400"
-            pct={pctParaFaturar}
+            pct={pctParaCobrar}
           />
           <KpiCard
             label="Sem liberação"
-            value={kpis.total_sem_liberacao ?? 0}
+            value={kpis.totalSemLiberacao}
             icon={AlertCircle}
             iconColor="bg-muted text-muted-foreground"
             barColor="bg-muted-foreground"
@@ -236,7 +228,7 @@ const FaturamentoPage = () => {
             <p className="text-sm font-semibold">Cobrança</p>
             <TabsList className="h-8">
               <TabsTrigger value="os" className="text-xs px-3">Ordens de Serviço</TabsTrigger>
-              <TabsTrigger value="minios" className="text-xs px-3">Tarefas Rápidas</TabsTrigger>
+              <TabsTrigger value="oso" className="text-xs px-3">OS Operacionais</TabsTrigger>
             </TabsList>
           </div>
 
@@ -311,7 +303,7 @@ const FaturamentoPage = () => {
 
                     {isError && !isLoading && (
                       <TableRow className="border-border">
-                        <TableCell colSpan={4} className="py-8 text-center text-sm text-destructive">
+                        <TableCell colSpan={5} className="py-8 text-center text-sm text-destructive">
                           Não foi possível carregar as ordens de serviço.
                         </TableCell>
                       </TableRow>
@@ -319,7 +311,7 @@ const FaturamentoPage = () => {
 
                     {!isLoading && !isError && orders.length === 0 && (
                       <TableRow className="border-border">
-                        <TableCell colSpan={4} className="py-10 text-center">
+                        <TableCell colSpan={5} className="py-10 text-center">
                           <FileText className="w-10 h-10 text-muted-foreground mx-auto mb-2" />
                           <p className="text-sm text-muted-foreground">Nenhuma ordem encontrada</p>
                         </TableCell>
@@ -340,8 +332,8 @@ const FaturamentoPage = () => {
                                 label={order.concluida ? 'Concluída' : 'Em andamento'}
                               />
                               <DotBadge
-                                colorClass={order.faturada ? 'bg-green-600' : 'bg-amber-500'}
-                                label={order.faturada ? 'Faturada' : 'Lib. faturamento'}
+                                colorClass={order.cobranca_realizada ? 'bg-green-600' : 'bg-amber-500'}
+                                label={order.cobranca_realizada ? 'Cobrada' : 'Liberada p/ cobrança'}
                               />
                               <span className="font-mono text-[10px] text-muted-foreground">#{order.id}</span>
                             </div>
@@ -349,12 +341,12 @@ const FaturamentoPage = () => {
                         </TableCell>
                         <TableCell className="py-3 px-3">
                           <span className="text-xs text-muted-foreground tabular-nums">
-                            {safeFormatDate(order.liberada_para_faturamento_em) ?? '—'}
+                            {formatDate(order.liberada_para_cobranca_em) ?? '—'}
                           </span>
                         </TableCell>
                         <TableCell className="py-3 px-3">
                           <span className="text-xs text-muted-foreground truncate block max-w-[120px]">
-                            {order.liberada_para_faturamento_por_nome ?? '—'}
+                            {order.liberada_para_cobranca_por_nome ?? '—'}
                           </span>
                         </TableCell>
                         <TableCell className="py-3 px-3 text-right">
@@ -374,7 +366,7 @@ const FaturamentoPage = () => {
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="w-44">
                               <DropdownMenuItem onClick={() => openSheet(order.id, 'cobranca')}>
-                                <Receipt className="mr-2 h-3.5 w-3.5" /> Faturamento
+                                <Receipt className="mr-2 h-3.5 w-3.5" /> Cobrança
                               </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => openSheet(order.id, 'historico')}>
                                 <History className="mr-2 h-3.5 w-3.5" /> Histórico
@@ -397,20 +389,20 @@ const FaturamentoPage = () => {
               </div>
             </TabsContent>
 
-            {/* ── MiniOS tab ──────────────────────────────────────────────────── */}
-            <TabsContent value="minios" className="mt-0">
+            {/* ── OS Operacionais tab ────────────────────────────────────────── */}
+            <TabsContent value="oso" className="mt-0">
               {/* Filters */}
               <div className="px-4 py-3 flex flex-wrap items-center gap-2 border-b border-border">
                 <div className="relative flex-1 min-w-[180px]">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
                   <Input
-                    placeholder="Buscar por cliente ou ID..."
-                    value={miniOsSearch}
-                    onChange={(e) => setMiniOsSearch(e.target.value)}
+                    placeholder="Buscar por cliente ou catálogo..."
+                    value={osoSearch}
+                    onChange={(e) => setOsoSearch(e.target.value)}
                     className="pl-9 h-9 bg-secondary border-border text-sm"
                   />
                 </div>
-                <PillFilter options={BILLING_OPTIONS} value={miniOsBillingFilter} onChange={setMiniOsBillingFilter} />
+                <PillFilter options={BILLING_OPTIONS} value={osoBillingFilter} onChange={setOsoBillingFilter} />
               </div>
 
               {/* Table */}
@@ -419,7 +411,7 @@ const FaturamentoPage = () => {
                   <TableHeader className="sticky top-0 z-10 bg-card">
                     <TableRow className="border-border hover:bg-transparent">
                       <TableHead className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground py-2 px-3">
-                        Tarefa Rápida
+                        OS Operacional
                       </TableHead>
                       <TableHead className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground py-2 px-3 w-[90px]">
                         Recebimento
@@ -431,9 +423,9 @@ const FaturamentoPage = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {isMiniOsLoading &&
+                    {isOsoLoading &&
                       Array.from({ length: 8 }).map((_, i) => (
-                        <TableRow key={`sk-mini-${i}`} className="border-border">
+                        <TableRow key={`sk-oso-${i}`} className="border-border">
                           <TableCell className="py-3 px-3">
                             <div className="space-y-2">
                               <Skeleton className="h-4 w-40" />
@@ -450,73 +442,72 @@ const FaturamentoPage = () => {
                         </TableRow>
                       ))}
 
-                    {isMiniOsError && !isMiniOsLoading && (
+                    {isOsoError && !isOsoLoading && (
                       <TableRow className="border-border">
                         <TableCell colSpan={4} className="py-8 text-center text-sm text-destructive">
-                          Não foi possível carregar as tarefas rápidas.
+                          Não foi possível carregar as OS Operacionais.
                         </TableCell>
                       </TableRow>
                     )}
 
-                    {!isMiniOsLoading && !isMiniOsError && miniOs.length === 0 && (
+                    {!isOsoLoading && !isOsoError && osoItems.length === 0 && (
                       <TableRow className="border-border">
                         <TableCell colSpan={4} className="py-10 text-center">
                           <FileText className="w-10 h-10 text-muted-foreground mx-auto mb-2" />
-                          <p className="text-sm text-muted-foreground">Nenhuma tarefa rápida encontrada</p>
+                          <p className="text-sm text-muted-foreground">Nenhuma OS Operacional encontrada</p>
                         </TableCell>
                       </TableRow>
                     )}
 
-                    {!isMiniOsLoading && !isMiniOsError && miniOs.map((mini) => {
-                      const isFinished = (mini.status ?? '').toLowerCase() === 'finalizada';
+                    {!isOsoLoading && !isOsoError && osoItems.map((item) => {
+                      const cobrancaPendente = !item.cobrancaRealizada;
                       return (
                         <TableRow
-                          key={mini.id}
-                          className="border-border hover:bg-muted/40 cursor-pointer transition-colors group"
-                          onClick={() => handleMiniEditClick(mini.id)}
+                          key={item.id}
+                          className="border-border hover:bg-muted/40 transition-colors group"
                         >
                           <TableCell className="py-3 px-3">
                             <div>
                               <span className="text-sm font-semibold uppercase">
-                                {mini.cliente_nome ?? 'Cliente não informado'}
+                                {item.clienteNome || 'Cliente não informado'}
                               </span>
                               <div className="flex items-center gap-3 mt-1.5">
                                 <DotBadge
-                                  colorClass={isFinished ? 'bg-status-completed' : 'bg-status-progress'}
-                                  label={mini.status_display ?? (isFinished ? 'Finalizada' : 'Em andamento')}
+                                  colorClass={OSO_STATUS_DOT[item.status] ?? 'bg-muted-foreground'}
+                                  label={getOsoStatusLabel(item.status)}
                                 />
                                 <DotBadge
-                                  colorClass={mini.faturada ? 'bg-green-600' : 'bg-amber-500'}
-                                  label={mini.faturada ? 'Faturada' : 'Não faturada'}
+                                  colorClass={item.cobrancaRealizada ? 'bg-green-600' : 'bg-amber-500'}
+                                  label={item.cobrancaRealizada ? `Cobrada${item.numeroNf ? ` · NF ${item.numeroNf}` : ''}` : 'Não cobrada'}
                                 />
                                 <span className="font-mono text-[10px] text-muted-foreground">
-                                  {mini.servico_nome ? `· ${mini.servico_nome}` : ''}
-                                  {' '}#{mini.id}
+                                  {item.catalogoOperacionalNome ? `· ${item.catalogoOperacionalNome}` : ''}
+                                  {' '}#{item.id}
                                 </span>
                               </div>
                             </div>
                           </TableCell>
                           <TableCell className="py-3 px-3">
                             <span className="text-xs text-muted-foreground tabular-nums">
-                              {mini.data_recebimento
-                                ? new Date(mini.data_recebimento.slice(0, 10) + 'T00:00:00').toLocaleDateString('pt-BR')
-                                : '—'}
+                              {formatDate(item.dataRecebimento) ?? '—'}
                             </span>
                           </TableCell>
                           <TableCell className="py-3 px-3">
                             <span className="text-xs text-muted-foreground truncate block max-w-[120px]">
-                              {mini.responsavel_nome ?? '—'}
+                              {item.responsavelNome ?? '—'}
                             </span>
                           </TableCell>
                           <TableCell className="py-3 px-3">
-                            <button
-                              type="button"
-                              onClick={(e) => { e.stopPropagation(); handleMiniEditClick(mini.id); }}
-                              className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-muted"
-                              title="Editar tarefa rápida"
-                            >
-                              <ArrowRight className="w-3.5 h-3.5 text-muted-foreground" />
-                            </button>
+                            {cobrancaPendente && (
+                              <button
+                                type="button"
+                                onClick={() => setCobrancaItem(item)}
+                                className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-muted"
+                                title="Registrar cobrança"
+                              >
+                                <Receipt className="w-3.5 h-3.5 text-muted-foreground" />
+                              </button>
+                            )}
                           </TableCell>
                         </TableRow>
                       );
@@ -526,7 +517,7 @@ const FaturamentoPage = () => {
               </div>
 
               <div className="px-4">
-                <BillingPager page={miniPage} totalPages={miniOsTotalPages} setPage={setMiniPage} />
+                <BillingPager page={osoPage} totalPages={osoTotalPages} setPage={setOsoPage} />
               </div>
             </TabsContent>
 
@@ -542,10 +533,9 @@ const FaturamentoPage = () => {
         onTabChange={setSheetTab}
       />
 
-      <MiniOsBillingDialog
-        miniId={selectedMiniId}
-        open={isMiniDialogOpen}
-        onOpenChange={handleMiniDialogChange}
+      <OperationalOrderCobrancaDialog
+        item={cobrancaItem}
+        onOpenChange={(open) => { if (!open) setCobrancaItem(null); }}
       />
     </div>
   );

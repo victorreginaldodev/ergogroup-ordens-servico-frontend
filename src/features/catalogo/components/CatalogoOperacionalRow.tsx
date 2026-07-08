@@ -1,5 +1,6 @@
 import { MoreVertical, Pencil, Trash2 } from 'lucide-react';
 import { TableCell, TableRow } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -7,25 +8,32 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { OperationalOrderCatalogItem } from '../services';
+import { CatalogoOperacionalItem, COMPLEXIDADE_LABEL } from '../services';
 
-interface OperationalOrderCatalogRowProps {
-  item: OperationalOrderCatalogItem;
+interface CatalogoOperacionalRowProps {
+  item: CatalogoOperacionalItem;
   canManage: boolean;
-  onEdit: (item: OperationalOrderCatalogItem) => void;
+  onEdit: (item: CatalogoOperacionalItem) => void;
   onDelete: (id: number) => void;
 }
 
-export function OperationalOrderCatalogRow({
+export function CatalogoOperacionalRow({
   item,
   canManage,
   onEdit,
   onDelete,
-}: OperationalOrderCatalogRowProps) {
+}: CatalogoOperacionalRowProps) {
   return (
     <TableRow className="border-border">
       <TableCell className="font-medium uppercase">{item.nome}</TableCell>
       <TableCell className="text-sm text-muted-foreground">{item.descricao || '-'}</TableCell>
+      <TableCell>
+        {item.complexidade ? (
+          <Badge variant="outline">{COMPLEXIDADE_LABEL[item.complexidade]}</Badge>
+        ) : (
+          <span className="text-muted-foreground">-</span>
+        )}
+      </TableCell>
       <TableCell className="text-right">
         {canManage ? (
           <DropdownMenu>

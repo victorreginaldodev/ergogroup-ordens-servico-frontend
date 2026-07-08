@@ -38,6 +38,7 @@ import {
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Separator } from '@/components/ui/separator';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import ThemeToggle from '@/components/ThemeToggle';
@@ -55,14 +56,14 @@ const NOTIFICATIONS = [
 
 const baseMenuItems = [
   { title: 'Ordens de Serviço',  url: '/dashboard/orders',        icon: FileText },
-  { title: 'OS Operacionais',     url: '/dashboard/quick-tasks',   icon: FileText },
+  { title: 'OS Operacionais',     url: '/ordens-servico/operacionais',   icon: FileText },
   { title: 'Cobranças',         url: '/dashboard/financial',     icon: DollarSign },
 ];
 
 const adminItems = [
   { title: 'Clientes',                    url: '/dashboard/clients',              icon: Building2 },
   { title: 'Catálogo',                    url: '/dashboard/catalog',              icon: Package },
-  { title: 'Catálogo OS Operacionais',    url: '/dashboard/quick-tasks/catalog',  icon: Package },
+  { title: 'Catálogo OS Operacionais',    url: '/ordens-servico/operacionais/catalogo',  icon: Package },
   { title: 'Usuários',                    url: '/dashboard/users',                icon: Users },
 ];
 
@@ -327,7 +328,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
           {/* Header */}
           <header className="h-16 border-b border-border bg-card/50 backdrop-blur-sm flex items-center justify-between px-6 sticky top-0 z-40">
             <div className="flex items-center gap-4">
-              <Button variant="outline" size="icon" className="h-8 w-8 flex-shrink-0" onClick={toggle}>
+              <Button variant="outline" size="icon" className="flex-shrink-0" onClick={toggle}>
                 <PanelLeft className="w-4 h-4" />
                 <span className="sr-only">Toggle Sidebar</span>
               </Button>
@@ -356,7 +357,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
             <div className="flex items-center gap-4">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="relative h-9 w-9 p-0" aria-label="Notificações">
+                  <Button variant="outline" size="icon" className="relative" aria-label="Notificações">
                     <Bell className="w-5 h-5" />
                     {NOTIFICATIONS.length > 0 && (
                       <span className="absolute -top-1 -right-1 h-4 min-w-4 px-0.5 rounded-full bg-destructive text-destructive-foreground text-[10px] font-medium leading-4 text-center">
@@ -384,9 +385,11 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
 
               <ThemeToggle />
 
+              <Separator orientation="vertical" className="h-6" />
+
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="flex items-center gap-2 h-auto py-1.5 px-2.5">
+                  <Button variant="outline" className="flex items-center gap-2 h-10 px-2.5">
                     <Avatar className="w-8 h-8">
                       {currentUser?.foto_perfil ? <AvatarImage src={currentUser.foto_perfil} /> : null}
                       <AvatarFallback className="bg-primary/20 text-primary">{initials}</AvatarFallback>
@@ -427,7 +430,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                 p.startsWith('/dashboard/financial') ||
                 p.startsWith('/dashboard/clients') ||
                 p.startsWith('/dashboard/catalog') ||
-                p.startsWith('/dashboard/quick-tasks') ||
+                p.startsWith('/ordens-servico/operacionais') ||
                 p.startsWith('/dashboard/profile') ||
                 p.startsWith('/dashboard/analise');
               if (!isExcept && p !== '/dashboard') return <UnderDevelopmentOverlay />;

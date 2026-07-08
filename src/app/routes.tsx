@@ -22,6 +22,8 @@ import CompanySettingsPage from '@/features/empresa/pages/CompanySettingsPage';
 // Catálogo
 import CatalogListPage from '@/features/catalogo/pages/CatalogListPage';
 import CatalogFormPage from '@/features/catalogo/pages/CatalogFormPage';
+import CatalogoOperacionalListPage from '@/features/catalogo/pages/CatalogoOperacionalListPage';
+import CatalogoOperacionalFormPage from '@/features/catalogo/pages/CatalogoOperacionalFormPage';
 
 // Clientes e Contatos
 import ClientListPage from '@/features/clientes/pages/ClientListPage';
@@ -37,9 +39,7 @@ import UsersManagementPage from '@/features/usuarios/pages/UsersManagementPage';
 import FaturamentoPage from '@/features/faturamento/pages/FaturamentoPage';
 
 // Operational Orders
-import OperationalOrderListPage from '@/features/operational-order/pages/OperationalOrderListPage';
-import OperationalOrderCatalogListPage from '@/features/operational-order/pages/OperationalOrderCatalogListPage';
-import OperationalOrderCatalogFormPage from '@/features/operational-order/pages/OperationalOrderCatalogFormPage';
+import OperationalOrderListPage from '@/features/ordens/pages/OperationalOrderListPage';
 
 const w = (element: React.ReactNode) => <DashboardLayout>{element}</DashboardLayout>;
 
@@ -62,10 +62,10 @@ const AppRoutes = () => (
     <Route path="/dashboard/orders/:id/edit" element={w(<OrdemServicoFormPage />)} />
 
     {/* Operational Orders */}
-    <Route path="/dashboard/quick-tasks" element={w(<OperationalOrderListPage />)} />
-    <Route path="/dashboard/quick-tasks/catalog" element={w(<OperationalOrderCatalogListPage />)} />
-    <Route path="/dashboard/quick-tasks/catalog/new" element={w(<OperationalOrderCatalogFormPage />)} />
-    <Route path="/dashboard/quick-tasks/catalog/:id/edit" element={w(<OperationalOrderCatalogFormPage />)} />
+    <Route path="/ordens-servico/operacionais" element={w(<OperationalOrderListPage />)} />
+    <Route path="/ordens-servico/operacionais/catalogo" element={w(<CatalogoOperacionalListPage />)} />
+    <Route path="/ordens-servico/operacionais/catalogo/new" element={w(<CatalogoOperacionalFormPage />)} />
+    <Route path="/ordens-servico/operacionais/catalogo/:id/edit" element={w(<CatalogoOperacionalFormPage />)} />
 
     {/* Clientes e Contatos */}
     <Route path="/dashboard/clients" element={w(<ClientListPage />)} />

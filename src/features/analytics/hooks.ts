@@ -1,8 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
 import {
+  getAnaliseOperacional,
   getDashboardAnalytics,
   getFinanceiroKpis,
   getProdutividade,
+  type AnaliseOperacionalResponse,
   type DashboardAnalyticsResponse,
   type FinanceiroKpisResponse,
   type ProdutividadeResponse,
@@ -26,5 +28,12 @@ export const useProdutividade = () =>
   useQuery<ProdutividadeResponse>({
     queryKey: ['analytics-produtividade'],
     queryFn: getProdutividade,
+    staleTime: 1000 * 60 * 5,
+  });
+
+export const useAnaliseOperacional = () =>
+  useQuery<AnaliseOperacionalResponse>({
+    queryKey: ['analise-operacional'],
+    queryFn: getAnaliseOperacional,
     staleTime: 1000 * 60 * 5,
   });

@@ -1,5 +1,5 @@
 import { cn } from '@/lib/utils';
-import { getStatusLabel, getStatusBadgeClass } from '../utils';
+import { getStatusLabel, getStatusBadgeClass } from '../utilsOperacional';
 
 interface OperationalOrderStatusBadgeProps {
   status: string;

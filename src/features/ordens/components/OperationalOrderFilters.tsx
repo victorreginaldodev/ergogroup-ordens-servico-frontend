@@ -1,4 +1,6 @@
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import {
   Select,
   SelectContent,
@@ -10,15 +12,21 @@ import {
 export interface OperationalOrderFiltersState {
   search: string;
   status: string;
-  faturada: 'all' | 'true' | 'false';
+  prioridade: string;
+  cobrancaRealizada: 'all' | 'true' | 'false';
   responsavel: string;
+  atrasada: boolean;
+  ordering: 'none' | 'prazo' | '-prazo';
 }
 
 export const defaultFilters: OperationalOrderFiltersState = {
   search: '',
   status: 'all',
-  faturada: 'all',
+  prioridade: 'all',
+  cobrancaRealizada: 'all',
   responsavel: 'all',
+  atrasada: false,
+  ordering: 'none',
 };
 
 interface OperationalOrderFiltersProps {
@@ -56,16 +64,32 @@ export function OperationalOrderFilters({ filters, onChange, technicianOptions =
       </div>
       <div className="w-full sm:w-[180px]">
         <Select
-          value={filters.faturada}
-          onValueChange={(v) => onChange({ ...filters, faturada: v as OperationalOrderFiltersState['faturada'] })}
+          value={filters.prioridade}
+          onValueChange={(v) => onChange({ ...filters, prioridade: v })}
         >
           <SelectTrigger className="bg-secondary border-border">
-            <SelectValue placeholder="Faturamento" />
+            <SelectValue placeholder="Prioridade" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Faturamento</SelectItem>
-            <SelectItem value="true">Faturado</SelectItem>
-            <SelectItem value="false">Não faturado</SelectItem>
+            <SelectItem value="all">Todas as prioridades</SelectItem>
+            <SelectItem value="baixa">Baixa</SelectItem>
+            <SelectItem value="media">Média</SelectItem>
+            <SelectItem value="alta">Alta</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="w-full sm:w-[180px]">
+        <Select
+          value={filters.cobrancaRealizada}
+          onValueChange={(v) => onChange({ ...filters, cobrancaRealizada: v as OperationalOrderFiltersState['cobrancaRealizada'] })}
+        >
+          <SelectTrigger className="bg-secondary border-border">
+            <SelectValue placeholder="Cobrança" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Cobrança</SelectItem>
+            <SelectItem value="true">Realizada</SelectItem>
+            <SelectItem value="false">Pendente</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -87,6 +111,29 @@ export function OperationalOrderFilters({ filters, onChange, technicianOptions =
           </Select>
         </div>
       )}
+      <div className="w-full sm:w-[190px]">
+        <Select
+          value={filters.ordering}
+          onValueChange={(v) => onChange({ ...filters, ordering: v as OperationalOrderFiltersState['ordering'] })}
+        >
+          <SelectTrigger className="bg-secondary border-border">
+            <SelectValue placeholder="Ordenar" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">Ordenação padrão</SelectItem>
+            <SelectItem value="prazo">Prazo (mais próximo)</SelectItem>
+            <SelectItem value="-prazo">Prazo (mais distante)</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        <Switch
+          id="atrasada"
+          checked={filters.atrasada}
+          onCheckedChange={(v) => onChange({ ...filters, atrasada: v })}
+        />
+        <Label htmlFor="atrasada" className="text-sm cursor-pointer whitespace-nowrap">Somente atrasadas</Label>
+      </div>
     </div>
   );
 }

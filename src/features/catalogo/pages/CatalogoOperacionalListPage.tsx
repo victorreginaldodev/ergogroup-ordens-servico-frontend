@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -23,9 +23,9 @@ import {
 } from '@/components/ui/pagination';
 import { ListChecks, Plus } from 'lucide-react';
 import { useUserRole } from '@/hooks/useUserRole';
-import { useOperationalOrderCatalogPage, useDeleteOperationalOrderCatalog } from '../hooks';
-import { OperationalOrderCatalogItem } from '../services';
-import { OperationalOrderCatalogRow } from '../components/OperationalOrderCatalogRow';
+import { useCatalogosOperacionais, useDeleteCatalogoOperacional } from '../hooks';
+import { CatalogoOperacionalItem } from '../services';
+import { CatalogoOperacionalRow } from '../components/CatalogoOperacionalRow';
 
 const PAGE_SIZE = 10;
 
@@ -41,38 +41,40 @@ function buildPageEntries(current: number, total: number): (number | 'ellipsis')
   return entries;
 }
 
-const OperationalOrderCatalogListPage = () => {
+const CatalogoOperacionalListPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { canManageQuickTasks: canManage } = useUserRole();
-  const deleteItem = useDeleteOperationalOrderCatalog();
+  const deleteItem = useDeleteCatalogoOperacional();
 
   const [query, setQuery] = useState(new URLSearchParams(location.search).get('q') ?? '');
+  const [debouncedQuery, setDebouncedQuery] = useState(query);
   const [page, setPage] = useState(Number(new URLSearchParams(location.search).get('page') ?? 1));
 
-  const { data: catalogPage, isLoading } = useOperationalOrderCatalogPage({
-    page,
-    pageSize: PAGE_SIZE,
-    q: query,
-  });
-  const items = catalogPage?.items ?? [];
-  const totalPages = catalogPage?.totalPages ?? 1;
+  const { data: allItems = [], isLoading } = useCatalogosOperacionais({ q: debouncedQuery || undefined });
+  const totalPages = Math.max(1, Math.ceil(allItems.length / PAGE_SIZE));
+  const items = useMemo(
+    () => allItems.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
+    [allItems, page],
+  );
 
   useEffect(() => {
     const id = setTimeout(() => {
+      setDebouncedQuery(query);
       const params = new URLSearchParams(location.search);
       if (query) params.set('q', query); else params.delete('q');
       if (page > 1) params.set('page', String(page)); else params.delete('page');
       navigate({ search: params.toString() }, { replace: true });
     }, 250);
     return () => clearTimeout(id);
-  }, [page, query, location.search, navigate]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, query]);
 
-  useEffect(() => { setPage(1); }, [query]);
+  useEffect(() => { setPage(1); }, [debouncedQuery]);
   useEffect(() => { if (page > totalPages) setPage(totalPages); }, [totalPages, page]);
 
-  const handleEdit = (item: OperationalOrderCatalogItem) => {
-    navigate(`/dashboard/quick-tasks/catalog/${item.id}/edit`);
+  const handleEdit = (item: CatalogoOperacionalItem) => {
+    navigate(`/ordens-servico/operacionais/catalogo/${item.id}/edit`);
   };
 
   return (
@@ -87,7 +89,7 @@ const OperationalOrderCatalogListPage = () => {
         <Button
           variant="hero"
           disabled={!canManage}
-          onClick={() => navigate('/dashboard/quick-tasks/catalog/new')}
+          onClick={() => navigate('/ordens-servico/operacionais/catalogo/new')}
         >
           <Plus className="w-4 h-4 mr-2" />
           Novo serviço
@@ -112,6 +114,7 @@ const OperationalOrderCatalogListPage = () => {
               <TableRow className="border-border hover:bg-transparent">
                 <TableHead className="uppercase">Nome</TableHead>
                 <TableHead className="uppercase">Descrição</TableHead>
+                <TableHead className="uppercase">Complexidade</TableHead>
                 <TableHead className="w-12" />
               </TableRow>
             </TableHeader>
@@ -121,11 +124,12 @@ const OperationalOrderCatalogListPage = () => {
                     <TableRow key={i} className="border-border">
                       <TableCell><div className="h-4 w-48 rounded bg-muted animate-pulse" /></TableCell>
                       <TableCell><div className="h-4 w-full rounded bg-muted animate-pulse" /></TableCell>
+                      <TableCell><div className="h-4 w-20 rounded bg-muted animate-pulse" /></TableCell>
                       <TableCell><div className="h-8 w-8 rounded bg-muted animate-pulse" /></TableCell>
                     </TableRow>
                   ))
                 : items.map((item) => (
-                    <OperationalOrderCatalogRow
+                    <CatalogoOperacionalRow
                       key={item.id}
                       item={item}
                       canManage={canManage}
@@ -135,7 +139,7 @@ const OperationalOrderCatalogListPage = () => {
                   ))}
               {!isLoading && items.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={3} className="text-center py-12 text-muted-foreground">
+                  <TableCell colSpan={4} className="text-center py-12 text-muted-foreground">
                     <div className="flex flex-col items-center gap-3">
                       <ListChecks className="h-12 w-12" />
                       <div>
@@ -194,4 +198,4 @@ const OperationalOrderCatalogListPage = () => {
   );
 };
 
-export default OperationalOrderCatalogListPage;
+export default CatalogoOperacionalListPage;

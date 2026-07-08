@@ -6,27 +6,39 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Save } from 'lucide-react';
 import BackButton from '@/components/BackButton';
 import { useToast } from '@/hooks/use-toast';
 import { useUserRole } from '@/hooks/useUserRole';
-import { useOperationalOrderCatalogItem, useUpsertOperationalOrderCatalog } from '../hooks';
+import { useCatalogoOperacional, useUpsertCatalogoOperacional } from '../hooks';
+import { Complexidade, COMPLEXIDADE_LABEL } from '../services';
 
 type FormValues = {
   nome: string;
   descricao: string;
+  horasEstimadas: string;
+  complexidade: string;
 };
 
-const OperationalOrderCatalogFormPage = () => {
+const CatalogoOperacionalFormPage = () => {
   const navigate = useNavigate();
   const { id: paramId } = useParams<{ id: string }>();
   const id = paramId ? Number(paramId) : undefined;
   const { canManageQuickTasks: canManage } = useUserRole();
-  const { data: catalogItem } = useOperationalOrderCatalogItem(id);
-  const upsert = useUpsertOperationalOrderCatalog();
+  const { data: catalogItem } = useCatalogoOperacional(id);
+  const upsert = useUpsertCatalogoOperacional();
   const { toast } = useToast();
 
-  const form = useForm<FormValues>({ defaultValues: { nome: '', descricao: '' } });
+  const form = useForm<FormValues>({
+    defaultValues: { nome: '', descricao: '', horasEstimadas: '', complexidade: '' },
+  });
 
   useEffect(() => {
     if (!canManage) {
@@ -35,27 +47,40 @@ const OperationalOrderCatalogFormPage = () => {
         description: 'Seu perfil não pode gerenciar o catálogo.',
         variant: 'destructive',
       });
-      navigate('/dashboard/quick-tasks/catalog');
+      navigate('/ordens-servico/operacionais/catalogo');
     }
   }, [canManage, navigate, toast]);
 
   useEffect(() => {
     if (catalogItem) {
-      form.reset({ nome: catalogItem.nome ?? '', descricao: catalogItem.descricao ?? '' });
+      form.reset({
+        nome: catalogItem.nome ?? '',
+        descricao: catalogItem.descricao ?? '',
+        horasEstimadas: catalogItem.horasEstimadas ?? '',
+        complexidade: catalogItem.complexidade ? String(catalogItem.complexidade) : '',
+      });
     }
-  }, [catalogItem, form]);
+  }, [catalogItem]);
 
   const onSubmit = (values: FormValues) => {
     if (!canManage) return;
     upsert.mutate(
-      { id, payload: { nome: values.nome, descricao: values.descricao || null } },
+      {
+        id,
+        payload: {
+          nome: values.nome,
+          descricao: values.descricao || null,
+          horasEstimadas: values.horasEstimadas || null,
+          complexidade: values.complexidade ? (Number(values.complexidade) as Complexidade) : null,
+        },
+      },
       {
         onSuccess: () => {
           toast({
             title: id ? 'Serviço atualizado' : 'Serviço criado',
             description: 'Operação concluída com sucesso.',
           });
-          navigate('/dashboard/quick-tasks/catalog');
+          navigate('/ordens-servico/operacionais/catalogo');
         },
         onError: () => {
           toast({
@@ -79,7 +104,7 @@ const OperationalOrderCatalogFormPage = () => {
             Defina as informações do serviço utilizado nas OS Operacionais.
           </p>
         </div>
-        <BackButton to="/dashboard/quick-tasks/catalog" />
+        <BackButton to="/ordens-servico/operacionais/catalogo" />
       </div>
 
       <Card className="bg-card border-border">
@@ -107,6 +132,33 @@ const OperationalOrderCatalogFormPage = () => {
                 className="bg-secondary border-border min-h-28"
               />
             </div>
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="horasEstimadas">Horas estimadas</Label>
+                <Input
+                  id="horasEstimadas"
+                  placeholder="Ex.: 2.5"
+                  {...form.register('horasEstimadas')}
+                  className="bg-secondary border-border"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Complexidade</Label>
+                <Select
+                  value={form.watch('complexidade')}
+                  onValueChange={(v) => form.setValue('complexidade', v)}
+                >
+                  <SelectTrigger className="bg-secondary border-border">
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(COMPLEXIDADE_LABEL).map(([value, label]) => (
+                      <SelectItem key={value} value={value}>{label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
             <Button
               type="submit"
               variant="hero"
@@ -123,4 +175,4 @@ const OperationalOrderCatalogFormPage = () => {
   );
 };
 
-export default OperationalOrderCatalogFormPage;
+export default CatalogoOperacionalFormPage;

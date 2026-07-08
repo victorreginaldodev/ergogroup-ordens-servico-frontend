@@ -10,36 +10,29 @@ import { useAuditoriaTimeline } from '../hooks';
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 const ACAO_ICON: Record<string, React.ReactNode> = {
-  criacao:               <FilePlus2   className="h-3.5 w-3.5" />,
-  atualizacao:           <Settings2   className="h-3.5 w-3.5" />,
-  status:                <CircleDashed className="h-3.5 w-3.5" />,
-  propagacao_status:     <Zap         className="h-3.5 w-3.5" />,
-  liberacao_faturamento: <CheckCircle2 className="h-3.5 w-3.5" />,
-  faturamento:           <CheckCircle2 className="h-3.5 w-3.5" />,
-  liberacao_cobranca:    <CheckCircle2 className="h-3.5 w-3.5" />,
-  contrato:              <Settings2   className="h-3.5 w-3.5" />,
-  exclusao:              <Trash2      className="h-3.5 w-3.5" />,
-  backfill:              <History     className="h-3.5 w-3.5" />,
+  criacao:               <FilePlus2   className="h-4 w-4" />,
+  atualizacao:           <Settings2   className="h-4 w-4" />,
+  status:                <CircleDashed className="h-4 w-4" />,
+  propagacao_status:     <Zap         className="h-4 w-4" />,
+  liberacao_faturamento: <CheckCircle2 className="h-4 w-4" />,
+  faturamento:           <CheckCircle2 className="h-4 w-4" />,
+  liberacao_cobranca:    <CheckCircle2 className="h-4 w-4" />,
+  contrato:              <Settings2   className="h-4 w-4" />,
+  exclusao:              <Trash2      className="h-4 w-4" />,
+  backfill:              <History     className="h-4 w-4" />,
 };
 
 const ACAO_COLOR: Record<string, string> = {
-  criacao:               'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
-  atualizacao:           'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-  status:                'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
-  propagacao_status:     'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
-  liberacao_faturamento: 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400',
-  faturamento:           'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400',
-  liberacao_cobranca:    'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400',
-  contrato:              'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-  exclusao:              'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
-  backfill:              'bg-gray-100 text-gray-500 dark:bg-gray-800/50 dark:text-gray-400',
-};
-
-const ENTIDADE_BADGE: Record<string, string> = {
-  ordem_servico: 'bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
-  servico:       'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-  tarefa:        'bg-orange-50 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
-  mini_os:       'bg-gray-100 text-gray-600 dark:bg-gray-800/50 dark:text-gray-400',
+  criacao:               'bg-slate-500/15 text-slate-500 dark:text-slate-400',
+  atualizacao:           'bg-blue-500/15 text-blue-600 dark:text-blue-400',
+  status:                'bg-primary/15 text-primary',
+  propagacao_status:     'bg-primary/15 text-primary',
+  liberacao_faturamento: 'bg-amber-500/15 text-amber-600 dark:text-amber-400',
+  faturamento:            'bg-green-500/15 text-green-600 dark:text-green-400',
+  liberacao_cobranca:    'bg-amber-500/15 text-amber-600 dark:text-amber-400',
+  contrato:              'bg-purple-500/15 text-purple-600 dark:text-purple-400',
+  exclusao:              'bg-red-500/15 text-red-600 dark:text-red-400',
+  backfill:              'bg-muted text-muted-foreground',
 };
 
 function formatDateTime(iso: string) {
@@ -48,17 +41,6 @@ function formatDateTime(iso: string) {
     day: '2-digit', month: '2-digit', year: 'numeric',
     hour: '2-digit', minute: '2-digit',
   }).format(d);
-}
-
-function formatDateGroup(iso: string) {
-  const d = new Date(iso);
-  return new Intl.DateTimeFormat('pt-BR', {
-    day: '2-digit', month: 'long', year: 'numeric',
-  }).format(d);
-}
-
-function isoToDay(iso: string) {
-  return iso.slice(0, 10);
 }
 
 // ── Alterações expandíveis ────────────────────────────────────────────────────
@@ -83,59 +65,46 @@ function Alteracoes({ data }: { data: Record<string, { antes: unknown; depois: u
 
 // ── Item individual ───────────────────────────────────────────────────────────
 
-function TimelineItem({ registro }: { registro: import('../services').RegistroAuditoria }) {
+function TimelineItem({ registro, isLast }: { registro: import('../services').RegistroAuditoria; isLast: boolean }) {
   const [expanded, setExpanded] = useState(false);
   const hasAlteracoes = Object.keys(registro.alteracoes ?? {}).length > 0;
   const isMigracao = registro.origem === 'migracao';
+  const colorCls = ACAO_COLOR[registro.acao] ?? 'bg-muted text-muted-foreground';
 
   return (
-    <div className={cn('relative flex gap-3', isMigracao && 'opacity-60')}>
-      {/* Ícone da ação */}
-      <div className={cn(
-        'relative z-10 flex h-7 w-7 shrink-0 items-center justify-center rounded-full',
-        ACAO_COLOR[registro.acao] ?? 'bg-gray-100 text-gray-500',
-      )}>
-        {ACAO_ICON[registro.acao] ?? <History className="h-3.5 w-3.5" />}
+    <div className={cn('flex gap-3.5', isMigracao && 'opacity-60')}>
+      {/* Ícone + linha de conexão */}
+      <div className="flex shrink-0 flex-col items-center">
+        <div className={cn('flex h-[34px] w-[34px] items-center justify-center rounded-full', colorCls)}>
+          {ACAO_ICON[registro.acao] ?? <History className="h-4 w-4" />}
+        </div>
+        {!isLast && <div className="mt-1 w-px flex-1 bg-border" style={{ minHeight: 22 }} />}
       </div>
 
       {/* Conteúdo */}
-      <div className="min-w-0 flex-1 pb-4">
-        {/* Linha 1: ação + entidade + objeto */}
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm font-medium text-foreground">{registro.acao_display}</span>
-          <span className={cn(
-            'rounded-full px-1.5 py-0.5 text-[11px] font-semibold',
-            ENTIDADE_BADGE[registro.entidade] ?? 'bg-secondary text-secondary-foreground',
-          )}>
+      <div className="min-w-0 flex-1 pb-[22px]">
+        <p className="text-sm font-medium leading-[1.45] text-foreground">
+          <span className="font-bold">{registro.usuario_nome ?? 'Sistema'}</span> {registro.acao_display.toLowerCase()}
+          {registro.objeto_repr ? <> — {registro.objeto_repr}</> : null}
+        </p>
+
+        <div className="mt-[3px] flex flex-wrap items-center gap-2">
+          <span className={cn('rounded px-[7px] py-[2px] text-[10px] font-bold uppercase tracking-[0.04em]', colorCls)}>
             {registro.entidade_display}
           </span>
+          <span className="text-xs font-medium text-muted-foreground">{formatDateTime(registro.criado_em)}</span>
+          {isMigracao && <span className="text-xs italic text-muted-foreground">dado histórico</span>}
         </div>
 
-        {/* Linha 2: objeto repr */}
-        {registro.objeto_repr && (
-          <p className="mt-0.5 truncate text-xs text-muted-foreground">{registro.objeto_repr}</p>
-        )}
-
-        {/* Linha 3: usuário · data · origem migração */}
-        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
-          <span>{registro.usuario_nome ?? 'Sistema'}</span>
-          <span>{formatDateTime(registro.criado_em)}</span>
-          {isMigracao && (
-            <span className="italic">dado histórico</span>
-          )}
-        </div>
-
-        {/* Motivo */}
         {registro.motivo && !isMigracao && (
           <p className="mt-1 text-xs text-muted-foreground">{registro.motivo}</p>
         )}
 
-        {/* Alterações expandíveis */}
         {hasAlteracoes && (
           <button
             type="button"
             onClick={() => setExpanded((v) => !v)}
-            className="mt-1.5 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            className="mt-1.5 flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
           >
             {expanded
               ? <><ChevronUp className="h-3 w-3" /> Ocultar alterações</>
@@ -159,13 +128,13 @@ export function OrdemAuditoriaTimeline({ ordemId }: OrdemAuditoriaTimelineProps)
 
   if (isLoading) {
     return (
-      <div className="space-y-4 py-2">
-        {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="flex gap-3">
-            <Skeleton className="h-7 w-7 shrink-0 rounded-full" />
-            <div className="flex-1 space-y-1.5 pt-1">
-              <Skeleton className="h-4 w-48 rounded" />
-              <Skeleton className="h-3 w-32 rounded" />
+      <div className="max-w-[840px] space-y-5 py-1">
+        {[1, 2, 3, 4, 5].map((i) => (
+          <div key={i} className="flex items-center gap-3.5">
+            <Skeleton className="h-[34px] w-[34px] shrink-0 rounded-full" />
+            <div className="flex-1 space-y-1.5">
+              <Skeleton className="h-3.5 w-3/5 rounded" />
+              <Skeleton className="h-2.5 w-1/4 rounded" />
             </div>
           </div>
         ))}
@@ -181,36 +150,10 @@ export function OrdemAuditoriaTimeline({ ordemId }: OrdemAuditoriaTimelineProps)
     );
   }
 
-  // Agrupa por dia
-  const porDia = registros.reduce<Record<string, typeof registros>>((acc, r) => {
-    const dia = isoToDay(r.criado_em);
-    (acc[dia] ??= []).push(r);
-    return acc;
-  }, {});
-
   return (
-    <div className="space-y-6 py-2">
-      {Object.entries(porDia).map(([dia, items]) => (
-        <div key={dia}>
-          {/* Separador de data */}
-          <div className="mb-3 flex items-center gap-3">
-            <div className="h-px flex-1 bg-border" />
-            <span className="text-xs font-semibold text-muted-foreground">
-              {formatDateGroup(dia + 'T00:00:00')}
-            </span>
-            <div className="h-px flex-1 bg-border" />
-          </div>
-
-          {/* Linha vertical de conexão */}
-          <div className="relative">
-            <div className="absolute left-3.5 top-0 h-full w-px bg-border" />
-            <div className="space-y-0">
-              {items.map((r) => (
-                <TimelineItem key={r.id} registro={r} />
-              ))}
-            </div>
-          </div>
-        </div>
+    <div className="max-w-[840px]">
+      {registros.map((r, i) => (
+        <TimelineItem key={r.id} registro={r} isLast={i === registros.length - 1} />
       ))}
     </div>
   );

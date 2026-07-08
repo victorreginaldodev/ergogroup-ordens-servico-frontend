@@ -23,9 +23,9 @@ import {
 } from '@/components/ui/pagination';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useUsers } from '@/features/usuarios/hooks';
-import { useOperationalOrderPage } from '../hooks';
-import { OperationalOrderItem } from '../services';
-import { STATUS_ORDER } from '../utils';
+import { useOperationalOrderPage } from '../hooksOperacional';
+import { OperationalOrderItem } from '../servicesOperacional';
+import { STATUS_ORDER } from '../utilsOperacional';
 import {
   OperationalOrderFilters,
   OperationalOrderFiltersState,
@@ -34,6 +34,7 @@ import {
 import { OperationalOrderActiveFilters } from '../components/OperationalOrderActiveFilters';
 import { OperationalOrderRow } from '../components/OperationalOrderRow';
 import { OperationalOrderForm } from '../components/OperationalOrderForm';
+import { OperationalOrderCobrancaDialog } from '../components/OperationalOrderCobrancaDialog';
 
 const PAGE_SIZE = 10;
 const SEARCH_DEBOUNCE_MS = 300;
@@ -58,6 +59,7 @@ const OperationalOrderListPage = () => {
   const [page, setPage] = useState(1);
   const [formOpen, setFormOpen] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
+  const [cobrancaItem, setCobrancaItem] = useState<OperationalOrderItem | null>(null);
 
   const { data: usuarios = [] } = useUsers();
   const technicianOptions = useMemo(
@@ -78,25 +80,29 @@ const OperationalOrderListPage = () => {
     pageSize: PAGE_SIZE,
     q: debouncedSearch || undefined,
     status: filters.status !== 'all' ? filters.status : undefined,
-    faturada: filters.faturada !== 'all' ? filters.faturada : undefined,
+    prioridade: filters.prioridade !== 'all' ? filters.prioridade : undefined,
+    cobrancaRealizada: filters.cobrancaRealizada !== 'all' ? filters.cobrancaRealizada : undefined,
     responsavel: filters.responsavel !== 'all' ? Number(filters.responsavel) : undefined,
+    atrasada: filters.atrasada || undefined,
+    ordering: filters.ordering !== 'none' ? filters.ordering : undefined,
   });
 
   const items = pageResult?.items ?? [];
   const totalCount = pageResult?.count ?? 0;
   const totalPages = pageResult?.totalPages ?? 1;
 
-  const sorted = useMemo(
-    () =>
-      [...items].sort((a, b) => {
-        const diff = (STATUS_ORDER[a.status] ?? 0) - (STATUS_ORDER[b.status] ?? 0);
-        if (diff !== 0) return diff;
-        return b.id - a.id;
-      }),
-    [items],
-  );
+  const sorted = useMemo(() => {
+    if (filters.ordering !== 'none') return items;
+    return [...items].sort((a, b) => {
+      const diff = (STATUS_ORDER[a.status] ?? 0) - (STATUS_ORDER[b.status] ?? 0);
+      if (diff !== 0) return diff;
+      return b.id - a.id;
+    });
+  }, [items, filters.ordering]);
 
-  useEffect(() => { setPage(1); }, [debouncedSearch, filters.status, filters.faturada, filters.responsavel]);
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, filters.status, filters.prioridade, filters.cobrancaRealizada, filters.responsavel, filters.atrasada, filters.ordering]);
 
   const openCreate = () => {
     if (!canManage) return;
@@ -173,6 +179,7 @@ const OperationalOrderListPage = () => {
                         item={item}
                         canManage={canManage}
                         onEdit={openEdit}
+                        onRegistrarCobranca={setCobrancaItem}
                       />
                     ))}
               </TableBody>
@@ -248,6 +255,11 @@ const OperationalOrderListPage = () => {
           if (!open) setEditId(null);
         }}
         editId={editId}
+      />
+
+      <OperationalOrderCobrancaDialog
+        item={cobrancaItem}
+        onOpenChange={(open) => { if (!open) setCobrancaItem(null); }}
       />
     </div>
   );

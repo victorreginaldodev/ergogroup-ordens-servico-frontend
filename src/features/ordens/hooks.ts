@@ -1,7 +1,9 @@
 import { useMemo } from 'react';
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  createServico,
   createTarefa,
+  deleteServico,
   deleteTarefa,
   getAuditoriaTimeline,
   getOrdemDetalhe,
@@ -11,15 +13,20 @@ import {
   getServicosResumo,
   getTarefasDeServico,
   getTarefasResumo,
+  registrarCobranca,
+  updateServico,
   updateTarefa,
+  type CreateServicoPayload,
   type CreateTarefaPayload,
   type OrdemServicoDetalhe,
   type OrdemServicoItem,
+  type RegistrarCobrancaPayload,
   type RegistroAuditoria,
   type ServicoDetalhe,
   type ServicoResumoItem,
   type TarefaDetalhe,
   type TarefaResumoItem,
+  type UpdateServicoPayload,
   type UpdateTarefaPayload,
 } from './services';
 
@@ -149,5 +156,56 @@ export const useDeleteTarefa = (ctx: MutacaoContexto) => {
   return useMutation({
     mutationFn: (id: number) => deleteTarefa(id),
     onSuccess: () => invalidarContexto(qc, ctx),
+  });
+};
+
+interface ServicoMutacaoContexto {
+  ordemId: number;
+}
+
+const invalidarServicoContexto = (
+  qc: ReturnType<typeof useQueryClient>,
+  { ordemId }: ServicoMutacaoContexto,
+) => {
+  qc.invalidateQueries({ queryKey: ['ordens-servicos', ordemId] });
+  qc.invalidateQueries({ queryKey: ['ordens-detalhe', ordemId] });
+  qc.invalidateQueries({ queryKey: ['ordens-lista'] });
+  qc.invalidateQueries({ queryKey: ['servicos-resumo'] });
+};
+
+export const useCreateServico = (ctx: ServicoMutacaoContexto) => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: CreateServicoPayload) => createServico(payload),
+    onSuccess: () => invalidarServicoContexto(qc, ctx),
+  });
+};
+
+export const useUpdateServico = (ctx: ServicoMutacaoContexto) => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: number; payload: UpdateServicoPayload }) =>
+      updateServico(id, payload),
+    onSuccess: () => invalidarServicoContexto(qc, ctx),
+  });
+};
+
+export const useDeleteServico = (ctx: ServicoMutacaoContexto) => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => deleteServico(id),
+    onSuccess: () => invalidarServicoContexto(qc, ctx),
+  });
+};
+
+export const useRegistrarCobranca = (ordemId: number) => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: RegistrarCobrancaPayload) => registrarCobranca(ordemId, payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['ordens-detalhe', ordemId] });
+      qc.invalidateQueries({ queryKey: ['auditoria-timeline', ordemId] });
+      qc.invalidateQueries({ queryKey: ['ordens-lista'] });
+    },
   });
 };

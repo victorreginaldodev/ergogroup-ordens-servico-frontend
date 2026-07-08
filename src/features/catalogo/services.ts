@@ -1,5 +1,248 @@
 import api from '@/services/api';
-import { isPaginatedResponse, PageResult, toPageResult } from '@/services/pagination';
+
+export type Complexidade = 1 | 2 | 3;
+
+export const COMPLEXIDADE_LABEL: Record<Complexidade, string> = {
+  1: 'Baixa',
+  2: 'Média',
+  3: 'Alta',
+};
+
+// ── Subitem de Catálogo ───────────────────────────────────────────────────────
+
+export interface SubitemCatalogoItem {
+  id: number;
+  nome: string;
+  descricao: string | null;
+  ativo: boolean;
+  ordem: number;
+  catalogo: number;
+  criadoEm: string;
+  atualizadoEm: string;
+}
+
+export interface SubitemCatalogoPayload {
+  nome: string;
+  descricao?: string | null;
+  ativo?: boolean;
+  ordem?: number;
+  catalogo: number;
+}
+
+type SubitemCatalogoDTO = {
+  id: number;
+  nome: string;
+  descricao: string | null;
+  ativo: boolean;
+  ordem: number;
+  catalogo: number;
+  criado_em: string;
+  atualizado_em: string;
+};
+
+const SUBITEM_ENDPOINT = '/api/catalogo/subitens/';
+
+const subitemToFrontend = (dto: SubitemCatalogoDTO): SubitemCatalogoItem => ({
+  id: dto.id,
+  nome: dto.nome,
+  descricao: dto.descricao ?? null,
+  ativo: dto.ativo,
+  ordem: dto.ordem,
+  catalogo: dto.catalogo,
+  criadoEm: dto.criado_em,
+  atualizadoEm: dto.atualizado_em,
+});
+
+const subitemToBackend = (payload: Partial<SubitemCatalogoPayload>) => ({
+  ...(payload.nome !== undefined ? { nome: payload.nome } : {}),
+  ...(payload.descricao !== undefined ? { descricao: payload.descricao } : {}),
+  ...(payload.ativo !== undefined ? { ativo: payload.ativo } : {}),
+  ...(payload.ordem !== undefined ? { ordem: payload.ordem } : {}),
+  ...(payload.catalogo !== undefined ? { catalogo: payload.catalogo } : {}),
+});
+
+export const getSubitensCatalogo = async (params: {
+  catalogo?: number;
+  ativo?: boolean;
+  q?: string;
+}): Promise<SubitemCatalogoItem[]> => {
+  const queryParams: Record<string, string | number> = {};
+  if (params.catalogo !== undefined) queryParams.catalogo = params.catalogo;
+  if (params.ativo !== undefined) queryParams.ativo = String(params.ativo);
+  if (params.q) queryParams.q = params.q;
+
+  const { data } = await api.get<SubitemCatalogoDTO[]>(SUBITEM_ENDPOINT, { params: queryParams });
+  return (data || []).map(subitemToFrontend);
+};
+
+export const createSubitemCatalogo = async (payload: SubitemCatalogoPayload): Promise<SubitemCatalogoItem> => {
+  const { data } = await api.post<SubitemCatalogoDTO>(SUBITEM_ENDPOINT, subitemToBackend(payload));
+  return subitemToFrontend(data);
+};
+
+export const updateSubitemCatalogo = async (
+  id: number,
+  payload: Partial<SubitemCatalogoPayload>,
+): Promise<SubitemCatalogoItem> => {
+  const { data } = await api.patch<SubitemCatalogoDTO>(`${SUBITEM_ENDPOINT}${id}/`, subitemToBackend(payload));
+  return subitemToFrontend(data);
+};
+
+export const deleteSubitemCatalogo = async (id: number): Promise<void> => {
+  await api.delete(`${SUBITEM_ENDPOINT}${id}/`);
+};
+
+// ── Catálogo (serviços de Ordem de Serviço) ───────────────────────────────────
+
+export interface CatalogoItem {
+  id: number;
+  nome: string;
+  descricao: string | null;
+  horasEstimadas: string | null;
+  complexidade: Complexidade | null;
+  subitens: SubitemCatalogoItem[];
+}
+
+export interface CatalogoPayload {
+  nome: string;
+  descricao?: string | null;
+  horasEstimadas?: string | null;
+  complexidade?: Complexidade | null;
+}
+
+type CatalogoDTO = {
+  id: number;
+  nome: string;
+  descricao: string | null;
+  horas_estimadas: string | null;
+  complexidade: Complexidade | null;
+  subitens: SubitemCatalogoDTO[];
+};
+
+const CATALOGO_ENDPOINT = '/api/catalogo/catalogos/';
+
+const catalogoToFrontend = (dto: CatalogoDTO): CatalogoItem => ({
+  id: dto.id,
+  nome: dto.nome,
+  descricao: dto.descricao ?? null,
+  horasEstimadas: dto.horas_estimadas ?? null,
+  complexidade: dto.complexidade ?? null,
+  subitens: (dto.subitens || []).map(subitemToFrontend),
+});
+
+const catalogoToBackend = (payload: Partial<CatalogoPayload>) => ({
+  ...(payload.nome !== undefined ? { nome: payload.nome } : {}),
+  ...(payload.descricao !== undefined ? { descricao: payload.descricao } : {}),
+  ...(payload.horasEstimadas !== undefined ? { horas_estimadas: payload.horasEstimadas } : {}),
+  ...(payload.complexidade !== undefined ? { complexidade: payload.complexidade } : {}),
+});
+
+export const getCatalogos = async (params: { q?: string } = {}): Promise<CatalogoItem[]> => {
+  const queryParams: Record<string, string> = {};
+  if (params.q) queryParams.q = params.q;
+  const { data } = await api.get<CatalogoDTO[]>(CATALOGO_ENDPOINT, { params: queryParams });
+  return (data || []).map(catalogoToFrontend);
+};
+
+export const getCatalogo = async (id: number): Promise<CatalogoItem> => {
+  const { data } = await api.get<CatalogoDTO>(`${CATALOGO_ENDPOINT}${id}/`);
+  return catalogoToFrontend(data);
+};
+
+export const createCatalogo = async (payload: CatalogoPayload): Promise<CatalogoItem> => {
+  const { data } = await api.post<CatalogoDTO>(CATALOGO_ENDPOINT, catalogoToBackend(payload));
+  return catalogoToFrontend(data);
+};
+
+export const updateCatalogo = async (id: number, payload: Partial<CatalogoPayload>): Promise<CatalogoItem> => {
+  const { data } = await api.patch<CatalogoDTO>(`${CATALOGO_ENDPOINT}${id}/`, catalogoToBackend(payload));
+  return catalogoToFrontend(data);
+};
+
+export const deleteCatalogo = async (id: number): Promise<void> => {
+  await api.delete(`${CATALOGO_ENDPOINT}${id}/`);
+};
+
+// ── Catálogo Operacional (serviços de OS Operacional) ─────────────────────────
+
+export interface CatalogoOperacionalItem {
+  id: number;
+  nome: string;
+  descricao: string | null;
+  horasEstimadas: string | null;
+  complexidade: Complexidade | null;
+}
+
+export interface CatalogoOperacionalPayload {
+  nome: string;
+  descricao?: string | null;
+  horasEstimadas?: string | null;
+  complexidade?: Complexidade | null;
+}
+
+type CatalogoOperacionalDTO = {
+  id: number;
+  nome: string;
+  descricao: string | null;
+  horas_estimadas: string | null;
+  complexidade: Complexidade | null;
+};
+
+const CATALOGO_OPERACIONAL_ENDPOINT = '/api/catalogo/catalogos-operacionais/';
+
+const catalogoOperacionalToFrontend = (dto: CatalogoOperacionalDTO): CatalogoOperacionalItem => ({
+  id: dto.id,
+  nome: dto.nome,
+  descricao: dto.descricao ?? null,
+  horasEstimadas: dto.horas_estimadas ?? null,
+  complexidade: dto.complexidade ?? null,
+});
+
+const catalogoOperacionalToBackend = (payload: Partial<CatalogoOperacionalPayload>) => ({
+  ...(payload.nome !== undefined ? { nome: payload.nome } : {}),
+  ...(payload.descricao !== undefined ? { descricao: payload.descricao } : {}),
+  ...(payload.horasEstimadas !== undefined ? { horas_estimadas: payload.horasEstimadas } : {}),
+  ...(payload.complexidade !== undefined ? { complexidade: payload.complexidade } : {}),
+});
+
+export const getCatalogosOperacionais = async (params: { q?: string } = {}): Promise<CatalogoOperacionalItem[]> => {
+  const queryParams: Record<string, string> = {};
+  if (params.q) queryParams.q = params.q;
+  const { data } = await api.get<CatalogoOperacionalDTO[]>(CATALOGO_OPERACIONAL_ENDPOINT, { params: queryParams });
+  return (data || []).map(catalogoOperacionalToFrontend);
+};
+
+export const getCatalogoOperacional = async (id: number): Promise<CatalogoOperacionalItem> => {
+  const { data } = await api.get<CatalogoOperacionalDTO>(`${CATALOGO_OPERACIONAL_ENDPOINT}${id}/`);
+  return catalogoOperacionalToFrontend(data);
+};
+
+export const createCatalogoOperacional = async (
+  payload: CatalogoOperacionalPayload,
+): Promise<CatalogoOperacionalItem> => {
+  const { data } = await api.post<CatalogoOperacionalDTO>(
+    CATALOGO_OPERACIONAL_ENDPOINT,
+    catalogoOperacionalToBackend(payload),
+  );
+  return catalogoOperacionalToFrontend(data);
+};
+
+export const updateCatalogoOperacional = async (
+  id: number,
+  payload: Partial<CatalogoOperacionalPayload>,
+): Promise<CatalogoOperacionalItem> => {
+  const { data } = await api.patch<CatalogoOperacionalDTO>(
+    `${CATALOGO_OPERACIONAL_ENDPOINT}${id}/`,
+    catalogoOperacionalToBackend(payload),
+  );
+  return catalogoOperacionalToFrontend(data);
+};
+
+export const deleteCatalogoOperacional = async (id: number): Promise<void> => {
+  await api.delete(`${CATALOGO_OPERACIONAL_ENDPOINT}${id}/`);
+};
+
+// ── Compat: visão simplificada usada pelo módulo de Ordens de Serviço ─────────
 
 export interface RepositoryItem {
   id: string;
@@ -7,81 +250,7 @@ export interface RepositoryItem {
   description: string;
 }
 
-type RepositorioDTO = {
-  id: number | string;
-  nome: string;
-  descricao: string;
-};
-
-const endpoint = '/api/servicos/repositorios/';
-
-const toFrontend = (dto: RepositorioDTO): RepositoryItem => ({
-  id: String(dto.id),
-  name: dto.nome,
-  description: dto.descricao,
-});
-
-const toBackend = (item: Partial<RepositoryItem>) => ({
-  nome: item.name ?? '',
-  descricao: item.description ?? '',
-});
-
 export const getRepositories = async (): Promise<RepositoryItem[]> => {
-  const { data } = await api.get<RepositorioDTO[]>(endpoint);
-  return (data || []).map(toFrontend);
-};
-
-export type RepositoriesPageParams = {
-  page?: number;
-  pageSize?: number;
-  q?: string;
-};
-
-export const getRepositoriesPage = async (params: RepositoriesPageParams): Promise<PageResult<RepositoryItem>> => {
-  const page = params.page ?? 1;
-  const pageSize = params.pageSize ?? 10;
-  const queryParams: Record<string, string | number> = {
-    page,
-    page_size: pageSize,
-  };
-  if (params.q) queryParams.q = params.q;
-
-  const { data } = await api.get(endpoint, { params: queryParams });
-  if (isPaginatedResponse<RepositorioDTO>(data)) {
-    return {
-      ...toPageResult(data, page, pageSize),
-      items: data.results.map(toFrontend),
-    };
-  }
-
-  const items = (Array.isArray(data) ? data : []).map(toFrontend);
-  return {
-    items,
-    count: items.length,
-    page,
-    pageSize,
-    totalPages: Math.max(1, Math.ceil(items.length / pageSize)),
-    next: null,
-    previous: null,
-  };
-};
-
-export const getRepository = async (id: string): Promise<RepositoryItem> => {
-  const { data } = await api.get<RepositorioDTO>(`${endpoint}${id}/`);
-  return toFrontend(data);
-};
-
-export const upsertRepository = async (payload: Partial<RepositoryItem> & { id?: string }): Promise<RepositoryItem> => {
-  if (payload.id) {
-    const { id, ...body } = payload;
-    const { data } = await api.put<RepositorioDTO>(`${endpoint}${id}/`, toBackend(body));
-    return toFrontend(data);
-  }
-  const { data } = await api.post<RepositorioDTO>(endpoint, toBackend(payload));
-  return toFrontend(data);
-};
-
-export const deleteRepository = async (id: string): Promise<string> => {
-  await api.delete(`${endpoint}${id}/`);
-  return id;
+  const items = await getCatalogos({});
+  return items.map((c) => ({ id: String(c.id), name: c.nome, description: c.descricao ?? '' }));
 };

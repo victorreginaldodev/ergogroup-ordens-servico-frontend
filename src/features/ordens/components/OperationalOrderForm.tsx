@@ -14,37 +14,43 @@ import {
 } from '@/components/ui/select';
 import { useClients } from '@/features/clientes/hooks';
 import { useUsers } from '@/features/usuarios/hooks';
+import { useCatalogosOperacionais } from '@/features/catalogo/hooks';
+import { COMPLEXIDADE_LABEL } from '@/features/catalogo/services';
 import {
-  useOperationalOrderCatalog,
   useOperationalOrderDetail,
   useCreateOperationalOrder,
   useUpdateOperationalOrder,
-} from '../hooks';
+} from '../hooksOperacional';
+import { OperationalOrderPrioridade, OperationalOrderStatus } from '../servicesOperacional';
 
 interface FormState {
   cliente: number;
-  servico: number;
+  catalogoOperacional: number;
   responsavel: number;
   quantidade: number;
   descricao: string;
   dataRecebimento: string;
-  dataInicio: string;
-  dataTermino: string;
-  status: string;
+  prazo: string;
+  prioridade: OperationalOrderPrioridade;
+  status: OperationalOrderStatus;
   revisaoCliente: boolean;
+  horasEstimadas: string;
+  complexidade: string;
 }
 
 const defaultForm: FormState = {
   cliente: 0,
-  servico: 0,
+  catalogoOperacional: 0,
   responsavel: 0,
   quantidade: 1,
   descricao: '',
   dataRecebimento: '',
-  dataInicio: '',
-  dataTermino: '',
+  prazo: '',
+  prioridade: 'baixa',
   status: 'nao_iniciado',
   revisaoCliente: false,
+  horasEstimadas: '',
+  complexidade: '',
 };
 
 interface OperationalOrderFormProps {
@@ -59,7 +65,7 @@ export function OperationalOrderForm({ open, onOpenChange, editId }: Operational
 
   const { data: clients = [] } = useClients();
   const { data: profiles = [] } = useUsers();
-  const { data: catalog = [] } = useOperationalOrderCatalog();
+  const { data: catalog = [] } = useCatalogosOperacionais();
   const { data: detail, isLoading: loadingDetail } = useOperationalOrderDetail(editId ?? undefined);
   const createOrder = useCreateOperationalOrder();
   const updateOrder = useUpdateOperationalOrder();
@@ -72,35 +78,39 @@ export function OperationalOrderForm({ open, onOpenChange, editId }: Operational
     if (isEdit && detail) {
       setForm({
         cliente: detail.clienteId,
-        servico: detail.servicoId,
+        catalogoOperacional: detail.catalogoOperacionalId,
         responsavel: detail.responsavelId,
         quantidade: detail.quantidade,
         descricao: detail.descricao ?? '',
         dataRecebimento: detail.dataRecebimento ?? '',
-        dataInicio: detail.dataInicio ?? '',
-        dataTermino: detail.dataTermino ?? '',
+        prazo: detail.prazo ?? '',
+        prioridade: detail.prioridade,
         status: detail.status,
         revisaoCliente: detail.revisaoCliente,
+        horasEstimadas: detail.horasEstimadas ?? '',
+        complexidade: detail.complexidade ? String(detail.complexidade) : '',
       });
     }
   }, [open, isEdit, detail]);
 
-  const isValid = form.cliente > 0 && form.servico > 0 && form.quantidade > 0 && !!form.dataRecebimento;
+  const isValid = form.cliente > 0 && form.catalogoOperacional > 0 && form.quantidade > 0 && !!form.dataRecebimento;
   const isPending = createOrder.isPending || updateOrder.isPending;
 
   const handleSubmit = () => {
     if (!isValid || isPending) return;
     const payload = {
       cliente: form.cliente,
-      servico: form.servico,
+      catalogoOperacional: form.catalogoOperacional,
       responsavel: form.responsavel || undefined,
       quantidade: form.quantidade,
       descricao: form.descricao || null,
       dataRecebimento: form.dataRecebimento,
-      dataInicio: form.dataInicio || null,
-      dataTermino: form.dataTermino || null,
+      prazo: form.prazo || null,
+      prioridade: form.prioridade,
       status: form.status,
       revisaoCliente: form.revisaoCliente,
+      horasEstimadas: form.horasEstimadas || null,
+      complexidade: form.complexidade ? Number(form.complexidade) : null,
     };
 
     if (isEdit && editId) {
@@ -151,8 +161,8 @@ export function OperationalOrderForm({ open, onOpenChange, editId }: Operational
               <div>
                 <p className="text-xs text-muted-foreground mb-1">Serviço</p>
                 <Select
-                  value={form.servico ? String(form.servico) : ''}
-                  onValueChange={(v) => setForm({ ...form, servico: Number(v) })}
+                  value={form.catalogoOperacional ? String(form.catalogoOperacional) : ''}
+                  onValueChange={(v) => setForm({ ...form, catalogoOperacional: Number(v) })}
                 >
                   <SelectTrigger className="bg-background border-border">
                     <SelectValue placeholder="Selecione o serviço" />
@@ -204,7 +214,7 @@ export function OperationalOrderForm({ open, onOpenChange, editId }: Operational
               </div>
               <div>
                 <p className="text-xs text-muted-foreground mb-1">Status</p>
-                <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v })}>
+                <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v as OperationalOrderStatus })}>
                   <SelectTrigger className="bg-background border-border">
                     <SelectValue />
                   </SelectTrigger>
@@ -212,6 +222,59 @@ export function OperationalOrderForm({ open, onOpenChange, editId }: Operational
                     <SelectItem value="nao_iniciado">Não Iniciado</SelectItem>
                     <SelectItem value="em_andamento">Em Andamento</SelectItem>
                     <SelectItem value="finalizada">Finalizada</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Prioridade</p>
+                <Select value={form.prioridade} onValueChange={(v) => setForm({ ...form, prioridade: v as OperationalOrderPrioridade })}>
+                  <SelectTrigger className="bg-background border-border">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="baixa">Baixa</SelectItem>
+                    <SelectItem value="media">Média</SelectItem>
+                    <SelectItem value="alta">Alta</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Prazo</p>
+                <Input
+                  type="date"
+                  value={form.prazo}
+                  onChange={(e) => setForm({ ...form, prazo: e.target.value })}
+                  className="bg-background border-border"
+                />
+              </div>
+            </div>
+
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Horas estimadas</p>
+                <Input
+                  placeholder="Ex.: 2.5"
+                  value={form.horasEstimadas}
+                  onChange={(e) => setForm({ ...form, horasEstimadas: e.target.value })}
+                  className="bg-background border-border"
+                />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Complexidade</p>
+                <Select
+                  value={form.complexidade}
+                  onValueChange={(v) => setForm({ ...form, complexidade: v })}
+                >
+                  <SelectTrigger className="bg-background border-border">
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(COMPLEXIDADE_LABEL).map(([value, label]) => (
+                      <SelectItem key={value} value={value}>{label}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -226,27 +289,6 @@ export function OperationalOrderForm({ open, onOpenChange, editId }: Operational
               {form.revisaoCliente && (
                 <span className="text-xs text-muted-foreground">(gera cobrança ao finalizar)</span>
               )}
-            </div>
-
-            <div className="grid sm:grid-cols-2 gap-4">
-              <div>
-                <p className="text-xs text-muted-foreground mb-1">Início</p>
-                <Input
-                  type="date"
-                  value={form.dataInicio}
-                  onChange={(e) => setForm({ ...form, dataInicio: e.target.value })}
-                  className="bg-background border-border"
-                />
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground mb-1">Término</p>
-                <Input
-                  type="date"
-                  value={form.dataTermino}
-                  onChange={(e) => setForm({ ...form, dataTermino: e.target.value })}
-                  className="bg-background border-border"
-                />
-              </div>
             </div>
 
             <div>

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Plus, FileText, ArrowRight, Users } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Plus, FileText, ArrowRight, Clock, FileCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import {
@@ -20,12 +20,24 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from '@/components/ui/pagination';
-import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useUserRole } from '@/hooks/useUserRole';
+import { authService } from '@/services/auth';
 import { useUsers } from '@/features/usuarios/hooks';
 import { useOrdensLista, useServicosResumo, useTarefasResumo } from '../hooks';
-import { avatarColor, formatDate, formatCurrency, formatDaysCount, getStatusLabel, getPriorityLabel, initials, STATUS_DOT, PRIORITY_DOT } from '../utils';
+import {
+  formatShortDate,
+  formatDaysCount,
+  formatCurrency,
+  getStatusLabel,
+  getPriorityLabel,
+  getUrgencyLevel,
+  bucketTarefa,
+  STATUS_DOT,
+  PRIORITY_DOT,
+  type UrgencyLevel,
+  type TarefaBuckets,
+} from '../utils';
 import { OrdemServicoFiltros, defaultFilters, type FiltersState } from '../components/OrdemServicoFiltros';
 import { OrdemServicoFiltrosAtivos } from '../components/OrdemServicoFiltrosAtivos';
 
@@ -50,21 +62,94 @@ const getDurationMeta = (ordem: {
   };
 };
 
+const URGENCY_PILL_CLASSES: Record<UrgencyLevel, string> = {
+  alta: 'bg-red-500/10 text-red-600 dark:text-red-400 font-semibold',
+  media: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 font-medium',
+  muted: 'bg-transparent text-muted-foreground font-medium',
+};
+
+const PRIORITY_TEXT_CLASSES: Record<string, string> = {
+  alta: 'text-red-600 dark:text-red-400 font-semibold',
+  media: 'text-foreground font-medium',
+  baixa: 'text-muted-foreground font-medium',
+};
+
+const TAREFA_BADGE: Record<keyof TarefaBuckets, { label: string; dot: string; activeClasses: string }> = {
+  novas:     { label: 'Novas',        dot: 'bg-sky-500',   activeClasses: 'bg-sky-500/10 text-sky-600 dark:text-sky-400' },
+  andamento: { label: 'Em andamento', dot: 'bg-amber-500', activeClasses: 'bg-amber-500/10 text-amber-600 dark:text-amber-400' },
+  atrasadas: { label: 'Atrasadas',    dot: 'bg-red-500',   activeClasses: 'bg-red-500/10 text-red-600 dark:text-red-400' },
+};
+
 const STATUS_SORT: Record<string, number> = { aberta: 0, em_andamento: 1, concluida: 2, cancelada: 3 };
 const PRIORITY_SORT: Record<string, number> = { alta: 0, media: 1, baixa: 2 };
+
+const useListaConfig = () => {
+  const role = useUserRole();
+  const { isTechnician, isSubLeadTechnician, isLeadTechnician, isAdministrativeSector, isFinance, canViewOrderValues } = role;
+
+  const isTecnicoGestor = isLeadTechnician || isSubLeadTechnician;
+  const showFin = canViewOrderValues;
+  const showContrato = !(isTechnician || isTecnicoGestor);
+  const showTarefas = isTechnician || isTecnicoGestor;
+
+  let title = 'Ordens de Serviço';
+  let subtitle = 'Visão comercial de todas as OS';
+  let searchPlaceholder = 'Buscar por cliente, ID ou serviço...';
+
+  if (isTechnician) {
+    title = 'Minhas Ordens de Serviço';
+    subtitle = 'OS com tarefas atribuídas a você';
+    searchPlaceholder = 'Buscar nas minhas OS...';
+  } else if (isTecnicoGestor) {
+    title = 'Ordens de Serviço — Setor Técnico';
+    subtitle = 'Carga e prioridade do time técnico';
+  } else if (isFinance) {
+    subtitle = 'Cobrança e faturamento';
+    searchPlaceholder = 'Buscar por cliente, NF ou observação...';
+  } else if (isAdministrativeSector) {
+    subtitle = 'Contratos e dados cadastrais';
+  }
+
+  return {
+    ...role,
+    isTecnicoGestor,
+    showFin,
+    showContrato,
+    showTarefas,
+    tarefasColumnLabel: isTechnician ? 'Minhas tarefas' : 'Tarefas do setor',
+    title,
+    subtitle,
+    searchPlaceholder,
+  };
+};
 
 const OrdemServicoListPage = () => {
   const navigate = useNavigate();
   const [filters, setFilters] = useState<FiltersState>(defaultFilters);
   const [page, setPage] = useState(1);
 
-  const { data: ordens = [], isLoading } = useOrdensLista();
-  const { canViewOrderValues, canManageOrders } = useUserRole();
+  const {
+    isTechnician,
+    isTecnicoGestor,
+    showFin,
+    showContrato,
+    showTarefas,
+    tarefasColumnLabel,
+    canManageOrders,
+    title,
+    subtitle,
+    searchPlaceholder,
+  } = useListaConfig();
 
+  const currentProfile = authService.getCurrentUser();
+  const rawCurrentUserId = currentProfile?.user?.id ?? (currentProfile as any)?.id;
+  const currentUserId = rawCurrentUserId != null ? Number(rawCurrentUserId) : undefined;
+
+  const { data: ordens = [], isLoading } = useOrdensLista();
   const { data: usuarios = [] } = useUsers();
   const { data: servicosResumo = [], isLoading: loadingServicosResumo } = useServicosResumo();
   const { data: tarefasResumo = [], isLoading: loadingTarefasResumo } = useTarefasResumo();
-  const loadingEquipe = loadingServicosResumo || loadingTarefasResumo;
+  const loadingTarefaBuckets = loadingServicosResumo || loadingTarefasResumo;
 
   const technicianOptions = useMemo(
     () =>
@@ -88,45 +173,80 @@ const OrdemServicoListPage = () => {
     return acc;
   }, [servicosResumo]);
 
-  const tecnicosPorOrdem = useMemo(() => {
-    const acc: Record<number, Map<number, string>> = {};
+  // Responsáveis por OS (via tarefa → serviço → OS) — usado só pelo filtro de técnico.
+  const responsaveisPorOrdem = useMemo(() => {
+    const acc: Record<number, Set<number>> = {};
     tarefasResumo.forEach((t) => {
       const ordemId = servicoIdParaOrdem[t.servico];
       if (ordemId === undefined) return;
-      const map = acc[ordemId] ??= new Map();
-      map.set(t.responsavel, t.responsavel_nome);
+      (acc[ordemId] ??= new Set()).add(t.responsavel);
     });
     return acc;
   }, [tarefasResumo, servicoIdParaOrdem]);
 
-  const filteredOrdens = ordens.filter((ordem) => {
+  // Balde de tarefas por OS: para o Técnico, escopado às próprias tarefas;
+  // para Líder/Sub-Líder Técnico, agregado do time inteiro naquela OS.
+  const tarefaBucketsPorOrdem = useMemo(() => {
+    const acc: Record<number, TarefaBuckets> = {};
+    tarefasResumo.forEach((t) => {
+      const ordemId = servicoIdParaOrdem[t.servico];
+      if (ordemId === undefined) return;
+      if (isTechnician && t.responsavel !== currentUserId) return;
+      const bucket = bucketTarefa(t);
+      if (!bucket) return;
+      const entry = (acc[ordemId] ??= { novas: 0, andamento: 0, atrasadas: 0 });
+      entry[bucket] += 1;
+    });
+    return acc;
+  }, [tarefasResumo, servicoIdParaOrdem, isTechnician, currentUserId]);
+
+  // Escopo do Técnico: só OS com pelo menos uma tarefa dele — considera qualquer
+  // status (não só as em aberto), diferente do balde acima que só conta pendentes.
+  const ordensComTarefaDoTecnico = useMemo(() => {
+    if (!isTechnician) return null;
+    const set = new Set<number>();
+    tarefasResumo.forEach((t) => {
+      if (t.responsavel !== currentUserId) return;
+      const ordemId = servicoIdParaOrdem[t.servico];
+      if (ordemId !== undefined) set.add(ordemId);
+    });
+    return set;
+  }, [isTechnician, tarefasResumo, servicoIdParaOrdem, currentUserId]);
+
+  const baseOrdens = useMemo(() => {
+    if (!isTechnician) return ordens;
+    if (!ordensComTarefaDoTecnico) return [];
+    return ordens.filter((o) => ordensComTarefaDoTecnico.has(o.id));
+  }, [ordens, isTechnician, ordensComTarefaDoTecnico]);
+
+  const filteredOrdens = baseOrdens.filter((ordem) => {
     const q = filters.search.toLowerCase();
     const matchesText =
       !q ||
-      (ordem.cliente_detail?.nome ?? '').toLowerCase().includes(q) ||
+      ordem.cliente_nome.toLowerCase().includes(q) ||
       String(ordem.id).includes(q) ||
-      (servicosPorOrdem[ordem.id] ?? []).some((s) => (s.repositorio_nome ?? '').toLowerCase().includes(q));
+      (servicosPorOrdem[ordem.id] ?? []).some((s) => (s.catalogo_nome ?? '').toLowerCase().includes(q));
 
     const matchesStatus   = filters.status.length === 0 || filters.status.includes(ordem.status);
     const matchesPriority = filters.priority.length === 0 || (!!ordem.prioridade && filters.priority.includes(ordem.prioridade));
     const matchesBilling  =
-      filters.billing === 'all' ||
-      (filters.billing === 'paid'     && ordem.faturada) ||
-      (filters.billing === 'released' && !ordem.faturada && ordem.liberada_para_faturamento) ||
-      (filters.billing === 'unpaid'   && !ordem.faturada && !ordem.liberada_para_faturamento);
-    const matchesContract = !filters.contractOnly || ordem.contrato;
+      !showFin || filters.billing === 'all' ||
+      (filters.billing === 'paid'     && ordem.cobranca_realizada) ||
+      (filters.billing === 'released' && !ordem.cobranca_realizada && ordem.liberada_para_cobranca) ||
+      (filters.billing === 'unpaid'   && !ordem.cobranca_realizada && !ordem.liberada_para_cobranca);
+    const matchesContract = !showContrato || !filters.contractOnly || ordem.contrato;
     const matchesTechnician =
-      filters.technicianIds.length === 0 ||
-      filters.technicianIds.some((tid) => tecnicosPorOrdem[ordem.id]?.has(Number(tid)));
+      !isTecnicoGestor || filters.technicianIds.length === 0 ||
+      filters.technicianIds.some((tid) => responsaveisPorOrdem[ordem.id]?.has(Number(tid)));
 
-    const created = new Date(ordem.data_criacao ?? ordem.criada_em);
+    const created = ordem.data_venda ? new Date(ordem.data_venda) : null;
     const start = filters.dateRange.from
       ? new Date(filters.dateRange.from.getFullYear(), filters.dateRange.from.getMonth(), filters.dateRange.from.getDate())
       : undefined;
     const end = filters.dateRange.to
       ? new Date(filters.dateRange.to.getFullYear(), filters.dateRange.to.getMonth(), filters.dateRange.to.getDate(), 23, 59, 59, 999)
       : undefined;
-    const matchesDate = (!start || created >= start) && (!end || created <= end);
+    const matchesDate = (!start && !end) || (!!created && (!start || created >= start) && (!end || created <= end));
 
     return matchesText && matchesStatus && matchesPriority && matchesBilling && matchesContract && matchesDate && matchesTechnician;
   });
@@ -147,12 +267,22 @@ const OrdemServicoListPage = () => {
     else if (page > totalPages) setPage(totalPages);
   }, [totalPages, page]);
 
+  const emptyTitle = isTechnician ? 'Nenhuma OS com tarefas suas' : 'Nenhuma ordem encontrada';
+  const emptySubtitle = isTechnician
+    ? 'Quando uma tarefa for atribuída a você, a OS aparece aqui automaticamente.'
+    : 'Ajuste a busca ou os filtros acima para encontrar ordens de serviço.';
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Ordens de Serviço</h1>
-          <p className="text-muted-foreground">Gerencie todas as suas ordens de serviço</p>
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-2xl font-bold">{title}</h1>
+            <span className="text-xs font-semibold text-muted-foreground bg-muted px-2.5 py-1 rounded-full">
+              {isLoading ? 'carregando…' : `${filteredOrdens.length} ${filteredOrdens.length === 1 ? 'ordem' : 'ordens'}`}
+            </span>
+          </div>
+          <p className="text-muted-foreground mt-1">{subtitle}</p>
         </div>
         {canManageOrders && (
           <Button variant="hero" onClick={() => navigate('/dashboard/orders/new')}>
@@ -163,7 +293,14 @@ const OrdemServicoListPage = () => {
       </div>
 
       <div className="space-y-2">
-        <OrdemServicoFiltros filters={filters} onChange={setFilters} technicianOptions={technicianOptions} />
+        <OrdemServicoFiltros
+          filters={filters}
+          onChange={setFilters}
+          technicianOptions={isTecnicoGestor ? technicianOptions : []}
+          showBilling={showFin}
+          showContract={showContrato}
+          searchPlaceholder={searchPlaceholder}
+        />
         <OrdemServicoFiltrosAtivos filters={filters} onChange={setFilters} technicianOptions={technicianOptions} />
       </div>
 
@@ -173,12 +310,20 @@ const OrdemServicoListPage = () => {
             <Table>
               <TableHeader className="sticky top-0 z-10 bg-card">
                 <TableRow className="border-border hover:bg-transparent">
-                  <TableHead className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground py-2 px-3">Ordem de Serviço</TableHead>
-                  <TableHead className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground py-2 px-3 w-[90px]">Prioridade</TableHead>
-                  <TableHead className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground py-2 px-3 w-[90px]">Criação</TableHead>
-                  <TableHead className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground py-2 px-3 w-[110px]">Tempo</TableHead>
-                  <TableHead className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground py-2 px-3 w-[170px]">Equipe</TableHead>
-                  {canViewOrderValues && (
+                  <TableHead className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground py-2 px-3 min-w-[220px]">Cliente / OS</TableHead>
+                  <TableHead className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground py-2 px-3 w-[120px]">Status</TableHead>
+                  <TableHead className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground py-2 px-3 w-[100px]">Prioridade</TableHead>
+                  <TableHead className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground py-2 px-3 w-[130px]">Em aberto</TableHead>
+                  {showTarefas && (
+                    <TableHead className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground py-2 px-3 w-[200px]">{tarefasColumnLabel}</TableHead>
+                  )}
+                  {showContrato && (
+                    <TableHead className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground py-2 px-3 w-[90px]">Contrato</TableHead>
+                  )}
+                  {showFin && (
+                    <TableHead className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground py-2 px-3 w-[150px]">Cobrança</TableHead>
+                  )}
+                  {showFin && (
                     <TableHead className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground py-2 px-3 w-[110px] text-right">Valor</TableHead>
                   )}
                   <TableHead className="py-2 px-3 w-[40px]" />
@@ -192,161 +337,140 @@ const OrdemServicoListPage = () => {
                         <TableCell className="py-3 px-3">
                           <div className="space-y-2">
                             <Skeleton className="h-4 w-48" />
-                            <div className="flex items-center gap-3">
-                              <Skeleton className="h-3 w-24" />
-                              <Skeleton className="h-3 w-28" />
-                              <Skeleton className="h-3 w-14" />
-                            </div>
+                            <Skeleton className="h-3 w-28" />
                           </div>
                         </TableCell>
-                        <TableCell className="py-3 px-3"><Skeleton className="h-3 w-14" /></TableCell>
                         <TableCell className="py-3 px-3"><Skeleton className="h-3 w-20" /></TableCell>
-                        <TableCell className="py-3 px-3"><Skeleton className="h-8 w-20" /></TableCell>
-                        <TableCell className="py-3 px-3"><Skeleton className="h-6 w-28" /></TableCell>
-                        {canViewOrderValues && <TableCell className="py-3 px-3"><Skeleton className="h-4 w-20 ml-auto" /></TableCell>}
+                        <TableCell className="py-3 px-3"><Skeleton className="h-3 w-16" /></TableCell>
+                        <TableCell className="py-3 px-3"><Skeleton className="h-6 w-20 rounded-full" /></TableCell>
+                        {showTarefas && <TableCell className="py-3 px-3"><Skeleton className="h-5 w-32 rounded-md" /></TableCell>}
+                        {showContrato && <TableCell className="py-3 px-3"><Skeleton className="h-4 w-14" /></TableCell>}
+                        {showFin && <TableCell className="py-3 px-3"><Skeleton className="h-3 w-24" /></TableCell>}
+                        {showFin && <TableCell className="py-3 px-3"><Skeleton className="h-4 w-20 ml-auto" /></TableCell>}
                         <TableCell className="py-3 px-3" />
                       </TableRow>
                     ))
-                  : paginatedOrdens.map((ordem) => (
-                      (() => {
-                        const duration = getDurationMeta(ordem);
+                  : paginatedOrdens.map((ordem) => {
+                      const duration = getDurationMeta(ordem);
+                      const urgencyLevel = getUrgencyLevel(ordem.status, ordem.dias_em_aberto);
+                      const buckets = tarefaBucketsPorOrdem[ordem.id];
+                      const accentRed = ordem.prioridade === 'alta' && urgencyLevel !== 'muted';
 
-                        return (
-                          <TableRow
-                            key={ordem.id}
-                            className="border-border hover:bg-muted/40 cursor-pointer transition-colors group"
-                            onClick={() => navigate(`/dashboard/orders/${ordem.id}`)}
-                          >
-                            <TableCell className="py-3 px-3">
-                              <div>
-                                <div className="flex items-center gap-1.5">
-                                  <span className="text-sm font-semibold uppercase">{ordem.cliente_detail?.nome ?? '—'}</span>
-                                  {ordem.contrato && (
-                                    <span className="bg-blue-600 text-white rounded-sm text-[9px] font-bold px-1 py-0.5 tracking-widest">CTR</span>
-                                  )}
-                                </div>
-                                <div className="flex items-center gap-3 mt-1.5">
-                                  {dotBadge(STATUS_DOT[ordem.status] ?? 'bg-muted-foreground', getStatusLabel(ordem.status))}
-                                  {dotBadge(
-                                    ordem.faturada ? 'bg-green-600' : ordem.liberada_para_faturamento ? 'bg-amber-500' : 'bg-muted-foreground',
-                                    ordem.faturada ? 'Faturado' : ordem.liberada_para_faturamento ? 'Lib. faturamento' : 'Não faturado',
-                                  )}
-                                  <span className="font-mono text-[10px] text-muted-foreground">#{ordem.id}</span>
-                                </div>
-                                {(() => {
-                                  if (loadingServicosResumo) {
-                                    return <Skeleton className="mt-1.5 h-3 w-40" />;
-                                  }
-                                  const nomes = (servicosPorOrdem[ordem.id] ?? [])
-                                    .map((s) => s.repositorio_nome)
-                                    .filter((nome): nome is string => !!nome);
-                                  if (nomes.length === 0) return null;
-                                  const texto = nomes.join(', ');
-                                  return (
-                                    <p className="mt-1.5 max-w-[360px] truncate text-[11px] text-muted-foreground" title={texto}>
-                                      {texto}
-                                    </p>
-                                  );
-                                })()}
+                      const cobranca = ordem.cobranca_realizada
+                        ? { dot: 'bg-status-completed', label: 'Cobrança realizada' }
+                        : ordem.liberada_para_cobranca
+                        ? { dot: 'bg-yellow-500', label: 'Liberada' }
+                        : { dot: 'bg-muted-foreground', label: 'Não liberada' };
+
+                      return (
+                        <TableRow
+                          key={ordem.id}
+                          className={`border-border hover:bg-muted/40 cursor-pointer transition-colors group ${accentRed ? 'border-l-2 border-l-red-500' : ''}`}
+                          onClick={() => navigate(`/dashboard/orders/${ordem.id}`)}
+                        >
+                          <TableCell className="py-3 px-3">
+                            <div>
+                              <span className="text-sm font-semibold uppercase">{ordem.cliente_nome || '—'}</span>
+                              <div className="flex items-center gap-1.5 mt-1 text-[11px] font-medium text-muted-foreground">
+                                <span className="font-mono">#{ordem.id}</span>
+                                <span className="opacity-50">·</span>
+                                <span>{ordem.prazo ? `prazo ${formatShortDate(ordem.prazo)}` : 'sem prazo'}</span>
                               </div>
-                            </TableCell>
+                            </div>
+                          </TableCell>
 
-                            <TableCell className="py-3 px-3">
-                              {ordem.prioridade
-                                ? dotBadge(PRIORITY_DOT[ordem.prioridade] ?? 'bg-muted-foreground', getPriorityLabel(ordem.prioridade))
-                                : <span className="text-[11px] text-muted-foreground">—</span>
-                              }
-                            </TableCell>
+                          <TableCell className="py-3 px-3">
+                            {dotBadge(STATUS_DOT[ordem.status] ?? 'bg-muted-foreground', getStatusLabel(ordem.status))}
+                          </TableCell>
 
-                            <TableCell className="py-3 px-3">
-                              <span className="text-xs tabular-nums text-muted-foreground">
-                                {formatDate(ordem.data_criacao ?? ordem.criada_em) ?? '—'}
-                              </span>
-                            </TableCell>
-
-                            <TableCell className="py-3 px-3">
-                              <div className="leading-tight">
-                                <span className="text-xs font-semibold tabular-nums">
-                                  {duration.value ?? '—'}
+                          <TableCell className="py-3 px-3">
+                            {ordem.prioridade
+                              ? (
+                                <span className="inline-flex items-center gap-1.5 text-[11px]">
+                                  <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${PRIORITY_DOT[ordem.prioridade] ?? 'bg-muted-foreground'}`} />
+                                  <span className={PRIORITY_TEXT_CLASSES[ordem.prioridade] ?? 'text-foreground'}>{getPriorityLabel(ordem.prioridade)}</span>
                                 </span>
-                                <p className="mt-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-                                  {duration.label}
-                                </p>
-                              </div>
-                            </TableCell>
+                              )
+                              : <span className="text-[11px] text-muted-foreground">—</span>
+                            }
+                          </TableCell>
 
+                          <TableCell className="py-3 px-3">
+                            <div className="flex flex-col gap-1">
+                              <span className={`inline-flex items-center gap-1.5 w-fit px-2 py-0.5 rounded-full text-[12px] tabular-nums ${URGENCY_PILL_CLASSES[urgencyLevel]}`}>
+                                <Clock className="w-3 h-3" />
+                                {duration.value ?? '—'}
+                              </span>
+                              <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{duration.label}</span>
+                            </div>
+                          </TableCell>
+
+                          {showTarefas && (
                             <TableCell className="py-3 px-3">
-                              {loadingEquipe ? (
-                                <Skeleton className="h-6 w-28" />
-                              ) : (() => {
-                                const tecnicos = Array.from(tecnicosPorOrdem[ordem.id]?.entries() ?? []);
-                                const servicosCount = servicosPorOrdem[ordem.id]?.length ?? 0;
-                                if (tecnicos.length === 0 && servicosCount === 0) {
-                                  return <span className="text-[11px] text-muted-foreground">—</span>;
-                                }
-                                return (
-                                  <div className="space-y-1">
-                                    <div className="flex items-center -space-x-1.5">
-                                      {tecnicos.slice(0, 3).map(([tid, nome]) => (
-                                        <span
-                                          key={tid}
-                                          title={nome}
-                                          className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 border-card text-[10px] font-bold ${avatarColor(nome)}`}
-                                        >
-                                          {initials(nome)}
-                                        </span>
-                                      ))}
-                                      {tecnicos.length > 3 && (
-                                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 border-card bg-muted text-[10px] font-bold text-muted-foreground">
-                                          +{tecnicos.length - 3}
-                                        </span>
-                                      )}
-                                      {tecnicos.length === 0 && (
-                                        <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                                          <Users className="h-3 w-3" /> sem técnico
-                                        </span>
-                                      )}
-                                    </div>
-                                    <p className="text-[10px] text-muted-foreground">
-                                      {servicosCount} serviço{servicosCount !== 1 ? 's' : ''}
-                                    </p>
-                                  </div>
-                                );
-                              })()}
+                              {loadingTarefaBuckets ? (
+                                <Skeleton className="h-5 w-32 rounded-md" />
+                              ) : (
+                                <div className="flex items-center gap-1.5">
+                                  {(Object.keys(TAREFA_BADGE) as (keyof TarefaBuckets)[]).map((key) => {
+                                    const count = buckets?.[key] ?? 0;
+                                    const cfg = TAREFA_BADGE[key];
+                                    return (
+                                      <span
+                                        key={key}
+                                        title={cfg.label}
+                                        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[11px] font-bold ${count > 0 ? cfg.activeClasses : 'bg-muted text-muted-foreground opacity-50'}`}
+                                      >
+                                        <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
+                                        {count}
+                                      </span>
+                                    );
+                                  })}
+                                </div>
+                              )}
                             </TableCell>
+                          )}
 
-                            {canViewOrderValues && (
-                              <TableCell className="py-3 px-3 text-right">
-                                <span className="text-sm font-semibold tabular-nums">{formatCurrency(ordem.valor)}</span>
-                              </TableCell>
-                            )}
-
+                          {showContrato && (
                             <TableCell className="py-3 px-3">
-                              <button
-                                type="button"
-                                onClick={(e) => { e.stopPropagation(); navigate(`/dashboard/orders/${ordem.id}`); }}
-                                className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-muted"
-                                title="Ver OS completa"
-                              >
-                                <ArrowRight className="w-3.5 h-3.5 text-muted-foreground" />
-                              </button>
+                              {ordem.contrato ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary text-[11px] font-semibold">
+                                  <FileCheck className="w-3 h-3" />
+                                  Vigente
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground text-sm">—</span>
+                              )}
                             </TableCell>
-                          </TableRow>
-                        );
-                      })()
-                    ))
+                          )}
+
+                          {showFin && (
+                            <TableCell className="py-3 px-3">
+                              {dotBadge(cobranca.dot, cobranca.label)}
+                            </TableCell>
+                          )}
+
+                          {showFin && (
+                            <TableCell className="py-3 px-3 text-right">
+                              <span className="text-sm font-semibold tabular-nums">{formatCurrency(ordem.valor)}</span>
+                            </TableCell>
+                          )}
+
+                          <TableCell className="py-3 px-3">
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); navigate(`/dashboard/orders/${ordem.id}`); }}
+                              className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-muted"
+                              title="Ver OS completa"
+                            >
+                              <ArrowRight className="w-3.5 h-3.5 text-muted-foreground" />
+                            </button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
                 }
               </TableBody>
             </Table>
-          </div>
-
-          <div className="px-3 flex items-center">
-            <Separator className="flex-1" />
-            {!isLoading && (
-              <span className="px-3 py-2 text-xs text-muted-foreground whitespace-nowrap tabular-nums">
-                {filteredOrdens.length} {filteredOrdens.length === 1 ? 'ordem' : 'ordens'}
-              </span>
-            )}
           </div>
 
           {totalPages > 1 && (
@@ -397,12 +521,12 @@ const OrdemServicoListPage = () => {
           {!isLoading && filteredOrdens.length === 0 && (
             <div className="text-center py-12">
               <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-semibold mb-2">Nenhuma ordem encontrada</h3>
-              <p className="text-muted-foreground mb-4">Tente ajustar os filtros ou crie uma nova ordem</p>
-              {canManageOrders && (
-                <Link to="/dashboard/orders/new">
-                  <Button variant="hero"><Plus className="w-4 h-4" />Nova Ordem</Button>
-                </Link>
+              <h3 className="text-lg font-semibold mb-2">{emptyTitle}</h3>
+              <p className="text-muted-foreground mb-4 max-w-sm mx-auto">{emptySubtitle}</p>
+              {!isTechnician && (
+                <Button variant="outline" onClick={() => setFilters(defaultFilters)}>
+                  Limpar filtros
+                </Button>
               )}
             </div>
           )}

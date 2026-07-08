@@ -50,6 +50,11 @@ const BILLING_OPTIONS: { value: FiltersState['billing']; label: string }[] = [
   { value: 'unpaid',   label: 'Não faturado' },
 ];
 
+// Estilo dos gatilhos de filtro (chip), replicando a UI do design: superfície
+// bg-card (não bg-secondary), altura 44px, cantos mais arredondados (11px).
+const FILTER_TRIGGER_CLASSES =
+  'gap-1.5 h-11 px-3.5 rounded-[11px] bg-card border-border text-sm font-medium hover:bg-muted';
+
 const toInputDate = (d: Date) => {
   const year = d.getFullYear();
   const month = String(d.getMonth() + 1).padStart(2, '0');
@@ -72,7 +77,7 @@ const MultiSelect = ({
 }) => (
   <Popover>
     <PopoverTrigger asChild>
-      <Button variant="outline" className="gap-1.5 bg-secondary border-border h-9 text-sm">
+      <Button variant="outline" className={FILTER_TRIGGER_CLASSES}>
         {label}
         {selected.length > 0 && (
           <span className="bg-primary text-primary-foreground rounded-full h-4 min-w-4 px-1 flex items-center justify-center text-[10px] font-bold">
@@ -103,9 +108,19 @@ interface OrdemServicoFiltrosProps {
   filters: FiltersState;
   onChange: (f: FiltersState) => void;
   technicianOptions?: { value: string; label: string }[];
+  showBilling?: boolean;
+  showContract?: boolean;
+  searchPlaceholder?: string;
 }
 
-export function OrdemServicoFiltros({ filters, onChange, technicianOptions = [] }: OrdemServicoFiltrosProps) {
+export function OrdemServicoFiltros({
+  filters,
+  onChange,
+  technicianOptions = [],
+  showBilling = true,
+  showContract = true,
+  searchPlaceholder = 'Buscar por cliente, ID ou serviço...',
+}: OrdemServicoFiltrosProps) {
   const set = (partial: Partial<FiltersState>) => onChange({ ...filters, ...partial });
 
   const toggleStatus = (v: string) =>
@@ -130,20 +145,20 @@ export function OrdemServicoFiltros({ filters, onChange, technicianOptions = [] 
     });
 
   const moreCount = [
-    filters.billing !== 'all',
-    filters.contractOnly,
+    showBilling && filters.billing !== 'all',
+    showContract && filters.contractOnly,
     !!(filters.dateRange.from || filters.dateRange.to),
   ].filter(Boolean).length;
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <div className="relative flex-1 min-w-[200px]">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+    <div className="flex flex-wrap items-center gap-2.5">
+      <div className="relative flex-1 min-w-[240px]">
+        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
         <Input
-          placeholder="Buscar por cliente, ID ou serviço..."
+          placeholder={searchPlaceholder}
           value={filters.search}
           onChange={(e) => set({ search: e.target.value })}
-          className="pl-10 bg-secondary border-border h-9"
+          className="pl-10 bg-card border-border h-11 rounded-[11px] text-sm"
         />
       </div>
 
@@ -173,7 +188,7 @@ export function OrdemServicoFiltros({ filters, onChange, technicianOptions = [] 
 
       <Popover>
         <PopoverTrigger asChild>
-          <Button variant="outline" className="gap-1.5 bg-secondary border-border h-9 text-sm">
+          <Button variant="outline" className={FILTER_TRIGGER_CLASSES}>
             <Filter className="w-3.5 h-3.5" />
             Mais filtros
             {moreCount > 0 && (
@@ -185,39 +200,45 @@ export function OrdemServicoFiltros({ filters, onChange, technicianOptions = [] 
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-72 p-4 space-y-4" align="start">
+          {showBilling && (
+            <>
+              <div className="space-y-2">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Faturamento</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {BILLING_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.value}
+                      onClick={() => set({ billing: opt.value })}
+                      className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                        filters.billing === opt.value
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-secondary text-muted-foreground hover:text-foreground border border-border'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <Separator />
+            </>
+          )}
+
+          {showContract && (
+            <>
+              <div className="flex items-center justify-between">
+                <Label className="text-sm cursor-pointer">Apenas contratos</Label>
+                <Switch
+                  checked={filters.contractOnly}
+                  onCheckedChange={(v) => set({ contractOnly: v })}
+                />
+              </div>
+              <Separator />
+            </>
+          )}
+
           <div className="space-y-2">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Faturamento</p>
-            <div className="flex flex-wrap gap-1.5">
-              {BILLING_OPTIONS.map((opt) => (
-                <button
-                  key={opt.value}
-                  onClick={() => set({ billing: opt.value })}
-                  className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-                    filters.billing === opt.value
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-secondary text-muted-foreground hover:text-foreground border border-border'
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <Separator />
-
-          <div className="flex items-center justify-between">
-            <Label className="text-sm cursor-pointer">Apenas contratos</Label>
-            <Switch
-              checked={filters.contractOnly}
-              onCheckedChange={(v) => set({ contractOnly: v })}
-            />
-          </div>
-
-          <Separator />
-
-          <div className="space-y-2">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Período de criação</p>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Período da venda</p>
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
                 <Label className="text-xs text-muted-foreground">De</Label>

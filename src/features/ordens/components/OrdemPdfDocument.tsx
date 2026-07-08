@@ -323,15 +323,15 @@ function tarefaStatusColor(status: string): string {
 }
 
 function billingBadgeStyle(ordem: OrdemServicoDetalhe) {
-  if (ordem.faturada) return [s.badge, s.badgeConcluida];
-  if (ordem.liberada_para_faturamento) return [s.badge, s.badgeEmAndamento];
+  if (ordem.cobranca_realizada) return [s.badge, s.badgeConcluida];
+  if (ordem.liberada_para_cobranca) return [s.badge, s.badgeEmAndamento];
   return [s.badge, s.badgeCancelada];
 }
 
 function billingLabel(ordem: OrdemServicoDetalhe) {
-  if (ordem.faturada) return 'Faturada';
-  if (ordem.liberada_para_faturamento) return 'Liberada para faturamento';
-  return 'Não faturada';
+  if (ordem.cobranca_realizada) return 'Cobrança realizada';
+  if (ordem.liberada_para_cobranca) return 'Liberada para cobrança';
+  return 'Não liberada';
 }
 
 // ── Field helpers ─────────────────────────────────────────────────────────────
@@ -363,7 +363,7 @@ function DadosSection({ ordem }: { ordem: OrdemServicoDetalhe }) {
       <View style={s.fieldGrid}>
         <FieldCell label="Criado por"         value={ordem.criado_por_nome} />
         <FieldCell label="Registrado em"      value={formatDateTime(ordem.criada_em)} />
-        <FieldCell label="Data de criação"    value={formatDate(ordem.data_criacao)} />
+        <FieldCell label="Data da venda"      value={formatDate(ordem.data_venda)} />
         <FieldCell label="Última atualização" value={formatDateTime(ordem.data_atualizacao)} />
         <FieldCell label="Prioridade"         value={ordem.prioridade_display} />
         <FieldCell
@@ -437,24 +437,24 @@ function CobrancaSection({ ordem }: { ordem: OrdemServicoDetalhe }) {
         <FieldCell label="Parcelas"           value={ordem.quantidade_parcelas ? `${ordem.quantidade_parcelas}x` : undefined} />
         <FieldCell label="Cobrança imediata"  value={ordem.cobranca_imediata ? 'Sim' : 'Não'} />
         <FieldCell
-          label="Liberação para faturamento"
+          label="Liberação para cobrança"
           value={
-            ordem.liberada_para_faturamento
-              ? formatDateTime(ordem.liberada_para_faturamento_em) ?? 'Sim'
+            ordem.liberada_para_cobranca
+              ? formatDateTime(ordem.liberada_para_cobranca_em) ?? 'Sim'
               : 'Não'
           }
         />
-        <FieldCell label="Liberada por" value={ordem.liberada_para_faturamento_por_nome} />
+        <FieldCell label="Liberada por" value={ordem.liberada_para_cobranca_por_nome} />
         <FieldCell
-          label="Faturamento"
+          label="Cobrança realizada"
           value={
-            ordem.faturada
-              ? `Sim${ordem.data_faturamento ? ` — ${formatDate(ordem.data_faturamento)}` : ''}`
+            ordem.cobranca_realizada
+              ? `Sim${ordem.data_cobranca ? ` — ${formatDate(ordem.data_cobranca)}` : ''}`
               : 'Não'
           }
         />
         <FieldCell label="Número NF"    value={ordem.numero_nf ? String(ordem.numero_nf) : undefined} />
-        <FieldCell label="Faturada por" value={ordem.faturada_por_nome} />
+        <FieldCell label="Registrada por" value={ordem.cobranca_realizada_por_nome} />
         <FieldCell
           label="Contato para envio de NF"
           value={[ordem.nome_contato_envio_nf, ordem.contato_envio_nf].filter(Boolean).join(' · ') || undefined}
@@ -507,7 +507,7 @@ function ServicoSection({
   index: number;
   tarefas: TarefaDetalhe[];
 }) {
-  const nome = servico.repositorio_detail?.nome ?? servico.repositorio_nome ?? `Serviço #${servico.id}`;
+  const nome = servico.catalogo_detail?.nome ?? servico.catalogo_nome ?? `Serviço #${servico.id}`;
   const serviceTag = `#S-${String(servico.id).padStart(2, '0')}`;
   const STATUS_TEXT: Record<string, string> = {
     aberto: 'Aberto', em_andamento: 'Em andamento', concluida: 'Concluído',
@@ -600,7 +600,7 @@ export function OrdemPdfDocument({ ordem, servicos, tarefasPorServico }: OrdemPd
 
         {/* ── Meta strip ── */}
         <View style={s.metaStrip}>
-          <MetaCell label="Criação"     value={formatDate(ordem.data_criacao) ?? '—'} />
+          <MetaCell label="Venda"       value={formatDate(ordem.data_venda) ?? '—'} />
           <MetaCell label="Criado por"  value={ordem.criado_por_nome ?? '—'} border />
           <MetaCell label="Serviços"    value={`${servicos.length} serviço${servicos.length !== 1 ? 's' : ''}`} border />
           <MetaCell label="Tarefas"     value={`${totalTarefas} tarefa${totalTarefas !== 1 ? 's' : ''}`} border />

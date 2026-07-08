@@ -9,7 +9,7 @@ const ThemeToggle = () => {
 
   useEffect(() => { setMounted(true); }, []);
 
-  if (!mounted) return <div className="h-9 w-9" />;
+  if (!mounted) return <div className="h-10 w-10" />;
 
   const isDark = theme === 'dark';
 
@@ -17,7 +17,6 @@ const ThemeToggle = () => {
     <Button
       variant="outline"
       size="icon"
-      className="h-9 w-9"
       onClick={() => setTheme(isDark ? 'light' : 'dark')}
       aria-label={isDark ? 'Mudar para tema claro' : 'Mudar para tema escuro'}
     >

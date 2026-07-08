@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CalendarClock, CalendarDays, Loader2, Pencil, Save, Trash2, X } from 'lucide-react';
+import { Ban, Loader2, MoreVertical, Pencil, Save, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -10,25 +10,26 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { avatarColor, formatDate, initials } from '../utils';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { avatarColor, formatDate, initials, isPrazoVencido } from '../utils';
+import { nextStatus, previousStatus, TarefaStatusControl } from './TarefaStatusControl';
 import type { UsuarioApi } from '@/features/usuarios/services';
 import type { TarefaDetalhe, UpdateTarefaPayload } from '../services';
-
-// ── Status ───────────────────────────────────────────────────────────────────
-
-const STATUS_BADGE: Record<string, string> = {
-  aberta:       'border-red-200 bg-red-50 text-red-700 dark:border-red-900/40 dark:bg-red-900/30 dark:text-red-400',
-  em_andamento: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/40 dark:bg-amber-900/30 dark:text-amber-400',
-  concluida:    'border-green-200 bg-green-50 text-green-700 dark:border-green-900/40 dark:bg-green-900/30 dark:text-green-400',
-  cancelada:    'border-slate-200 bg-slate-100 text-slate-500 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-400',
-};
-
-const STATUS_DOT: Record<string, string> = {
-  aberta:       'bg-red-500',
-  em_andamento: 'bg-amber-400',
-  concluida:    'bg-green-500',
-  cancelada:    'bg-gray-400',
-};
 
 // ── Props ────────────────────────────────────────────────────────────────────
 
@@ -39,7 +40,10 @@ interface TarefaRowProps {
   onEdit: (id: number, payload: UpdateTarefaPayload) => void;
   onDelete: (id: number) => void;
   isPending?: boolean;
+  /** Líder/Sub-Líder Técnico: controle total (status, editar, cancelar, excluir) em qualquer tarefa. */
   canManage?: boolean;
+  /** Técnico: só pode avançar/reverter o status das próprias tarefas — nunca editar/cancelar/excluir. */
+  allowSelfStatusUpdate?: boolean;
   currentUserId?: number;
 }
 
@@ -53,13 +57,16 @@ export function TarefaRow({
   onDelete,
   isPending,
   canManage,
+  allowSelfStatusUpdate,
   currentUserId,
 }: TarefaRowProps) {
   const [editing, setEditing]           = useState(false);
   const [editDescricao, setEditDescricao]       = useState(tarefa.descricao ?? '');
   const [editResponsavel, setEditResponsavel]   = useState(String(tarefa.responsavel));
+  const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
 
   const isCurrentUser = currentUserId !== undefined && tarefa.responsavel === currentUserId;
+  const canControlStatus = !!canManage || (!!allowSelfStatusUpdate && isCurrentUser);
 
   const handleSave = () => {
     onEdit(tarefa.id, {
@@ -81,18 +88,33 @@ export function TarefaRow({
     setEditing(true);
   };
 
+  const handleAdvance = () => {
+    const next = nextStatus(tarefa.status);
+    if (next) onStatusChange(tarefa.id, next);
+  };
+
+  const handleRevert = () => {
+    const previous = previousStatus(tarefa.status);
+    if (previous) onStatusChange(tarefa.id, previous);
+  };
+
+  const handleConfirmCancelar = () => {
+    onStatusChange(tarefa.id, 'cancelada');
+    setConfirmCancelOpen(false);
+  };
+
   const nome = tarefa.responsavel_nome ?? '—';
   const avatarCls = avatarColor(nome);
   const monogram = nome !== '—' ? initials(nome) : '?';
   const descricao = tarefa.descricao?.trim();
-  const assignedAt = formatDate(tarefa.criada_em);
-  const startAt = formatDate(tarefa.data_inicio);
-  const endAt = formatDate(tarefa.data_termino);
+  const prazo = formatDate(tarefa.prazo);
+  const overdue = isPrazoVencido(tarefa.prazo) && tarefa.status !== 'concluida' && tarefa.status !== 'cancelada';
+  const canCancelar = tarefa.status !== 'cancelada' && tarefa.status !== 'concluida';
 
   /* ── Modo edição ── */
   if (editing) {
     return (
-      <div className="space-y-3 bg-muted/30 px-5 py-4">
+      <div className="space-y-3 bg-muted/30 px-[18px] py-4">
         <div className="space-y-1.5">
           <p className="text-xs font-medium text-muted-foreground">Responsável</p>
           <Select value={editResponsavel} onValueChange={setEditResponsavel}>
@@ -135,126 +157,116 @@ export function TarefaRow({
   return (
     <div
       className={cn(
-        'flex gap-3 px-[22px] py-[13px] transition-colors hover:bg-muted/20',
-        isCurrentUser && 'border-l-[3px] border-l-primary/80 bg-primary/[0.06] pl-[19px] hover:bg-primary/[0.08] dark:bg-primary/[0.08]',
+        'flex items-center gap-3.5 border-t border-border px-[18px] py-3 transition-colors hover:bg-muted/20',
+        isCurrentUser ? 'border-l-[3px] border-l-primary/70 pl-[15px]' : overdue && 'border-l-[3px] border-l-red-500/70 pl-[15px]',
       )}
     >
-      {/* Avatar */}
-      <div
-        className={cn(
-          'mt-0.5 flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full text-xs font-bold',
-          avatarCls,
-          isCurrentUser && 'ring-2 ring-primary/20',
-        )}
-      >
-        {monogram}
+      {/* Controle de status — largura fixa */}
+      <div className="flex w-[190px] shrink-0 items-center gap-1.5">
+        <TarefaStatusControl
+          status={tarefa.status}
+          onAdvance={handleAdvance}
+          onRevert={handleRevert}
+          canManage={canControlStatus}
+          disabled={isPending}
+        />
       </div>
 
-      {/* Conteúdo */}
+      {/* Descrição + meta */}
       <div className="min-w-0 flex-1">
-        {/* Linha superior */}
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <span className="text-sm font-semibold text-foreground">{nome}</span>
-
+        <div
+          className={cn(
+            'truncate text-sm text-foreground',
+            isCurrentUser ? 'font-bold' : 'font-medium',
+            tarefa.status === 'cancelada' && 'line-through opacity-60',
+          )}
+        >
+          {descricao || `Tarefa #${tarefa.id}`}
+        </div>
+        <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[11.5px] font-medium text-muted-foreground">
           {isCurrentUser && (
-            <span className="rounded-full border border-primary/25 bg-primary/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-primary">
+            <span className="rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-primary">
               Sua tarefa
             </span>
           )}
+          <span>
+            Prazo{' '}
+            <span className={cn('font-semibold', overdue ? 'text-red-500' : 'text-foreground/80')}>
+              {prazo ?? '—'}
+            </span>
+          </span>
+          {overdue && (
+            <span className="text-[10px] font-bold uppercase tracking-wide text-red-500">Atrasada</span>
+          )}
+        </div>
+      </div>
 
-          {/* Status + ações — empurrados para direita */}
-          <div className="ml-auto flex items-center gap-2">
-            {canManage ? (
-              <Select
-                value={tarefa.status}
-                onValueChange={(val) => onStatusChange(tarefa.id, val)}
+      {/* Responsável + ações */}
+      <div className="flex shrink-0 items-center gap-2">
+        <div
+          className={cn(
+            'flex h-[26px] w-[26px] items-center justify-center rounded-full text-[11px] font-bold',
+            avatarCls,
+          )}
+        >
+          {monogram}
+        </div>
+        <span className="whitespace-nowrap text-xs font-medium text-foreground">{nome}</span>
+
+        {canManage && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 text-muted-foreground hover:text-foreground"
                 disabled={isPending}
               >
-                <SelectTrigger
-                  className={cn(
-                    'h-[30px] w-auto gap-1.5 rounded-full border px-3 py-0 text-xs font-semibold shadow-none focus:ring-0 focus:ring-offset-0',
-                    STATUS_BADGE[tarefa.status],
-                  )}
+                {isPending
+                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  : <MoreVertical className="h-3.5 w-3.5" />}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={handleStartEdit}>
+                <Pencil className="mr-2 h-3.5 w-3.5" /> Editar
+              </DropdownMenuItem>
+              {canCancelar && (
+                <DropdownMenuItem
+                  onClick={() => setConfirmCancelOpen(true)}
+                  className="text-amber-600 focus:text-amber-600"
                 >
-                  <span className={cn('h-[7px] w-[7px] shrink-0 rounded-full', STATUS_DOT[tarefa.status])} />
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="aberta">Aberta</SelectItem>
-                  <SelectItem value="em_andamento">Em andamento</SelectItem>
-                  <SelectItem value="concluida">Concluída</SelectItem>
-                  <SelectItem value="cancelada">Cancelada</SelectItem>
-                </SelectContent>
-              </Select>
-            ) : (
-              <span
-                className={cn(
-                  'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold',
-                  STATUS_BADGE[tarefa.status],
-                )}
+                  <Ban className="mr-2 h-3.5 w-3.5" /> Cancelar tarefa
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem
+                onClick={() => onDelete(tarefa.id)}
+                className="text-destructive focus:text-destructive"
               >
-                  <span className={cn('h-[7px] w-[7px] shrink-0 rounded-full', STATUS_DOT[tarefa.status])} />
-                {tarefa.status_display}
-              </span>
-            )}
-
-            {canManage && (
-              <>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                  onClick={handleStartEdit}
-                  disabled={isPending}
-                >
-                  <Pencil className="h-3 w-3" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                  onClick={() => onDelete(tarefa.id)}
-                  disabled={isPending}
-                >
-                  {isPending
-                    ? <Loader2 className="h-3 w-3 animate-spin" />
-                    : <Trash2  className="h-3 w-3" />}
-                </Button>
-              </>
-            )}
-          </div>
-        </div>
-
-        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-          <span className="inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-background/60 px-2 py-1 text-[11px] text-muted-foreground">
-            <CalendarClock className="h-3.5 w-3.5" />
-            <span className="font-semibold">Atribuída</span>
-            <span className="tabular-nums text-foreground/80">{assignedAt ?? '—'}</span>
-          </span>
-          <span className="inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-background/60 px-2 py-1 text-[11px] text-muted-foreground">
-            <CalendarDays className="h-3.5 w-3.5" />
-            <span className="font-semibold">Início</span>
-            <span className="tabular-nums text-foreground/80">{startAt ?? '—'}</span>
-          </span>
-          <span className="inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-background/60 px-2 py-1 text-[11px] text-muted-foreground">
-            <CalendarDays className="h-3.5 w-3.5" />
-            <span className="font-semibold">Fim</span>
-            <span className="tabular-nums text-foreground/80">{endAt ?? '—'}</span>
-          </span>
-        </div>
-
-        {/* Descrição */}
-        {descricao && (
-          <p
-            className={cn(
-              'mt-2 text-sm leading-snug text-muted-foreground',
-              tarefa.status === 'cancelada' && 'line-through opacity-60',
-            )}
-          >
-            {descricao}
-          </p>
+                <X className="mr-2 h-3.5 w-3.5" /> Excluir
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         )}
       </div>
+
+      {/* ── Confirmação de cancelamento ── */}
+      <AlertDialog open={confirmCancelOpen} onOpenChange={setConfirmCancelOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancelar esta tarefa?</AlertDialogTitle>
+            <AlertDialogDescription>
+              A tarefa será marcada como cancelada. Essa ação não avança nem reverte pelo controle de status — só é possível reatribuir ou editar depois.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Voltar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmCancelar} className="bg-amber-600 hover:bg-amber-700">
+              Cancelar tarefa
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

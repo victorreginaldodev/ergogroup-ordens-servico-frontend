@@ -1,7 +1,7 @@
 # Brief de Identidade Visual — Ergogroup OS
 
 > Documento-mãe de identidade visual para uso com ferramentas de design assistidas por IA.
-> Não descreve uma tela específica — descreve o sistema (marca, cor, tipografia, componentes, personas) que **todo** brief de página individual (ex: [`gestor-operacional-brief.md`](./gestor-operacional-brief.md), [`ordem-detalhe-brief.md`](./ordem-detalhe-brief.md)) deve herdar.
+> Não descreve uma tela específica — descreve o sistema (marca, cor, tipografia, componentes, personas) que **todo** brief de página individual (ex: [`listagem-ordens-brief.md`](./listagem-ordens-brief.md), [`gestor-operacional-brief.md`](./gestor-operacional-brief.md), [`ordem-detalhe-brief.md`](./ordem-detalhe-brief.md)) deve herdar.
 >
 > Ao gerar qualquer tela nova, use este documento como fundação e o brief da página específica (se existir) para a estrutura de informação daquela tela.
 

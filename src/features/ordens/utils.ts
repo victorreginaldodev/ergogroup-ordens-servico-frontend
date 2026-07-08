@@ -48,4 +48,48 @@ export const PRIORITY_DOT: Record<string, string> = {
   alta:  'bg-red-600',
 };
 
+export type UrgencyLevel = 'alta' | 'media' | 'muted';
+
+// Limiares de dias em aberto para severidade visual da OS. Só se aplica a OS
+// ativas (aberta/em_andamento) — concluída/cancelada nunca têm urgência.
+export const getUrgencyLevel = (
+  status: string,
+  diasEmAberto: number | null | undefined,
+): UrgencyLevel => {
+  if (status !== 'aberta' && status !== 'em_andamento') return 'muted';
+  if (diasEmAberto === null || diasEmAberto === undefined) return 'muted';
+  if (diasEmAberto > 12) return 'alta';
+  if (diasEmAberto >= 5) return 'media';
+  return 'muted';
+};
+
+export const isPrazoVencido = (prazo: string | null | undefined): boolean => {
+  if (!prazo) return false;
+  const [y, m, d] = prazo.slice(0, 10).split('-').map(Number);
+  const prazoDate = new Date(y, (m ?? 1) - 1, d ?? 1);
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+  return prazoDate < hoje;
+};
+
+export interface TarefaBuckets {
+  novas: number;
+  andamento: number;
+  atrasadas: number;
+}
+
+// Classifica uma tarefa em um dos três "baldes" usados no selo de tarefas da
+// listagem. Tarefa atrasada (prazo vencido e não concluída/cancelada) sempre
+// prevalece sobre "nova"/"em andamento". Concluída/cancelada não entram em
+// nenhum balde — não representam trabalho pendente.
+export const bucketTarefa = (
+  tarefa: { status: string; prazo: string | null | undefined },
+): keyof TarefaBuckets | null => {
+  if (tarefa.status === 'concluida' || tarefa.status === 'cancelada') return null;
+  if (isPrazoVencido(tarefa.prazo)) return 'atrasadas';
+  if (tarefa.status === 'aberta') return 'novas';
+  if (tarefa.status === 'em_andamento') return 'andamento';
+  return null;
+};
+
 export { avatarColor, initials } from '@/lib/avatar';
