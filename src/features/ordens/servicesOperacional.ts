@@ -53,6 +53,8 @@ export interface CreateOperationalOrderPayload {
   quantidade: number;
   descricao?: string | null;
   dataRecebimento: string;
+  dataInicio?: string | null;
+  dataTermino?: string | null;
   prazo?: string | null;
   prioridade?: OperationalOrderPrioridade;
   status?: OperationalOrderStatus;
@@ -68,6 +70,8 @@ export interface UpdateOperationalOrderPayload {
   quantidade?: number;
   descricao?: string | null;
   dataRecebimento?: string;
+  dataInicio?: string | null;
+  dataTermino?: string | null;
   prazo?: string | null;
   prioridade?: OperationalOrderPrioridade;
   status?: OperationalOrderStatus;
@@ -124,6 +128,11 @@ const normalizeItem = (dto: any): OperationalOrderItem => ({
 
 const normalizeDetail = (dto: any): OperationalOrderDetail => ({
   ...normalizeItem(dto),
+  // O endpoint de detalhe (`OrdemServicoOperacional`) não tem os campos achatados
+  // `cliente_nome`/`catalogo_operacional_nome` — só existem no de listagem
+  // (`OrdemServicoOperacionalList`). No detalhe, vêm aninhados em `*_detail`.
+  clienteNome: dto.cliente_nome ?? dto.cliente_detail?.nome ?? '',
+  catalogoOperacionalNome: dto.catalogo_operacional_nome ?? dto.catalogo_operacional_detail?.nome ?? '',
   clienteDetalhe: dto.cliente_detail
     ? { id: dto.cliente_detail.id, nome: dto.cliente_detail.nome, tipoCliente: dto.cliente_detail.tipo_cliente ?? null }
     : null,
@@ -150,7 +159,7 @@ export const getOperationalOrderPage = async (
 ): Promise<PageResult<OperationalOrderItem>> => {
   const page = params.page ?? 1;
   const pageSize = params.pageSize ?? 20;
-  const queryParams: Record<string, string | number> = { page, page_size: pageSize };
+  const queryParams: Record<string, string | number> = {};
   if (params.q) queryParams.q = params.q;
   if (params.status && params.status !== 'all') queryParams.status = params.status;
   if (params.prioridade && params.prioridade !== 'all') queryParams.prioridade = params.prioridade;
@@ -161,16 +170,24 @@ export const getOperationalOrderPage = async (
   if (params.ordering) queryParams.ordering = params.ordering;
 
   const { data } = await api.get(ENDPOINT, { params: queryParams });
+
+  // O schema mostra esse endpoint devolvendo um array simples — sem paginação
+  // nem parâmetros page/page_size documentados. Paginamos no cliente, mas
+  // seguimos tratando uma eventual resposta paginada por segurança.
   if (isPaginatedResponse<any>(data)) {
     return { ...toPageResult(data, page, pageSize), items: data.results.map(normalizeItem) };
   }
-  const items = (Array.isArray(data) ? data : []).map(normalizeItem);
+
+  const all = (Array.isArray(data) ? data : []).map(normalizeItem);
+  const start = (page - 1) * pageSize;
+  const items = all.slice(start, start + pageSize);
+
   return {
     items,
-    count: items.length,
+    count: all.length,
     page,
     pageSize,
-    totalPages: Math.max(1, Math.ceil(items.length / pageSize)),
+    totalPages: Math.max(1, Math.ceil(all.length / pageSize)),
     next: null,
     previous: null,
   };
@@ -191,6 +208,8 @@ export const createOperationalOrder = async (
     quantidade: payload.quantidade,
     descricao: payload.descricao ?? null,
     data_recebimento: payload.dataRecebimento,
+    data_inicio: payload.dataInicio ?? null,
+    data_termino: payload.dataTermino ?? null,
     prazo: payload.prazo ?? null,
     prioridade: payload.prioridade ?? 'baixa',
     status: payload.status ?? 'nao_iniciado',
@@ -212,6 +231,8 @@ export const updateOperationalOrder = async (
   if (payload.quantidade !== undefined) body.quantidade = payload.quantidade;
   if (payload.descricao !== undefined) body.descricao = payload.descricao;
   if (payload.dataRecebimento !== undefined) body.data_recebimento = payload.dataRecebimento;
+  if (payload.dataInicio !== undefined) body.data_inicio = payload.dataInicio;
+  if (payload.dataTermino !== undefined) body.data_termino = payload.dataTermino;
   if (payload.prazo !== undefined) body.prazo = payload.prazo;
   if (payload.prioridade !== undefined) body.prioridade = payload.prioridade;
   if (payload.status !== undefined) body.status = payload.status;

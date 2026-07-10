@@ -130,6 +130,44 @@ export const getOrdemDetalhe = async (id: number): Promise<OrdemServicoDetalhe> 
   return data;
 };
 
+// ── Mutations: Ordem de Serviço ───────────────────────────────────────────────
+// Schema: OrdemServicoRequest / PatchedOrdemServicoRequest.
+
+export interface OrdemServicoPayload {
+  cliente: number;
+  data_venda: string;
+  prioridade?: 'baixa' | 'media' | 'alta';
+  prazo?: string | null;
+  valor: string;
+  forma_pagamento: string;
+  quantidade_parcelas?: number | null;
+  cobranca_imediata?: boolean;
+  data_acordada_cobranca?: string | null;
+  nome_contato_envio_nf: string;
+  contato_envio_nf: string;
+  contrato?: boolean;
+  objeto_contrato?: string | null;
+  contrato_data_inicio?: string | null;
+  contrato_data_fim?: string | null;
+  gestor_contrato_nome?: string | null;
+  gestor_contrato_email?: string | null;
+  gestor_contrato_telefone?: string | null;
+  observacao?: string | null;
+}
+
+export const createOrdem = async (payload: OrdemServicoPayload): Promise<OrdemServicoDetalhe> => {
+  const { data } = await api.post<OrdemServicoDetalhe>('/api/ordens-servico/ordens/', payload);
+  return data;
+};
+
+export const updateOrdem = async (
+  id: number,
+  payload: Partial<OrdemServicoPayload>,
+): Promise<OrdemServicoDetalhe> => {
+  const { data } = await api.patch<OrdemServicoDetalhe>(`/api/ordens-servico/ordens/${id}/`, payload);
+  return data;
+};
+
 // ── Mutations: Cobrança (OS) ──────────────────────────────────────────────────
 
 export interface RegistrarCobrancaPayload {

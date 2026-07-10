@@ -51,42 +51,40 @@ const AppRoutes = () => (
     <Route path="/forgot-password" element={<ForgotPasswordPage />} />
     <Route path="/reset-password" element={<ResetPasswordPage />} />
 
-    {/* Analytics */}
-    <Route path="/dashboard/analise/operacional" element={w(<OperacionalPage />)} />
-    <Route path="/dashboard/analise/financeiro" element={w(<AnaliseFinanceiroPage />)} />
+    {/* Análise */}
+    <Route path="/analise/operacional" element={w(<OperacionalPage />)} />
+    <Route path="/analise/financeiro" element={w(<AnaliseFinanceiroPage />)} />
 
     {/* Ordens */}
-    <Route path="/dashboard/orders" element={w(<OrdemServicoListPage />)} />
-    <Route path="/dashboard/orders/new" element={w(<OrdemServicoFormPage />)} />
-    <Route path="/dashboard/orders/:id" element={w(<OrdemDetalhePage />)} />
-    <Route path="/dashboard/orders/:id/edit" element={w(<OrdemServicoFormPage />)} />
-
-    {/* Operational Orders */}
-    <Route path="/ordens-servico/operacionais" element={w(<OperationalOrderListPage />)} />
-    <Route path="/ordens-servico/operacionais/catalogo" element={w(<CatalogoOperacionalListPage />)} />
-    <Route path="/ordens-servico/operacionais/catalogo/new" element={w(<CatalogoOperacionalFormPage />)} />
-    <Route path="/ordens-servico/operacionais/catalogo/:id/edit" element={w(<CatalogoOperacionalFormPage />)} />
-
-    {/* Clientes e Contatos */}
-    <Route path="/dashboard/clients" element={w(<ClientListPage />)} />
-    <Route path="/dashboard/clients/new" element={w(<ClientFormPage />)} />
-    <Route path="/dashboard/clients/:id/edit" element={w(<ClientFormPage />)} />
-    <Route path="/dashboard/contacts" element={w(<ContactListPage />)} />
-    <Route path="/dashboard/contacts/new" element={w(<ContactFormPage />)} />
-    <Route path="/dashboard/contacts/:id/edit" element={w(<ContactFormPage />)} />
+    <Route path="/ordens" element={w(<OrdemServicoListPage />)} />
+    <Route path="/ordens/new" element={w(<OrdemServicoFormPage />)} />
+    <Route path="/ordens/:id" element={w(<OrdemDetalhePage />)} />
+    <Route path="/ordens/:id/edit" element={w(<OrdemServicoFormPage />)} />
+    <Route path="/ordens/operacionais" element={w(<OperationalOrderListPage />)} />
 
     {/* Catálogo */}
-    <Route path="/dashboard/catalog" element={w(<CatalogListPage />)} />
-    <Route path="/dashboard/catalog/new" element={w(<CatalogFormPage />)} />
-    <Route path="/dashboard/catalog/:id/edit" element={w(<CatalogFormPage />)} />
+    <Route path="/catalogo" element={w(<CatalogListPage />)} />
+    <Route path="/catalogo/new" element={w(<CatalogFormPage />)} />
+    <Route path="/catalogo/:id/edit" element={w(<CatalogFormPage />)} />
+    <Route path="/catalogo/operacional" element={w(<CatalogoOperacionalListPage />)} />
+    <Route path="/catalogo/operacional/new" element={w(<CatalogoOperacionalFormPage />)} />
+    <Route path="/catalogo/operacional/:id/edit" element={w(<CatalogoOperacionalFormPage />)} />
 
-    {/* Financeiro operacional */}
-    <Route path="/dashboard/financial" element={w(<FaturamentoPage />)} />
+    {/* Clientes e Contatos */}
+    <Route path="/clientes" element={w(<ClientListPage />)} />
+    <Route path="/clientes/new" element={w(<ClientFormPage />)} />
+    <Route path="/clientes/:id/edit" element={w(<ClientFormPage />)} />
+    <Route path="/clientes/contacts" element={w(<ContactListPage />)} />
+    <Route path="/clientes/contacts/new" element={w(<ContactFormPage />)} />
+    <Route path="/clientes/contacts/:id/edit" element={w(<ContactFormPage />)} />
 
-    {/* Usuários e configurações */}
-    <Route path="/dashboard/profile" element={w(<UserProfilePage />)} />
-    <Route path="/dashboard/users" element={w(<UsersManagementPage />)} />
-    <Route path="/dashboard/company" element={w(<CompanySettingsPage />)} />
+    {/* Cobranças */}
+    <Route path="/cobrancas" element={w(<FaturamentoPage />)} />
+
+    {/* Usuários e empresa */}
+    <Route path="/usuarios/profile" element={w(<UserProfilePage />)} />
+    <Route path="/usuarios" element={w(<UsersManagementPage />)} />
+    <Route path="/empresa" element={w(<CompanySettingsPage />)} />
 
     <Route path="*" element={<NotFound />} />
   </Routes>

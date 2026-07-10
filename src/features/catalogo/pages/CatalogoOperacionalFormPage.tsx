@@ -47,7 +47,7 @@ const CatalogoOperacionalFormPage = () => {
         description: 'Seu perfil não pode gerenciar o catálogo.',
         variant: 'destructive',
       });
-      navigate('/ordens-servico/operacionais/catalogo');
+      navigate('/catalogo/operacional');
     }
   }, [canManage, navigate, toast]);
 
@@ -80,7 +80,7 @@ const CatalogoOperacionalFormPage = () => {
             title: id ? 'Serviço atualizado' : 'Serviço criado',
             description: 'Operação concluída com sucesso.',
           });
-          navigate('/ordens-servico/operacionais/catalogo');
+          navigate('/catalogo/operacional');
         },
         onError: () => {
           toast({
@@ -104,7 +104,7 @@ const CatalogoOperacionalFormPage = () => {
             Defina as informações do serviço utilizado nas OS Operacionais.
           </p>
         </div>
-        <BackButton to="/ordens-servico/operacionais/catalogo" />
+        <BackButton to="/catalogo/operacional" />
       </div>
 
       <Card className="bg-card border-border">
@@ -118,6 +118,7 @@ const CatalogoOperacionalFormPage = () => {
               <Input
                 id="nome"
                 placeholder="Ex.: Revisão PGR - Correção Cliente"
+                maxLength={50}
                 {...form.register('nome', { required: true })}
                 className="bg-secondary border-border uppercase"
               />

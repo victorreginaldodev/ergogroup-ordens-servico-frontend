@@ -55,21 +55,21 @@ const NOTIFICATIONS = [
 ];
 
 const baseMenuItems = [
-  { title: 'Ordens de Serviço',  url: '/dashboard/orders',        icon: FileText },
-  { title: 'OS Operacionais',     url: '/ordens-servico/operacionais',   icon: FileText },
-  { title: 'Cobranças',         url: '/dashboard/financial',     icon: DollarSign },
+  { title: 'Ordens de Serviço',  url: '/ordens',               icon: FileText },
+  { title: 'OS Operacionais',     url: '/ordens/operacionais',  icon: FileText },
+  { title: 'Cobranças',         url: '/cobrancas',              icon: DollarSign },
 ];
 
 const adminItems = [
-  { title: 'Clientes',                    url: '/dashboard/clients',              icon: Building2 },
-  { title: 'Catálogo',                    url: '/dashboard/catalog',              icon: Package },
-  { title: 'Catálogo OS Operacionais',    url: '/ordens-servico/operacionais/catalogo',  icon: Package },
-  { title: 'Usuários',                    url: '/dashboard/users',                icon: Users },
+  { title: 'Clientes',                    url: '/clientes',               icon: Building2 },
+  { title: 'Catálogo',                    url: '/catalogo',               icon: Package },
+  { title: 'Catálogo OS Operacionais',    url: '/catalogo/operacional',   icon: Package },
+  { title: 'Usuários',                    url: '/usuarios',               icon: Users },
 ];
 
 const analyticsItems = [
-  { title: 'Operacional',  url: '/dashboard/analise/operacional', icon: Activity,  requiresFinancial: false },
-  { title: 'Financeiro',   url: '/dashboard/analise/financeiro',  icon: BarChart2, requiresFinancial: true },
+  { title: 'Operacional',  url: '/analise/operacional', icon: Activity,  requiresFinancial: false },
+  { title: 'Financeiro',   url: '/analise/financeiro',  icon: BarChart2, requiresFinancial: true },
 ];
 
 const SIDEBAR_KEY = 'sidebar:collapsed';
@@ -137,7 +137,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   };
 
   const visibleMenuItems = useMemo(
-    () => baseMenuItems.filter((item) => canAccessFinancials || item.url !== '/dashboard/financial'),
+    () => baseMenuItems.filter((item) => canAccessFinancials || item.url !== '/cobrancas'),
     [canAccessFinancials],
   );
 
@@ -179,10 +179,25 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
     [currentUser],
   );
 
-  const pageTitle = useMemo(() => {
-    const allItems = [...baseMenuItems, ...analyticsItems, ...adminItems];
-    return allItems.find((item) => location.pathname.startsWith(item.url))?.title ?? null;
-  }, [location.pathname]);
+  const allNavItems = useMemo(() => [...baseMenuItems, ...analyticsItems, ...adminItems], []);
+
+  // Rotas aninhadas (ex.: /ordens e /ordens/operacionais) exigem o prefixo mais específico
+  // que combina com o caminho atual, e não o primeiro item cujo prefixo bate.
+  const activeUrl = useMemo(() => {
+    const path = location.pathname;
+    let best: string | null = null;
+    for (const item of allNavItems) {
+      if (path === item.url || path.startsWith(item.url + '/')) {
+        if (!best || item.url.length > best.length) best = item.url;
+      }
+    }
+    return best;
+  }, [location.pathname, allNavItems]);
+
+  const pageTitle = useMemo(
+    () => allNavItems.find((item) => item.url === activeUrl)?.title ?? null,
+    [allNavItems, activeUrl],
+  );
 
   return (
     <TooltipProvider delayDuration={200}>
@@ -202,7 +217,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
             'h-16 flex items-center border-b border-border flex-shrink-0',
             collapsed ? 'justify-center px-0' : 'px-2',
           )}>
-            <Link to="/dashboard" className="flex items-center gap-2 min-w-0">
+            <Link to="/ordens" className="flex items-center gap-2 min-w-0">
               <img
                 src="/images/logos/logo-ergo.png"
                 alt="Ergo"
@@ -228,12 +243,9 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
             )}
 
             <div className="space-y-1">
-              {visibleMenuItems.map((item) => {
-                const isActive =
-                  location.pathname === item.url ||
-                  location.pathname.startsWith(item.url + '/');
-                return <NavItem key={item.url} item={item} isActive={isActive} collapsed={collapsed} />;
-              })}
+              {visibleMenuItems.map((item) => (
+                <NavItem key={item.url} item={item} isActive={item.url === activeUrl} collapsed={collapsed} />
+              ))}
             </div>
 
             {!collapsed && (
@@ -243,10 +255,9 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
             )}
 
             <div className="space-y-1 mt-0.5">
-              {visibleAnalyticsItems.map((item) => {
-                const isActive = location.pathname === item.url;
-                return <NavItem key={item.url} item={item} isActive={isActive} collapsed={collapsed} />;
-              })}
+              {visibleAnalyticsItems.map((item) => (
+                <NavItem key={item.url} item={item} isActive={item.url === activeUrl} collapsed={collapsed} />
+              ))}
             </div>
 
             {!collapsed && (
@@ -256,10 +267,9 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
             )}
 
             <div className="space-y-1 mt-0.5">
-              {adminItems.map((item) => {
-                const isActive = location.pathname === item.url;
-                return <NavItem key={item.url} item={item} isActive={isActive} collapsed={collapsed} />;
-              })}
+              {adminItems.map((item) => (
+                <NavItem key={item.url} item={item} isActive={item.url === activeUrl} collapsed={collapsed} />
+              ))}
             </div>
           </nav>
 
@@ -305,7 +315,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
               </Tooltip>
               <DropdownMenuContent align="end" side="top" className="w-56">
                 <DropdownMenuItem asChild>
-                  <Link to="/dashboard/profile" className="flex items-center">
+                  <Link to="/usuarios/profile" className="flex items-center">
                     <User className="w-4 h-4 mr-2" />
                     Meu Perfil
                   </Link>
@@ -337,7 +347,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                 <BreadcrumbList>
                   <BreadcrumbItem>
                     <BreadcrumbLink asChild>
-                      <Link to="/dashboard">Dashboard</Link>
+                      <Link to="/ordens">Início</Link>
                     </BreadcrumbLink>
                   </BreadcrumbItem>
                   {pageTitle && (
@@ -403,7 +413,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48">
                   <DropdownMenuItem asChild>
-                    <Link to="/dashboard/profile" className="flex items-center">
+                    <Link to="/usuarios/profile" className="flex items-center">
                       <User className="w-4 h-4 mr-2" />
                       Meu Perfil
                     </Link>
@@ -425,15 +435,13 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
             {(() => {
               const p = location.pathname;
               const isExcept =
-                p.startsWith('/dashboard/orders') ||
-                p.startsWith('/dashboard/users') ||
-                p.startsWith('/dashboard/financial') ||
-                p.startsWith('/dashboard/clients') ||
-                p.startsWith('/dashboard/catalog') ||
-                p.startsWith('/ordens-servico/operacionais') ||
-                p.startsWith('/dashboard/profile') ||
-                p.startsWith('/dashboard/analise');
-              if (!isExcept && p !== '/dashboard') return <UnderDevelopmentOverlay />;
+                p.startsWith('/ordens') ||
+                p.startsWith('/usuarios') ||
+                p.startsWith('/cobrancas') ||
+                p.startsWith('/clientes') ||
+                p.startsWith('/catalogo') ||
+                p.startsWith('/analise');
+              if (!isExcept) return <UnderDevelopmentOverlay />;
               return null;
             })()}
             {children}

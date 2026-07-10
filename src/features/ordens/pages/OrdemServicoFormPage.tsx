@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Plus, Trash2, Save, Edit, Check, ChevronsUpDown } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
+import { Plus, Trash2, Save, Edit, Check, ChevronsUpDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import BackButton from '@/components/BackButton';
 import { Input } from '@/components/ui/input';
@@ -28,23 +29,29 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { formatCurrency } from '@/data/mockData';
 import { useToast } from '@/hooks/use-toast';
 import { ServiceItem } from '@/types';
 import { Switch } from '@/components/ui/switch';
 import { useClients } from '@/features/clientes/hooks';
 import { useRepositories } from '@/features/catalogo/hooks';
-import { useUpsertServiceOrder, useServiceOrder } from '@/services/orders';
+import {
+  useOrdemDetalhe,
+  useServicosDeOrdem,
+  useUpsertOrdem,
+} from '../hooks';
+import { createServico, deleteServico, updateServico, type OrdemServicoPayload } from '../services';
 import AddServiceDialog from '@/components/order/AddServiceDialog';
 import { useUserRole } from '@/hooks/useUserRole';
 
-
+type FormaPagamento = '' | 'pix' | 'credito' | 'debito' | 'boleto' | 'transferencia' | 'dinheiro' | 'cheque' | 'outro';
 
 const OrdemServicoFormPage = () => {
   const navigate = useNavigate();
   const { id } = useParams();
+  const ordemId = id ? Number(id) : undefined;
   const { toast } = useToast();
   const { isRestricted } = useUserRole();
+  const qc = useQueryClient();
 
   useEffect(() => {
     if (isRestricted) {
@@ -53,76 +60,53 @@ const OrdemServicoFormPage = () => {
         description: "Você não tem permissão para acessar esta página.",
         variant: "destructive",
       });
-      navigate('/dashboard/orders');
+      navigate('/ordens');
     }
   }, [isRestricted, navigate, toast]);
 
-  if (isRestricted) return null;
-
   const { data: fetchedClients = [] } = useClients();
   const { data: fetchedServices = [], isLoading: servicesLoading, isError: servicesError } = useRepositories();
-  const { data: orderData } = useServiceOrder(id);
+  const { data: ordem } = useOrdemDetalhe(ordemId);
+  const { data: existingServicos = [] } = useServicosDeOrdem(ordemId);
 
-  useEffect(() => {
-    if (id && orderData) {
-      console.log('Dados do detalhe recebidos:', orderData);
-    }
-  }, [id, orderData]);
-
-  const upsert = useUpsertServiceOrder();
+  const upsertOrdem = useUpsertOrdem();
+  const [isSavingServicos, setIsSavingServicos] = useState(false);
 
   const clientsData = useMemo(() => {
-    if (!orderData?.cliente) return fetchedClients;
-    const exists = fetchedClients.some(c => String(c.id) === String(orderData.cliente.id));
+    if (!ordem?.cliente_detail) return fetchedClients;
+    const exists = fetchedClients.some(c => String(c.id) === String(ordem.cliente_detail.id));
     if (!exists) {
-      // @ts-ignore
-      return [...fetchedClients, { id: String(orderData.cliente.id), name: orderData.cliente.nome }];
+      return [...fetchedClients, { id: String(ordem.cliente_detail.id), name: ordem.cliente_detail.nome, email: '' }];
     }
     return fetchedClients;
-  }, [fetchedClients, orderData]);
+  }, [fetchedClients, ordem]);
 
   const servicesData = useMemo(() => {
-     const base = (fetchedServices || []).map((r: any) => ({
-       id: r.id,
-       name: r.name,
-       description: r.description,
-       price: 0,
-       nao_faturavel: false,
-     }));
-     if (orderData?.servicos) {
-        orderData.servicos.forEach(s => {
-           if (s.catalogo && !base.some(x => String(x.id) === String(s.catalogo.id))) {
-               base.push({ id: s.catalogo.id, name: s.catalogo.nome, description: '', price: 0, nao_faturavel: false });
-           }
-        });
-     }
-     return base;
-  }, [fetchedServices, orderData]);
-
-
-  const toNumberBR = (value: unknown): number => {
-    if (value === null || value === undefined) return 0;
-    if (typeof value === 'number') return isFinite(value) ? value : 0;
-    if (typeof value === 'string') {
-      const trimmed = value.trim();
-      if (!trimmed) return 0;
-      const cleaned = trimmed.replace(/[^\d.,-]/g, '');
-      const normalized = cleaned.replace(/\./g, '').replace(',', '.');
-      const n = Number(normalized);
-      return isFinite(n) ? n : 0;
-    }
-    return 0;
-  };
+    const base = (fetchedServices || []).map((r) => ({
+      id: r.id,
+      name: r.name,
+      description: r.description,
+      price: 0,
+      nao_faturavel: false,
+    }));
+    existingServicos.forEach((s) => {
+      const catalogoId = s.catalogo;
+      const catalogoNome = s.catalogo_detail?.nome ?? s.catalogo_nome;
+      if (catalogoId && catalogoNome && !base.some(x => String(x.id) === String(catalogoId))) {
+        base.push({ id: String(catalogoId), name: catalogoNome, description: '', price: 0, nao_faturavel: false });
+      }
+    });
+    return base;
+  }, [fetchedServices, existingServicos]);
 
   const [openClientSelect, setOpenClientSelect] = useState(false);
   const [formData, setFormData] = useState({
     clientId: '',
-    createdAt: new Date().toISOString().slice(0, 10),
+    dataVenda: new Date().toISOString().slice(0, 10),
     amount: 0,
-    paymentMethod: '' as '' | 'pix' | 'credito' | 'debito' | 'boleto' | 'transferencia' | 'dinheiro' | 'cheque' | 'outro',
+    paymentMethod: '' as FormaPagamento,
     installments: 1 as 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12,
     immediateCharge: '' as '' | 'sim' | 'nao',
-    billingDate1: '',
     invoiceContactName: '',
     invoiceContactEmail: '',
     observation: '',
@@ -142,66 +126,48 @@ const OrdemServicoFormPage = () => {
   const originalServiceIds = useRef<number[]>([]);
 
   useEffect(() => {
-    if (!id || !orderData) return;
-
-    const sourceData = orderData;
-
-    if (!sourceData || !sourceData.cliente) return;
-
-    const clientData = typeof sourceData.cliente === 'object' ? sourceData.cliente : { id: sourceData.cliente, nome: '' };
-    const client = clientsData.find(c => String(c.id) === String(clientData.id)) ||
-                   clientsData.find(c => c.name === clientData.nome);
-    const clientId = client ? String(client.id) : String(clientData.id || '');
-
-    const faturamento = sourceData.faturamento || {};
+    if (!ordemId || !ordem) return;
 
     setFormData({
-      clientId: clientId,
-      createdAt: sourceData.data_criacao || new Date().toISOString().slice(0, 10),
-      amount: Number(sourceData.valor ?? 0),
-      paymentMethod: (sourceData.forma_pagamento || '').toLowerCase() as any,
-      installments: (sourceData.quantidade_parcelas as any) ?? 1,
-      immediateCharge: typeof sourceData.cobranca_imediata === 'boolean'
-          ? (sourceData.cobranca_imediata ? 'sim' : 'nao')
-          : '' as any,
-      billingDate1: sourceData.faturamento_1 || '',
-      invoiceContactName: sourceData.nome_contato_envio_nf || '',
-      invoiceContactEmail: sourceData.contato_envio_nf || '',
-      observation: sourceData.observacao || '',
-      prioridade: (sourceData.prioridade || 'baixa') as 'baixa' | 'media' | 'alta',
-      contrato: !!sourceData.contrato,
-      objetoContrato: sourceData.objeto_contrato || '',
-      contratoDataInicio: sourceData.contrato_data_inicio || '',
-      contratoDataFim: sourceData.contrato_data_fim || '',
-      gestorNome: sourceData.gestor_contrato_nome || '',
-      gestorEmail: sourceData.gestor_contrato_email || '',
-      gestorTelefone: sourceData.gestor_contrato_telefone || '',
+      clientId: String(ordem.cliente_detail?.id ?? ordem.cliente ?? ''),
+      dataVenda: ordem.data_venda || new Date().toISOString().slice(0, 10),
+      amount: Number(ordem.valor ?? 0),
+      paymentMethod: (ordem.forma_pagamento || '') as FormaPagamento,
+      installments: (ordem.quantidade_parcelas as any) ?? 1,
+      immediateCharge: ordem.cobranca_imediata ? 'sim' : 'nao',
+      invoiceContactName: ordem.nome_contato_envio_nf || '',
+      invoiceContactEmail: ordem.contato_envio_nf || '',
+      observation: ordem.observacao || '',
+      prioridade: ordem.prioridade || 'baixa',
+      contrato: !!ordem.contrato,
+      objetoContrato: ordem.objeto_contrato || '',
+      contratoDataInicio: ordem.contrato_data_inicio || '',
+      contratoDataFim: ordem.contrato_data_fim || '',
+      gestorNome: ordem.gestor_contrato_nome || '',
+      gestorEmail: ordem.gestor_contrato_email || '',
+      gestorTelefone: ordem.gestor_contrato_telefone || '',
     });
+  }, [ordemId, ordem]);
 
-    const items = (sourceData.servicos || []).map((s, idx) => {
-      const catId = s.catalogo?.id || s.catalogo_servico || s.repositorio?.id;
-      const catName = s.catalogo?.nome || s.repositorio?.nome || '';
-      const svc = servicesData.find(x => String(x.id) === String(catId)) ||
-                  servicesData.find(x => x.name === catName);
-      const serviceId = svc ? String(svc.id) : (catId ? String(catId) : `repo-${idx}`);
-      const serviceName = svc?.name ?? catName;
-      return {
-        id: `${Date.now()}-${idx}`,
-        persistedId: s.id,
-        serviceId,
-        serviceName,
-        quantity: 1,
-        unitPrice: 0,
-        total: 0,
-        status: 'pending',
-        note: s.descricao || '',
-      } as ServiceItem;
-    });
+  useEffect(() => {
+    if (!ordemId) return;
+
+    const items: ServiceItem[] = existingServicos.map((s) => ({
+      id: `existing-${s.id}`,
+      persistedId: s.id,
+      serviceId: s.catalogo ? String(s.catalogo) : '',
+      serviceName: s.catalogo_detail?.nome ?? s.catalogo_nome ?? `Serviço #${s.id}`,
+      quantity: 1,
+      unitPrice: 0,
+      total: 0,
+      status: 'pending',
+      note: s.descricao || '',
+    }));
     setOrderServices(items);
     originalServiceIds.current = items
       .filter(item => item.persistedId !== undefined)
       .map(item => item.persistedId as number);
-  }, [orderData, servicesData, clientsData, id]);
+  }, [ordemId, existingServicos]);
 
 
   const handleAddService = (item: ServiceItem) => {
@@ -214,8 +180,7 @@ const OrdemServicoFormPage = () => {
       });
       return;
     }
-    const finalItem = { ...item, total: (Number.isFinite(item.unitPrice) ? item.unitPrice : 0) * (Number.isFinite(item.quantity) ? item.quantity : 1) };
-    setOrderServices([...orderServices, finalItem]);
+    setOrderServices([...orderServices, item]);
   };
 
   const handleUpdateService = (item: ServiceItem) => {
@@ -228,7 +193,7 @@ const OrdemServicoFormPage = () => {
       });
       return;
     }
-    setOrderServices(orderServices.map(s => s.id === item.id ? { ...item, total: (Number.isFinite(item.unitPrice) ? item.unitPrice : 0) * (Number.isFinite(item.quantity) ? item.quantity : 1) } : s));
+    setOrderServices(orderServices.map(s => s.id === item.id ? item : s));
   };
 
   const openEditModal = (item: ServiceItem) => {
@@ -241,41 +206,17 @@ const OrdemServicoFormPage = () => {
     if (!v) setEditingItem(undefined);
   };
 
-  const handleUpdateServicePrice = (id: string, price: number) => {
-    if (price < 0 || isNaN(price)) return;
-    setOrderServices(orderServices.map(s =>
-      s.id === id
-        ? { ...s, unitPrice: price, total: price * (Number.isFinite(s.quantity) ? s.quantity : 1) }
-        : s
-    ));
-  };
-
-  const handleUpdateServiceNote = (id: string, note: string) => {
-    setOrderServices(orderServices.map(s =>
-      s.id === id
-        ? { ...s, note }
-        : s
-    ));
-  };
-
-  const handleUpdateServiceQuantity = (id: string, quantity: number) => {
-    const q = Math.max(1, isNaN(quantity) ? 1 : quantity);
-    setOrderServices(orderServices.map(s =>
-      s.id === id
-        ? { ...s, quantity: q, total: (Number.isFinite(s.unitPrice) ? s.unitPrice : 0) * q }
-        : s
-    ));
-  };
-
   const handleRemoveService = (id: string) => {
     setOrderServices(orderServices.filter(s => s.id !== id));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const missing: string[] = [];
     if (!formData.clientId) missing.push("Cliente");
-    if (!formData.createdAt) missing.push("Data de criação");
+    if (!formData.dataVenda) missing.push("Data de criação");
     if (!Number.isFinite(formData.amount)) missing.push("Valor");
     if (!formData.paymentMethod) missing.push("Forma de Pagamento");
 
@@ -302,70 +243,87 @@ const OrdemServicoFormPage = () => {
       return;
     }
 
-    const clientIdNum = Number(
-      formData.clientId ||
-      (typeof orderData?.cliente === 'object' ? orderData?.cliente?.id : orderData?.cliente ?? '')
-    );
-    const currentPersistedIds = orderServices
-      .filter(s => s.persistedId !== undefined)
-      .map(s => s.persistedId as number);
-    const servicosToDelete = originalServiceIds.current.filter(
-      sid => !currentPersistedIds.includes(sid),
-    );
-    const payload: any = {
-      id,
-      servicos: orderServices.map(s => ({
-        ...(s.persistedId ? { id: s.persistedId } : {}),
-        repositorio_id: Number(s.serviceId),
-        descricao: s.note || '',
-      })),
-      servicosToDelete,
-      data_criacao: formData.createdAt,
-      valor: Number(formData.amount || 0),
-      forma_pagamento: formData.paymentMethod as any,
+    const ordemPayload: OrdemServicoPayload = {
+      cliente: Number(formData.clientId),
+      data_venda: formData.dataVenda,
+      valor: formData.amount.toFixed(2),
+      forma_pagamento: formData.paymentMethod as Exclude<FormaPagamento, ''>,
+      quantidade_parcelas: formData.installments || null,
+      cobranca_imediata: formData.immediateCharge === 'sim',
       nome_contato_envio_nf: formData.invoiceContactName,
       contato_envio_nf: formData.invoiceContactEmail,
-      cliente: Number(formData.clientId),
+      observacao: formData.observation || null,
       prioridade: formData.prioridade,
       contrato: formData.contrato,
+      ...(formData.contrato ? {
+        objeto_contrato: formData.objetoContrato,
+        contrato_data_inicio: formData.contratoDataInicio,
+        contrato_data_fim: formData.contratoDataFim,
+        gestor_contrato_nome: formData.gestorNome || null,
+        gestor_contrato_email: formData.gestorEmail || null,
+        gestor_contrato_telefone: formData.gestorTelefone || null,
+      } : {}),
     };
-    if (!payload.cliente || isNaN(payload.cliente)) payload.cliente = clientIdNum;
-    if (formData.installments) payload.quantidade_parcelas = formData.installments as any;
-    if (formData.immediateCharge) payload.cobranca_imediata = formData.immediateCharge === 'sim';
-    if (formData.observation) payload.observacao = formData.observation;
-    if (formData.contrato) {
-      payload.objeto_contrato = formData.objetoContrato;
-      payload.contrato_data_inicio = formData.contratoDataInicio;
-      payload.contrato_data_fim = formData.contratoDataFim;
-      if (formData.gestorNome) payload.gestor_contrato_nome = formData.gestorNome;
-      if (formData.gestorEmail) payload.gestor_contrato_email = formData.gestorEmail;
-      if (formData.gestorTelefone) payload.gestor_contrato_telefone = formData.gestorTelefone;
-    }
 
-    upsert.mutate(payload as any, {
-      onSuccess: () => {
-        toast({
-          title: id ? "Ordem atualizada com sucesso!" : "Ordem criada com sucesso!",
-          description: "A ordem de serviço foi processada no backend.",
-        });
-        navigate('/dashboard/orders');
-      },
-      onError: () => {
-        toast({
-          title: "Erro ao salvar",
-          description: "Verifique os dados e tente novamente.",
-          variant: "destructive",
-        });
-      },
-    });
+    setIsSubmitting(true);
+    try {
+      const savedOrdem = await new Promise<{ id: number }>((resolve, reject) => {
+        upsertOrdem.mutate(
+          { id: ordemId, payload: ordemPayload },
+          { onSuccess: resolve, onError: reject },
+        );
+      });
+
+      setIsSavingServicos(true);
+      const currentPersistedIds = orderServices
+        .filter(s => s.persistedId !== undefined)
+        .map(s => s.persistedId as number);
+      const servicosToDelete = originalServiceIds.current.filter(
+        sid => !currentPersistedIds.includes(sid),
+      );
+
+      await Promise.all([
+        ...servicosToDelete.map(sid => deleteServico(sid)),
+        ...orderServices.map(s => {
+          const catalogo = s.serviceId ? Number(s.serviceId) : null;
+          return s.persistedId
+            ? updateServico(s.persistedId, { catalogo, descricao: s.note || '' })
+            : createServico({ ordem_servico: savedOrdem.id, catalogo, descricao: s.note || '' });
+        }),
+      ]);
+
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['ordens-servicos', savedOrdem.id] }),
+        qc.invalidateQueries({ queryKey: ['ordens-detalhe', savedOrdem.id] }),
+        qc.invalidateQueries({ queryKey: ['ordens-lista'] }),
+        qc.invalidateQueries({ queryKey: ['servicos-resumo'] }),
+      ]);
+
+      toast({
+        title: ordemId ? "Ordem atualizada com sucesso!" : "Ordem criada com sucesso!",
+        description: "A ordem de serviço foi processada no backend.",
+      });
+      navigate('/ordens');
+    } catch {
+      toast({
+        title: "Erro ao salvar",
+        description: "Verifique os dados e tente novamente.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+      setIsSavingServicos(false);
+    }
   };
+
+  if (isRestricted) return null;
 
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">{id ? 'Editar Ordem de Serviço' : 'Nova Ordem de Serviço'}</h1>
-          <p className="text-muted-foreground">{id ? 'Atualize os dados da ordem' : 'Preencha os dados para criar uma nova ordem'}</p>
+          <h1 className="text-2xl font-bold">{ordemId ? 'Editar Ordem de Serviço' : 'Nova Ordem de Serviço'}</h1>
+          <p className="text-muted-foreground">{ordemId ? 'Atualize os dados da ordem' : 'Preencha os dados para criar uma nova ordem'}</p>
         </div>
         <BackButton />
       </div>
@@ -425,25 +383,25 @@ const OrdemServicoFormPage = () => {
                 {clientsData.length === 0 && (
                   <div className="text-sm text-muted-foreground">
                     Nenhum cliente encontrado.{' '}
-                    <Link to="/dashboard/clients/new" className="underline">
+                    <Link to="/clientes/new" className="underline">
                       Cadastrar cliente
                     </Link>
                   </div>
                 )}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="createdAt">Data de Criação *</Label>
+                <Label htmlFor="dataVenda">Data de Criação *</Label>
                 <Input
-                  id="createdAt"
+                  id="dataVenda"
                   type="date"
-                  value={formData.createdAt}
-                  onChange={(e) => setFormData({ ...formData, createdAt: e.target.value })}
-                  className="bg-secondary border-border"
+                  value={formData.dataVenda}
+                  onChange={(e) => setFormData({ ...formData, dataVenda: e.target.value })}
+                  className="bg-secondary border-border max-w-[200px]"
                 />
               </div>
             </div>
             <div className="grid sm:grid-cols-3 gap-4">
-              <div className="space-y-2 sm:max-w-[280px] w-full">
+              <div className="space-y-2">
                 <Label htmlFor="amount">Valor *</Label>
                 <Input
                   id="amount"
@@ -463,9 +421,9 @@ const OrdemServicoFormPage = () => {
                   placeholder="0,00"
                 />
               </div>
-              <div className="space-y-2 sm:max-w-[280px] w-full">
+              <div className="space-y-2">
                 <Label>Forma de Pagamento *</Label>
-                <Select value={formData.paymentMethod} onValueChange={(v) => setFormData({ ...formData, paymentMethod: v as any })}>
+                <Select value={formData.paymentMethod} onValueChange={(v) => setFormData({ ...formData, paymentMethod: v as FormaPagamento })}>
                   <SelectTrigger className="bg-secondary border-border w-full">
                     <SelectValue placeholder="Selecione" />
                   </SelectTrigger>
@@ -481,7 +439,7 @@ const OrdemServicoFormPage = () => {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2 sm:max-w-[280px] w-full">
+              <div className="space-y-2">
                 <Label>Quantidade de parcelas</Label>
                 <Select value={String(formData.installments)} onValueChange={(v) => setFormData({ ...formData, installments: Number(v) as any })}>
                   <SelectTrigger className="bg-secondary border-border w-full">
@@ -495,8 +453,8 @@ const OrdemServicoFormPage = () => {
                 </Select>
               </div>
             </div>
-            <div className="grid sm:grid-cols-3 gap-4">
-              <div className="space-y-2 sm:max-w-[280px] w-full">
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
                 <Label>Cobrança imediata</Label>
                 <Select value={formData.immediateCharge} onValueChange={(v) => setFormData({ ...formData, immediateCharge: v as any })}>
                   <SelectTrigger className="bg-secondary border-border w-full">
@@ -508,7 +466,7 @@ const OrdemServicoFormPage = () => {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2 sm:max-w-[280px] w-full">
+              <div className="space-y-2">
                 <Label>Prioridade</Label>
                 <Select value={formData.prioridade} onValueChange={(v) => setFormData({ ...formData, prioridade: v as any })}>
                   <SelectTrigger className="bg-secondary border-border w-full">
@@ -531,6 +489,7 @@ const OrdemServicoFormPage = () => {
                   onChange={(e) => setFormData({ ...formData, invoiceContactName: e.target.value })}
                   className="bg-secondary border-border"
                   placeholder="Nome do responsável"
+                  maxLength={50}
                 />
               </div>
               <div className="space-y-2">
@@ -542,6 +501,7 @@ const OrdemServicoFormPage = () => {
                   onChange={(e) => setFormData({ ...formData, invoiceContactEmail: e.target.value })}
                   className="bg-secondary border-border"
                   placeholder="email@empresa.com"
+                  maxLength={254}
                 />
               </div>
             </div>
@@ -563,13 +523,13 @@ const OrdemServicoFormPage = () => {
             <CardTitle>Contrato</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center justify-between rounded-lg border border-border px-4 py-3">
+              <Label htmlFor="contrato" className="cursor-pointer">Esta OS representa um contrato</Label>
               <Switch
                 id="contrato"
                 checked={formData.contrato}
                 onCheckedChange={(v) => setFormData({ ...formData, contrato: v })}
               />
-              <Label htmlFor="contrato">Esta OS representa um contrato</Label>
             </div>
             {formData.contrato && (
               <div className="space-y-4">
@@ -581,6 +541,7 @@ const OrdemServicoFormPage = () => {
                     onChange={(e) => setFormData({ ...formData, objetoContrato: e.target.value })}
                     className="bg-secondary border-border min-h-24"
                     placeholder="Descreva o objeto do contrato"
+                    maxLength={255}
                   />
                 </div>
                 <div className="grid sm:grid-cols-2 gap-4">
@@ -591,7 +552,7 @@ const OrdemServicoFormPage = () => {
                       type="date"
                       value={formData.contratoDataInicio}
                       onChange={(e) => setFormData({ ...formData, contratoDataInicio: e.target.value })}
-                      className="bg-secondary border-border"
+                      className="bg-secondary border-border max-w-[200px]"
                     />
                   </div>
                   <div className="space-y-2">
@@ -601,7 +562,7 @@ const OrdemServicoFormPage = () => {
                       type="date"
                       value={formData.contratoDataFim}
                       onChange={(e) => setFormData({ ...formData, contratoDataFim: e.target.value })}
-                      className="bg-secondary border-border"
+                      className="bg-secondary border-border max-w-[200px]"
                     />
                   </div>
                 </div>
@@ -614,6 +575,7 @@ const OrdemServicoFormPage = () => {
                       onChange={(e) => setFormData({ ...formData, gestorNome: e.target.value })}
                       className="bg-secondary border-border"
                       placeholder="Nome (opcional)"
+                      maxLength={255}
                     />
                   </div>
                   <div className="space-y-2">
@@ -625,6 +587,7 @@ const OrdemServicoFormPage = () => {
                       onChange={(e) => setFormData({ ...formData, gestorEmail: e.target.value })}
                       className="bg-secondary border-border"
                       placeholder="email@empresa.com (opcional)"
+                      maxLength={254}
                     />
                   </div>
                   <div className="space-y-2">
@@ -635,6 +598,7 @@ const OrdemServicoFormPage = () => {
                       onChange={(e) => setFormData({ ...formData, gestorTelefone: e.target.value })}
                       className="bg-secondary border-border"
                       placeholder="(00) 00000-0000 (opcional)"
+                      maxLength={30}
                     />
                   </div>
                 </div>
@@ -651,7 +615,7 @@ const OrdemServicoFormPage = () => {
             {servicesData.length === 0 && (
               <div className="text-sm text-muted-foreground">
                 Nenhum serviço no catálogo.{' '}
-                <Link to="/dashboard/catalog/new" className="underline">
+                <Link to="/catalogo/new" className="underline">
                   Cadastrar item
                 </Link>
               </div>
@@ -723,10 +687,13 @@ const OrdemServicoFormPage = () => {
           </CardContent>
         </Card>
 
-        <div className="pt-2">
-          <Button type="submit" variant="hero" className="w-full" size="lg" disabled={upsert.isPending}>
-            <Save className="w-4 h-4" />
-            {id ? 'Salvar Alterações' : 'Criar Ordem'}
+        <div className="flex justify-end gap-3 pt-2">
+          <Button type="button" variant="outline" onClick={() => navigate('/ordens')}>
+            Cancelar
+          </Button>
+          <Button type="submit" variant="hero" className="min-w-40" disabled={isSubmitting || isSavingServicos}>
+            <Save className="w-4 h-4 mr-2" />
+            {ordemId ? 'Salvar Alterações' : 'Criar Ordem'}
           </Button>
         </div>
       </form>

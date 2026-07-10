@@ -1,29 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, FileText } from 'lucide-react';
-import { useServiceOrders } from '@/services/orders';
-import type { ServiceStatus } from '@/types';
-
-const STATUS_DOT: Record<ServiceStatus, string> = {
-  pending:     'bg-status-pending',
-  in_progress: 'bg-status-progress',
-  completed:   'bg-status-completed',
-  cancelled:   'bg-status-cancelled',
-};
-
-const STATUS_LABEL: Record<ServiceStatus, string> = {
-  pending:     'Aberta',
-  in_progress: 'Em andamento',
-  completed:   'Concluída',
-  cancelled:   'Cancelada',
-};
+import { useOrdensLista } from '@/features/ordens/hooks';
+import { getStatusLabel, STATUS_DOT } from '@/features/ordens/utils';
 
 const HeaderSearch = () => {
   const [query, setQuery]   = useState('');
   const [open, setOpen]     = useState(false);
   const inputRef            = useRef<HTMLInputElement>(null);
   const navigate            = useNavigate();
-  const { data: orders = [] } = useServiceOrders();
+  const { data: orders = [] } = useOrdensLista();
 
   useEffect(() => {
     const handleShortcut = (e: KeyboardEvent) => {
@@ -42,14 +28,14 @@ const HeaderSearch = () => {
   const results = q.length
     ? orders
         .filter(o =>
-          o.clientName.toLowerCase().includes(q) ||
-          o.id.toLowerCase().includes(q),
+          o.cliente_nome.toLowerCase().includes(q) ||
+          String(o.id).toLowerCase().includes(q),
         )
         .slice(0, 8)
     : [];
 
-  const handleSelect = (id: string) => {
-    navigate(`/dashboard/orders/${id}/edit`);
+  const handleSelect = (id: number) => {
+    navigate(`/ordens/${id}/edit`);
     setQuery('');
     setOpen(false);
     inputRef.current?.blur();
@@ -92,10 +78,10 @@ const HeaderSearch = () => {
               >
                 <FileText className="w-4 h-4 text-muted-foreground flex-shrink-0" />
                 <span className="flex-1 min-w-0">
-                  <span className="block text-sm font-medium truncate">{order.clientName}</span>
+                  <span className="block text-sm font-medium truncate">{order.cliente_nome}</span>
                   <span className="flex items-center gap-1.5 mt-0.5">
-                    <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${STATUS_DOT[order.status]}`} />
-                    <span className="text-xs text-muted-foreground">{STATUS_LABEL[order.status]}</span>
+                    <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${STATUS_DOT[order.status] ?? 'bg-muted-foreground'}`} />
+                    <span className="text-xs text-muted-foreground">{getStatusLabel(order.status)}</span>
                     <span className="text-[10px] font-mono text-muted-foreground/70">#{order.id}</span>
                   </span>
                 </span>

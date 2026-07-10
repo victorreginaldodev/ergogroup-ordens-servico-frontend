@@ -1,9 +1,9 @@
 import { useMemo } from 'react';
-import { DollarSign, TrendingUp, AlertTriangle, AlertCircle, XCircle } from 'lucide-react';
+import { DollarSign, TrendingUp, AlertTriangle, AlertCircle, Receipt } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useUserRole } from '@/hooks/useUserRole';
-import { useFinanceiroKpis, useDashboardAnalytics, useProdutividade } from '../hooks';
+import { useFinanceiroAnalise } from '../hooks';
 import { formatCurrency, toChartSeries } from '../utils';
 import { KpiCard, KpiCardSkeleton } from '../components/KpiCard';
 import { MonthlyBarChart } from '../components/MonthlyBarChart';
@@ -14,55 +14,49 @@ const SectionLabel = ({ children }: { children: React.ReactNode }) => (
 );
 
 const FinanceiroPage = () => {
-  const { data: kpis, isLoading: kpisLoading, isError: kpisError } = useFinanceiroKpis();
-  const { data: analytics, isLoading: analyticsLoading } = useDashboardAnalytics();
-  const { data: produtividade, isLoading: prodLoading } = useProdutividade();
+  const { data, isLoading, isError } = useFinanceiroAnalise();
   const { canViewOrderValues } = useUserRole();
 
-  const isLoading = kpisLoading || analyticsLoading || prodLoading;
-
   const salesChartData = useMemo(
-    () => toChartSeries(analytics?.ordens_servico?.vendas_por_mes ?? []),
-    [analytics],
+    () =>
+      toChartSeries(
+        (data?.vendas_por_mes ?? []).map((m) => ({ ano: m.ano, mes: m.mes, total: Number(m.total) })),
+      ),
+    [data],
   );
 
-  const topClientsFaturamento = useMemo(
+  const topClientesCobranca = useMemo(
     () =>
-      (analytics?.clientes?.mais_faturamento ?? [])
-        .slice()
-        .sort((a, b) => (b.total_valor_faturado ?? 0) - (a.total_valor_faturado ?? 0))
-        .slice(0, 8)
+      (data?.clientes.mais_cobranca ?? [])
         .map((item) => ({
           id: item.cliente_id,
           name: item.cliente_nome,
-          value: Number(item.total_valor_faturado ?? 0),
-        })),
-    [analytics],
+          value: Number(item.total_valor_cobrado),
+        }))
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 8),
+    [data],
   );
 
   const topClientesVendas = useMemo(
     () =>
-      (analytics?.clientes?.mais_vendas ?? [])
-        .slice()
-        .sort((a, b) => (b.total_valor_vendas ?? 0) - (a.total_valor_vendas ?? 0))
-        .slice(0, 10)
+      (data?.clientes.mais_vendas ?? [])
         .map((item) => ({
           id: item.cliente_id,
           name: item.cliente_nome,
-          value: Number(item.total_valor_vendas ?? 0),
-        })),
-    [analytics],
+          value: Number(item.total_valor_vendas),
+        }))
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 10),
+    [data],
   );
-
-  const cancelamentoTarefas = produtividade?.taxa_cancelamento?.tarefas;
-  const cancelamentoServicos = produtividade?.taxa_cancelamento?.servicos;
 
   return (
     <div className="space-y-8 animate-fade-in">
-      {kpisError && (
+      {isError && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Erro ao carregar KPIs</AlertTitle>
+          <AlertTitle>Erro ao carregar indicadores</AlertTitle>
           <AlertDescription>
             Não foi possível recuperar os indicadores financeiros. Verifique suas permissões.
           </AlertDescription>
@@ -70,34 +64,39 @@ const FinanceiroPage = () => {
       )}
 
       <section className="space-y-4">
-      <SectionLabel>Indicadores</SectionLabel>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {kpis ? (
-          <>
-            <KpiCard
-              title="Total Faturado"
-              value={canViewOrderValues ? formatCurrency(kpis.total_faturado) : '—'}
-              changeType="positive"
-              icon={DollarSign}
-            />
-            <KpiCard
-              title="A Faturar"
-              value={canViewOrderValues ? formatCurrency(kpis.total_para_faturar) : '—'}
-              changeType="neutral"
-              icon={TrendingUp}
-            />
-            <KpiCard
-              title="Sem Liberação para Faturamento"
-              value={canViewOrderValues ? formatCurrency(kpis.total_sem_liberacao) : '—'}
-              changeType="negative"
-              icon={AlertTriangle}
-            />
-          </>
-        ) : (
-          Array.from({ length: 3 }).map((_, i) => <KpiCardSkeleton key={i} index={i} />)
-        )}
-      </div>
-
+        <SectionLabel>Indicadores</SectionLabel>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {data ? (
+            <>
+              <KpiCard
+                title="Total Cobrado"
+                value={canViewOrderValues ? formatCurrency(Number(data.total_cobrado)) : '—'}
+                changeType="positive"
+                icon={DollarSign}
+              />
+              <KpiCard
+                title="A Cobrar"
+                value={canViewOrderValues ? formatCurrency(Number(data.total_para_cobrar)) : '—'}
+                changeType="neutral"
+                icon={TrendingUp}
+              />
+              <KpiCard
+                title="Sem Liberação para Cobrança"
+                value={canViewOrderValues ? formatCurrency(Number(data.total_sem_liberacao)) : '—'}
+                changeType="negative"
+                icon={AlertTriangle}
+              />
+              <KpiCard
+                title="Ticket Médio"
+                value={canViewOrderValues && data.ticket_medio != null ? formatCurrency(Number(data.ticket_medio)) : '—'}
+                changeType="neutral"
+                icon={Receipt}
+              />
+            </>
+          ) : (
+            Array.from({ length: 4 }).map((_, i) => <KpiCardSkeleton key={i} index={i} />)
+          )}
+        </div>
       </section>
 
       {/* Vendas por Mês */}
@@ -118,19 +117,19 @@ const FinanceiroPage = () => {
         </CardContent>
       </Card>
 
-      {/* Principais Clientes — Faturamento */}
+      {/* Principais Clientes — Cobrança */}
       <Card className="bg-card border-border">
         <CardHeader>
-          <CardTitle className="text-lg font-semibold">Principais Clientes por Faturamento</CardTitle>
+          <CardTitle className="text-lg font-semibold">Principais Clientes por Cobrança</CardTitle>
         </CardHeader>
         <CardContent>
           <DonutTableCard
-            data={topClientsFaturamento}
+            data={topClientesCobranca}
             isLoading={isLoading}
             showValue={canViewOrderValues}
-            valueLabel="Valor faturado"
+            valueLabel="Valor cobrado"
             valueFormatter={formatCurrency}
-            emptyMessage="Nenhum cliente com faturamento registrado."
+            emptyMessage="Nenhum cliente com cobrança registrada."
           />
         </CardContent>
       </Card>
@@ -151,42 +150,6 @@ const FinanceiroPage = () => {
           />
         </CardContent>
       </Card>
-      {/* Taxa de Cancelamento */}
-      <section className="space-y-4">
-        <SectionLabel>Taxa de Cancelamento</SectionLabel>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {cancelamentoTarefas != null ? (
-            <KpiCard
-              title="Cancelamento de Tarefas"
-              value={cancelamentoTarefas.percentual != null ? `${cancelamentoTarefas.percentual.toFixed(1)}%` : '—'}
-              change={`${cancelamentoTarefas.canceladas} de ${cancelamentoTarefas.total} tarefas`}
-              changeType={
-                cancelamentoTarefas.percentual != null && cancelamentoTarefas.percentual > 15
-                  ? 'negative'
-                  : 'neutral'
-              }
-              icon={XCircle}
-            />
-          ) : (
-            <KpiCardSkeleton index={0} />
-          )}
-          {cancelamentoServicos != null ? (
-            <KpiCard
-              title="Cancelamento de Serviços"
-              value={cancelamentoServicos.percentual != null ? `${cancelamentoServicos.percentual.toFixed(1)}%` : '—'}
-              change={`${cancelamentoServicos.canceladas} de ${cancelamentoServicos.total} serviços`}
-              changeType={
-                cancelamentoServicos.percentual != null && cancelamentoServicos.percentual > 15
-                  ? 'negative'
-                  : 'neutral'
-              }
-              icon={XCircle}
-            />
-          ) : (
-            <KpiCardSkeleton index={1} />
-          )}
-        </div>
-      </section>
     </div>
   );
 };

@@ -8,8 +8,9 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { useDeleteUser, useUpsertUser, useUsers } from '../hooks';
+import { useDeleteUser, useProfileDetail, useUpsertUser, useUsers } from '../hooks';
 import {
   TIPO_USUARIO_OPTIONS,
   CreateUserPayload,
@@ -22,6 +23,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { authService } from '@/services/auth';
+import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
   Pagination,
@@ -33,7 +35,21 @@ import {
   PaginationEllipsis,
 } from '@/components/ui/pagination';
 
+const PAGE_SIZE = 10;
+
 const TIPO_USUARIO_VALUES = TIPO_USUARIO_OPTIONS.map(o => o.value) as [TipoUsuarioKey, ...TipoUsuarioKey[]];
+
+// Endpoints de criação/exclusão/ativação de usuário exigem "perfil Gestor ou
+// superior" (api-schema.yaml). Sub-Líder Técnico e papéis operacionais (comercial,
+// financeiro, administrativo, técnico) não se qualificam — mostrar os controles de
+// gestão pra eles só resulta num 403 silencioso do backend.
+const MANAGER_ROLES = new Set<TipoUsuarioKey>([
+  'diretor',
+  'gestor_comercial',
+  'gestor_tecnico',
+  'gestor_financeiro',
+  'gestor_administrativo',
+]);
 
 const schema = z
   .object({
@@ -57,6 +73,18 @@ const schema = z
 
 type FormValues = z.infer<typeof schema>;
 
+// Extrai uma mensagem legível do corpo de erro do DRF, que costuma vir como
+// `{ detail: "..." }` (403/permissão) ou `{ campo: ["mensagem", ...] }` (400/validação).
+const extractErrorMessage = (error: unknown, fallback: string): string => {
+  const data = (error as { response?: { data?: unknown } })?.response?.data;
+  if (!data || typeof data !== 'object') return fallback;
+  const obj = data as Record<string, unknown>;
+  if (typeof obj.detail === 'string') return obj.detail;
+  const firstField = Object.values(obj).find((v) => Array.isArray(v) && typeof v[0] === 'string');
+  if (Array.isArray(firstField)) return firstField[0] as string;
+  return fallback;
+};
+
 const defaultValues: FormValues = {
   username: '',
   nome_completo: '',
@@ -67,13 +95,15 @@ const defaultValues: FormValues = {
 };
 
 const UsersManagementPage = () => {
-  const { data: users = [] } = useUsers();
+  const { toast } = useToast();
+  const { data: users = [], isLoading } = useUsers();
   const upsert = useUpsertUser();
   const del = useDeleteUser();
-  const [editing, setEditing] = useState<UsuarioApi | null>(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const { data: editingDetail } = useProfileDetail(editingId);
   const [open, setOpen] = useState(false);
   const currentUser = authService.getCurrentUser();
-  const canManageUsers = !!currentUser && currentUser.tipo_usuario !== 'tecnico';
+  const canManageUsers = !!currentUser && MANAGER_ROLES.has(currentUser.tipo_usuario as TipoUsuarioKey);
 
   const [search, setSearch] = useState('');
 
@@ -82,21 +112,23 @@ const UsersManagementPage = () => {
     defaultValues,
   });
 
+  // O endpoint de listagem não retorna username — ao editar, buscamos o detalhe
+  // completo do usuário (`useProfileDetail`) e só então preenchemos o formulário.
   useEffect(() => {
-    if (editing) {
+    if (editingId && editingDetail) {
       form.reset({
-        id: editing.id,
-        username: editing.username,
-        nome_completo: editing.nome_completo,
-        email: editing.email,
-        tipo_usuario: editing.tipo_usuario,
-        ativo: editing.ativo ?? true,
+        id: editingDetail.id,
+        username: editingDetail.username,
+        nome_completo: editingDetail.nome_completo,
+        email: editingDetail.email,
+        tipo_usuario: editingDetail.tipo_usuario,
+        ativo: editingDetail.ativo ?? true,
         password: '',
       });
-    } else {
+    } else if (!editingId) {
       form.reset(defaultValues);
     }
-  }, [editing]);
+  }, [editingId, editingDetail]);
 
   const onSubmit = (values: FormValues) => {
     if (!canManageUsers) return;
@@ -112,9 +144,17 @@ const UsersManagementPage = () => {
       };
       upsert.mutate(payload, {
         onSuccess: () => {
-          setEditing(null);
+          toast({ title: 'Usuário atualizado', description: 'As alterações foram salvas com sucesso.' });
+          setEditingId(null);
           form.reset(defaultValues);
           setOpen(false);
+        },
+        onError: (error) => {
+          toast({
+            title: 'Erro ao atualizar usuário',
+            description: extractErrorMessage(error, 'Não foi possível salvar as alterações.'),
+            variant: 'destructive',
+          });
         },
       });
     } else {
@@ -129,9 +169,17 @@ const UsersManagementPage = () => {
       };
       upsert.mutate(payload, {
         onSuccess: () => {
-          setEditing(null);
+          toast({ title: 'Usuário criado', description: 'O novo usuário foi cadastrado com sucesso.' });
+          setEditingId(null);
           form.reset(defaultValues);
           setOpen(false);
+        },
+        onError: (error) => {
+          toast({
+            title: 'Erro ao criar usuário',
+            description: extractErrorMessage(error, 'Não foi possível criar o usuário.'),
+            variant: 'destructive',
+          });
         },
       });
     }
@@ -140,71 +188,75 @@ const UsersManagementPage = () => {
   const tipoLabel = (key: string) =>
     TIPO_USUARIO_OPTIONS.find(o => o.value === key)?.label || key;
 
-  const displayName = (u: UsuarioApi) => u.nome_completo?.trim() || u.username;
+  const displayName = (u: UsuarioApi) => u.nome_completo?.trim() || u.email;
 
   const filteredUsers = users.filter(u => {
     const s = search.toLowerCase();
     return (
       s === '' ||
-      (u.username || '').toLowerCase().includes(s) ||
       (u.email || '').toLowerCase().includes(s) ||
       (u.nome_completo || '').toLowerCase().includes(s)
     );
   });
 
   const [page, setPage] = useState(1);
-  const pageSize = 10;
   const sortedUsers = [...filteredUsers].sort((a, b) =>
     displayName(a).localeCompare(displayName(b), 'pt-BR', { sensitivity: 'base' }),
   );
-  const totalPages = Math.max(1, Math.ceil(sortedUsers.length / pageSize));
-  const startIndex = (page - 1) * pageSize;
-  const pageUsers = sortedUsers.slice(startIndex, startIndex + pageSize);
+  const totalPages = Math.max(1, Math.ceil(sortedUsers.length / PAGE_SIZE));
+  const startIndex = (page - 1) * PAGE_SIZE;
+  const pageUsers = sortedUsers.slice(startIndex, startIndex + PAGE_SIZE);
 
   useEffect(() => {
-    const tp = Math.max(1, Math.ceil(sortedUsers.length / pageSize));
+    const tp = Math.max(1, Math.ceil(sortedUsers.length / PAGE_SIZE));
     if (page > tp) setPage(tp);
     if (page < 1) setPage(1);
   }, [sortedUsers.length]);
 
+  const openCreate = () => {
+    if (!canManageUsers) return;
+    setEditingId(null);
+    form.reset(defaultValues);
+    setOpen(true);
+  };
+
+  const openEdit = (u: UsuarioApi) => {
+    setEditingId(u.id);
+    setOpen(true);
+  };
+
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Usuários</h1>
-        <div className="flex items-center justify-between gap-4">
-          <p className="text-muted-foreground">Gerencie os usuários do sistema</p>
-          <Button
-            onClick={() => {
-              if (!canManageUsers) return;
-              setEditing(null);
-              form.reset(defaultValues);
-              setOpen(true);
-            }}
-            variant="hero"
-            disabled={!canManageUsers}
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Novo usuário
-          </Button>
+    <div className="space-y-6 animate-fade-in">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-2xl font-bold">Usuários</h1>
+            <span className="text-xs font-semibold text-muted-foreground bg-muted px-2.5 py-1 rounded-full">
+              {isLoading ? 'carregando…' : `${users.length} ${users.length === 1 ? 'usuário' : 'usuários'}`}
+            </span>
+          </div>
+          <p className="text-muted-foreground mt-1">Gerencie os usuários do sistema</p>
         </div>
+        <Button onClick={openCreate} variant="hero" disabled={!canManageUsers}>
+          <Plus className="w-4 h-4" />
+          Novo usuário
+        </Button>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Buscar por nome, username ou e-mail..."
-            className="pl-8"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
+      <div className="relative max-w-md">
+        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+        <Input
+          placeholder="Buscar por nome ou e-mail..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="pl-10 bg-card border-border h-11 rounded-[11px] text-sm"
+        />
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>{editing ? 'Editar Usuário' : 'Adicionar Usuário'}</DialogTitle>
+            <DialogTitle>{editingId ? 'Editar Usuário' : 'Adicionar Usuário'}</DialogTitle>
           </DialogHeader>
           <Form {...form}>
             <form
@@ -262,7 +314,7 @@ const UsersManagementPage = () => {
                 name="password"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Senha {editing ? '(opcional)' : ''}</FormLabel>
+                    <FormLabel>Senha {editingId ? '(opcional)' : ''}</FormLabel>
                     <FormControl>
                       <Input
                         type="password"
@@ -319,7 +371,7 @@ const UsersManagementPage = () => {
                   Cancelar
                 </Button>
                 <Button type="submit" className="min-w-32" disabled={!canManageUsers}>
-                  {editing ? 'Salvar' : 'Adicionar'}
+                  {editingId ? 'Salvar' : 'Adicionar'}
                 </Button>
               </DialogFooter>
             </form>
@@ -329,69 +381,101 @@ const UsersManagementPage = () => {
 
       <Card className="bg-card border-border">
         <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow className="border-border hover:bg-transparent">
-                <TableHead>Usuário</TableHead>
-                <TableHead>Tipo de usuário</TableHead>
-                <TableHead>Status</TableHead>
-                {canManageUsers && <TableHead className="w-12"></TableHead>}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {pageUsers.map(u => (
-                <TableRow key={u.id} className="border-border">
-                  <TableCell>
-                    <div className="flex items-center gap-3">
-                      <Avatar className="w-10 h-10">
-                        <AvatarFallback>
-                          <UserIcon className="w-6 h-6 text-muted-foreground" />
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <p className="font-medium">{displayName(u)}</p>
-                        <p className="text-sm text-muted-foreground">{u.email}</p>
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="secondary">{tipoLabel(u.tipo_usuario)}</Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Badge
-                      className={`${u.ativo ? 'bg-green-600 text-primary-foreground' : 'bg-muted text-muted-foreground'} border-0`}
-                    >
-                      {u.ativo ? 'Ativo' : 'Inativo'}
-                    </Badge>
-                  </TableCell>
-                  {canManageUsers && (
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <MoreVertical className="w-4 h-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => { setEditing(u); setOpen(true); }}>
-                            <Edit className="w-4 h-4 mr-2" />
-                            Editar
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            className="text-destructive"
-                            onClick={() => del.mutate(u.id)}
-                          >
-                            <Trash2 className="w-4 h-4 mr-2" />
-                            Excluir
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  )}
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader className="sticky top-0 z-10 bg-card">
+                <TableRow className="border-border hover:bg-transparent">
+                  <TableHead className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground py-2 px-3 min-w-[260px]">Usuário</TableHead>
+                  <TableHead className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground py-2 px-3 w-[180px]">Tipo de usuário</TableHead>
+                  <TableHead className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground py-2 px-3 w-[110px]">Status</TableHead>
+                  {canManageUsers && <TableHead className="py-2 px-3 w-[40px]" />}
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {isLoading
+                  ? Array.from({ length: PAGE_SIZE }).map((_, idx) => (
+                      <TableRow key={`skeleton-${idx}`} className="border-border">
+                        <TableCell className="py-3 px-3">
+                          <div className="flex items-center gap-3">
+                            <Skeleton className="w-10 h-10 rounded-full" />
+                            <div className="space-y-1.5">
+                              <Skeleton className="h-4 w-40" />
+                              <Skeleton className="h-3 w-32" />
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell className="py-3 px-3"><Skeleton className="h-5 w-24 rounded-full" /></TableCell>
+                        <TableCell className="py-3 px-3"><Skeleton className="h-5 w-16 rounded-full" /></TableCell>
+                        {canManageUsers && <TableCell className="py-3 px-3" />}
+                      </TableRow>
+                    ))
+                  : pageUsers.map(u => (
+                      <TableRow
+                        key={u.id}
+                        className={`border-border hover:bg-muted/40 transition-colors group ${canManageUsers ? 'cursor-pointer' : ''}`}
+                        onClick={canManageUsers ? () => openEdit(u) : undefined}
+                      >
+                        <TableCell className="py-3 px-3">
+                          <div className="flex items-center gap-3">
+                            <Avatar className="w-10 h-10">
+                              <AvatarFallback>
+                                <UserIcon className="w-5 h-5 text-muted-foreground" />
+                              </AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <p className="text-sm font-semibold">{displayName(u)}</p>
+                              <p className="text-xs text-muted-foreground">{u.email}</p>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell className="py-3 px-3">
+                          <Badge variant="secondary">{tipoLabel(u.tipo_usuario)}</Badge>
+                        </TableCell>
+                        <TableCell className="py-3 px-3">
+                          <Badge
+                            className={`${u.ativo ? 'bg-green-600 text-primary-foreground' : 'bg-muted text-muted-foreground'} border-0`}
+                          >
+                            {u.ativo ? 'Ativo' : 'Inativo'}
+                          </Badge>
+                        </TableCell>
+                        {canManageUsers && (
+                          <TableCell className="py-3 px-3" onClick={(e) => e.stopPropagation()}>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                  <MoreVertical className="w-4 h-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => openEdit(u)}>
+                                  <Edit className="w-4 h-4 mr-2" />
+                                  Editar
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  className="text-destructive"
+                                  onClick={() => del.mutate(u.id, {
+                                    onSuccess: () => toast({ title: 'Usuário excluído', description: 'O usuário foi removido com sucesso.' }),
+                                    onError: (error) => toast({
+                                      title: 'Erro ao excluir usuário',
+                                      description: extractErrorMessage(error, 'Não foi possível excluir o usuário.'),
+                                      variant: 'destructive',
+                                    }),
+                                  })}
+                                >
+                                  <Trash2 className="w-4 h-4 mr-2" />
+                                  Excluir
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        )}
+                      </TableRow>
+                    ))
+                }
+              </TableBody>
+            </Table>
+          </div>
+
           {totalPages > 1 && (
             <div className="p-4">
               <Pagination>
@@ -453,26 +537,24 @@ const UsersManagementPage = () => {
               </Pagination>
             </div>
           )}
-          {users.length === 0 && (
+
+          {!isLoading && pageUsers.length === 0 && (
             <div className="text-center py-12">
               <UserIcon className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
               <h3 className="text-lg font-semibold mb-2">Nenhum usuário encontrado</h3>
-              <p className="text-muted-foreground mb-4">
-                Tente ajustar os filtros ou adicionar um usuário
+              <p className="text-muted-foreground mb-4 max-w-sm mx-auto">
+                {search ? 'Ajuste a busca acima para encontrar um usuário.' : 'Adicione um novo usuário para começar.'}
               </p>
-              <Button
-                variant="hero"
-                onClick={() => {
-                  if (!canManageUsers) return;
-                  setEditing(null);
-                  form.reset(defaultValues);
-                  setOpen(true);
-                }}
-                disabled={!canManageUsers}
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Novo usuário
-              </Button>
+              {search ? (
+                <Button variant="outline" onClick={() => setSearch('')}>
+                  Limpar busca
+                </Button>
+              ) : (
+                <Button variant="hero" onClick={openCreate} disabled={!canManageUsers}>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Novo usuário
+                </Button>
+              )}
             </div>
           )}
         </CardContent>

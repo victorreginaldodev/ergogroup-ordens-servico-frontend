@@ -16,15 +16,15 @@ import { Separator } from '@/components/ui/separator';
 
 const schema = z.object({
   id: z.string().optional(),
-  nome: z.string().min(2, 'Nome muito curto'),
-  tipo_inscricao: z.enum(['cnpj', 'cpf', 'cei', 'cno', 'caepf', 'outro'], { required_error: 'Selecione o tipo' }),
-  numero_inscricao: z.string().min(3, 'Número de inscrição inválido'),
-  tipo_cliente: z.enum(['gestao', 'avulso']).optional(),
+  nome: z.string().min(2, 'Nome muito curto').max(100, 'Nome muito longo'),
+  tipo_inscricao: z.enum(['cnpj', 'cpf', 'cei', 'cno', 'caepf'], { required_error: 'Selecione o tipo' }),
+  numero_inscricao: z.string().min(3, 'Número de inscrição inválido').max(30, 'Número de inscrição muito longo'),
+  tipo_cliente: z.enum(['gestao', 'avulso', 'fornecedor']).optional(),
   observacao: z.string().optional(),
-  nome_representante: z.string().optional(),
-  setor_representante: z.string().optional(),
-  email_representante: z.string().email('E-mail do representante inválido').optional(),
-  contato_representante: z.string().optional(),
+  nome_representante: z.string().max(50, 'Nome muito longo').optional(),
+  setor_representante: z.string().max(50, 'Setor muito longo').optional(),
+  email_representante: z.string().email('E-mail do representante inválido').max(254).optional().or(z.literal('')),
+  contato_representante: z.string().max(50, 'Contato muito longo').optional(),
   cliente_ativo: z.boolean().default(true),
   cobranca_revisao_alteracao: z.boolean().default(false),
 });
@@ -76,23 +76,25 @@ const ClientFormPage = () => {
   }, [existing]);
 
   const onSubmit = (values: FormValues) => {
+    // Campos de representante e observação são nullable no backend — envia null
+    // em vez de string vazia para ficar de acordo com o contrato da API.
     const payload = {
       ...(values.id ? { id: values.id } : {}),
       nome: values.nome,
       tipo_inscricao: values.tipo_inscricao,
       numero_inscricao: values.numero_inscricao,
       tipo_cliente: values.tipo_cliente,
-      observacao: values.observacao,
-      nome_representante: values.nome_representante,
-      setor_representante: values.setor_representante,
-      email_representante: values.email_representante,
-      contato_representante: values.contato_representante,
+      observacao: values.observacao || null,
+      nome_representante: values.nome_representante || null,
+      setor_representante: values.setor_representante || null,
+      email_representante: values.email_representante || null,
+      contato_representante: values.contato_representante || null,
       ativo: values.cliente_ativo,
       cobranca_revisao_alteracao: values.cobranca_revisao_alteracao,
     };
     upsert.mutate(payload, {
       onSuccess: () => {
-        navigate('/dashboard/clients');
+        navigate('/clientes');
       },
     });
   };
@@ -101,7 +103,7 @@ const ClientFormPage = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">{id ? 'Editar Cliente' : 'Adicionar Cliente'}</h1>
-        <BackButton to="/dashboard/clients" />
+        <BackButton to="/clientes" />
       </div>
       <Card className="bg-card border-border">
         <CardContent className="p-6">
@@ -118,7 +120,7 @@ const ClientFormPage = () => {
                       <FormItem className="sm:col-span-2">
                         <FormLabel>Nome</FormLabel>
                         <FormControl>
-                          <Input placeholder="Nome do cliente" {...field} />
+                          <Input placeholder="Nome do cliente" maxLength={100} {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -137,6 +139,7 @@ const ClientFormPage = () => {
                           <SelectContent>
                             <SelectItem value="gestao">Gestão</SelectItem>
                             <SelectItem value="avulso">Avulso</SelectItem>
+                            <SelectItem value="fornecedor">Fornecedor</SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -203,7 +206,6 @@ const ClientFormPage = () => {
                             <SelectItem value="cei">CEI</SelectItem>
                             <SelectItem value="cno">CNO</SelectItem>
                             <SelectItem value="caepf">CAEPF</SelectItem>
-                            <SelectItem value="outro">Outro</SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -217,7 +219,7 @@ const ClientFormPage = () => {
                       <FormItem>
                         <FormLabel>Número de inscrição</FormLabel>
                         <FormControl>
-                          <Input placeholder="CPF/CNPJ/..." {...field} />
+                          <Input placeholder="CPF/CNPJ/..." maxLength={30} {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -239,7 +241,7 @@ const ClientFormPage = () => {
                       <FormItem>
                         <FormLabel>Nome do representante</FormLabel>
                         <FormControl>
-                          <Input placeholder="Nome do representante" {...field} />
+                          <Input placeholder="Nome do representante" maxLength={50} {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -252,7 +254,7 @@ const ClientFormPage = () => {
                       <FormItem>
                         <FormLabel>Setor do representante</FormLabel>
                         <FormControl>
-                          <Input placeholder="Setor" {...field} />
+                          <Input placeholder="Setor" maxLength={50} {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -265,7 +267,7 @@ const ClientFormPage = () => {
                       <FormItem>
                         <FormLabel>E-mail do representante</FormLabel>
                         <FormControl>
-                          <Input type="email" placeholder="email@dominio.com" {...field} />
+                          <Input type="email" placeholder="email@dominio.com" maxLength={254} {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -278,7 +280,7 @@ const ClientFormPage = () => {
                       <FormItem>
                         <FormLabel>Contato do representante</FormLabel>
                         <FormControl>
-                          <Input placeholder="(11) 99999-0000" {...field} />
+                          <Input placeholder="(11) 99999-0000" maxLength={50} {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -310,7 +312,7 @@ const ClientFormPage = () => {
               </div>
 
               <div className="flex justify-end gap-3 pt-2">
-                <Button type="button" variant="outline" onClick={() => navigate('/dashboard/clients')}>
+                <Button type="button" variant="outline" onClick={() => navigate('/clientes')}>
                   Cancelar
                 </Button>
                 <Button type="submit" className="min-w-32">{id ? 'Salvar' : 'Adicionar'}</Button>

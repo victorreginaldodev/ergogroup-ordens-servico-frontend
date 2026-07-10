@@ -25,7 +25,7 @@ const LoginPage = () => {
         title: "Login realizado com sucesso!",
         description: "Redirecionando para a lista de ordens de serviço...",
       });
-      navigate('/dashboard/orders');
+      navigate('/ordens');
     } catch (error) {
       console.error(error);
       toast({

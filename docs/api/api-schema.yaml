@@ -3452,12 +3452,10 @@ components:
         data_inicio:
           type: string
           format: date
-          readOnly: true
           nullable: true
         data_termino:
           type: string
           format: date
-          readOnly: true
           nullable: true
         status:
           $ref: '#/components/schemas/StatusMiniOSEnum'
@@ -3515,9 +3513,7 @@ components:
       - complexidade_display
       - complexidade_efetiva
       - criada_em
-      - data_inicio
       - data_liberacao_cobranca
-      - data_termino
       - gera_cobranca
       - horas_estimadas_efetivas
       - id
@@ -3689,6 +3685,14 @@ components:
           - $ref: '#/components/schemas/ComplexidadeEnum'
           - $ref: '#/components/schemas/NullEnum'
         data_recebimento:
+          type: string
+          format: date
+          nullable: true
+        data_inicio:
+          type: string
+          format: date
+          nullable: true
+        data_termino:
           type: string
           format: date
           nullable: true
@@ -3982,6 +3986,14 @@ components:
           - $ref: '#/components/schemas/ComplexidadeEnum'
           - $ref: '#/components/schemas/NullEnum'
         data_recebimento:
+          type: string
+          format: date
+          nullable: true
+        data_inicio:
+          type: string
+          format: date
+          nullable: true
+        data_termino:
           type: string
           format: date
           nullable: true

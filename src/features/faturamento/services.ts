@@ -20,7 +20,7 @@ export const getBillingServiceOrdersPage = async (
 ): Promise<PageResult<OrdemServicoItem>> => {
   const page = params.page ?? 1;
   const pageSize = params.pageSize ?? 20;
-  const queryParams: Record<string, string | number> = { page, page_size: pageSize };
+  const queryParams: Record<string, string | number> = {};
   if (params.q) queryParams.q = params.q;
   if (params.concluida && params.concluida !== 'all') queryParams.concluida = params.concluida;
   if (params.cobrancaRealizada && params.cobrancaRealizada !== 'all') {
@@ -29,16 +29,23 @@ export const getBillingServiceOrdersPage = async (
   if (params.liberada) queryParams.liberada = params.liberada;
 
   const { data } = await api.get(ordensEndpoint, { params: queryParams });
+
+  // O schema mostra esse endpoint devolvendo um array simples — sem paginação
+  // nem parâmetros page/page_size documentados. Paginamos no cliente.
   if (isPaginatedResponse<any>(data)) {
     return { ...toPageResult(data, page, pageSize), items: data.results.map(normalizeOrdemItem) };
   }
-  const items = (Array.isArray(data) ? data : []).map(normalizeOrdemItem);
+
+  const all = (Array.isArray(data) ? data : []).map(normalizeOrdemItem);
+  const start = (page - 1) * pageSize;
+  const items = all.slice(start, start + pageSize);
+
   return {
     items,
-    count: items.length,
+    count: all.length,
     page,
     pageSize,
-    totalPages: Math.max(1, Math.ceil(items.length / pageSize)),
+    totalPages: Math.max(1, Math.ceil(all.length / pageSize)),
     next: null,
     previous: null,
   };

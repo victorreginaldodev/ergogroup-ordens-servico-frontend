@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,7 +7,6 @@ import BackButton from '@/components/BackButton';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Separator } from '@/components/ui/separator';
 import {
   Select,
   SelectContent,
@@ -15,17 +14,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import {
-  useCatalogo,
-  useUpsertCatalogo,
-  useSubitensCatalogo,
-  useUpsertSubitemCatalogo,
-  useDeleteSubitemCatalogo,
-} from '../hooks';
+import { useCatalogo, useUpsertCatalogo } from '../hooks';
 import { Complexidade, COMPLEXIDADE_LABEL } from '../services';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Save, Trash2 } from 'lucide-react';
+import { Save } from 'lucide-react';
 import { useUserRole } from '@/hooks/useUserRole';
 
 type FormValues = {
@@ -52,7 +44,7 @@ const CatalogFormPage = () => {
         description: 'Você não tem permissão para gerenciar o catálogo de serviços.',
         variant: 'destructive',
       });
-      navigate('/dashboard/catalog');
+      navigate('/catalogo');
     }
   }, [isTechnician, navigate, toast]);
 
@@ -81,13 +73,9 @@ const CatalogFormPage = () => {
     upsert.mutate(
       { id, payload },
       {
-        onSuccess: (created) => {
+        onSuccess: () => {
           toast({ title: id ? 'Serviço atualizado' : 'Serviço criado', description: 'Operação realizada com sucesso.' });
-          if (id) {
-            navigate('/dashboard/catalog');
-          } else {
-            navigate(`/dashboard/catalog/${created.id}/edit`);
-          }
+          navigate('/catalogo');
         },
         onError: () => {
           toast({ title: 'Erro', description: 'Não foi possível salvar.', variant: 'destructive' });
@@ -109,7 +97,7 @@ const CatalogFormPage = () => {
           <h1 className="text-2xl font-bold">{title}</h1>
           <p className="text-muted-foreground">Preencha os dados do serviço de catálogo</p>
         </div>
-        <BackButton to="/dashboard/catalog" />
+        <BackButton to="/catalogo" />
       </div>
 
       <Card className="bg-card border-border">
@@ -123,6 +111,7 @@ const CatalogFormPage = () => {
                 <Label>Nome</Label>
                 <Input
                   placeholder="Nome do serviço"
+                  maxLength={100}
                   {...form.register('nome', { required: true })}
                   className="bg-secondary border-border"
                 />
@@ -169,85 +158,7 @@ const CatalogFormPage = () => {
           </form>
         </CardContent>
       </Card>
-
-      {id && <SubitensSection catalogoId={id} />}
     </div>
-  );
-};
-
-const SubitensSection = ({ catalogoId }: { catalogoId: number }) => {
-  const { data: subitens = [] } = useSubitensCatalogo(catalogoId);
-  const upsertSubitem = useUpsertSubitemCatalogo();
-  const deleteSubitem = useDeleteSubitemCatalogo();
-  const { toast } = useToast();
-  const [novoNome, setNovoNome] = useState('');
-
-  const handleAdd = () => {
-    if (!novoNome.trim()) return;
-    upsertSubitem.mutate(
-      { payload: { nome: novoNome.trim(), catalogo: catalogoId } },
-      {
-        onSuccess: () => setNovoNome(''),
-        onError: () => toast({ title: 'Erro', description: 'Não foi possível adicionar o subitem.', variant: 'destructive' }),
-      },
-    );
-  };
-
-  return (
-    <Card className="bg-card border-border">
-      <CardHeader>
-        <CardTitle>Subitens</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="flex gap-2">
-          <Input
-            placeholder="Nome do subitem"
-            value={novoNome}
-            onChange={(e) => setNovoNome(e.target.value)}
-            className="bg-secondary border-border"
-          />
-          <Button type="button" onClick={handleAdd} disabled={upsertSubitem.isPending || !novoNome.trim()}>
-            <Plus className="w-4 h-4 mr-2" />
-            Adicionar
-          </Button>
-        </div>
-
-        <Separator />
-
-        <Table>
-          <TableHeader>
-            <TableRow className="border-border hover:bg-transparent">
-              <TableHead>Nome</TableHead>
-              <TableHead className="w-12" />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {subitens.map((s) => (
-              <TableRow key={s.id} className="border-border">
-                <TableCell>{s.nome}</TableCell>
-                <TableCell>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-destructive"
-                    onClick={() => deleteSubitem.mutate({ id: s.id, catalogo: catalogoId })}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
-            {subitens.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={2} className="text-center py-8 text-muted-foreground">
-                  Nenhum subitem cadastrado.
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </CardContent>
-    </Card>
   );
 };
 

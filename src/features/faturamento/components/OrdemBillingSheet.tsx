@@ -36,7 +36,7 @@ export function OrdemBillingSheet({
             <p className="mt-0.5 text-sm text-muted-foreground">OS #{orderId}</p>
           </div>
           <Link
-            to={`/dashboard/orders/${orderId}`}
+            to={`/ordens/${orderId}`}
             onClick={() => onOpenChange(false)}
             className="flex shrink-0 items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted"
           >

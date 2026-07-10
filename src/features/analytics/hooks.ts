@@ -1,33 +1,15 @@
 import { useQuery } from '@tanstack/react-query';
 import {
   getAnaliseOperacional,
-  getDashboardAnalytics,
-  getFinanceiroKpis,
-  getProdutividade,
+  getFinanceiroAnalise,
   type AnaliseOperacionalResponse,
-  type DashboardAnalyticsResponse,
-  type FinanceiroKpisResponse,
-  type ProdutividadeResponse,
+  type FinanceiroAnaliseResponse,
 } from './services';
 
-export const useDashboardAnalytics = () =>
-  useQuery<DashboardAnalyticsResponse>({
-    queryKey: ['analytics-dashboard'],
-    queryFn: getDashboardAnalytics,
-    staleTime: 1000 * 60 * 5,
-  });
-
-export const useFinanceiroKpis = () =>
-  useQuery<FinanceiroKpisResponse>({
-    queryKey: ['analytics-financeiro-kpis'],
-    queryFn: getFinanceiroKpis,
-    staleTime: 1000 * 60 * 5,
-  });
-
-export const useProdutividade = () =>
-  useQuery<ProdutividadeResponse>({
-    queryKey: ['analytics-produtividade'],
-    queryFn: getProdutividade,
+export const useFinanceiroAnalise = () =>
+  useQuery<FinanceiroAnaliseResponse>({
+    queryKey: ['analytics-financeiro'],
+    queryFn: getFinanceiroAnalise,
     staleTime: 1000 * 60 * 5,
   });
 

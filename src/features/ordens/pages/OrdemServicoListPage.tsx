@@ -285,7 +285,7 @@ const OrdemServicoListPage = () => {
           <p className="text-muted-foreground mt-1">{subtitle}</p>
         </div>
         {canManageOrders && (
-          <Button variant="hero" onClick={() => navigate('/dashboard/orders/new')}>
+          <Button variant="hero" onClick={() => navigate('/ordens/new')}>
             <Plus className="w-4 h-4" />
             Nova Ordem
           </Button>
@@ -366,7 +366,7 @@ const OrdemServicoListPage = () => {
                         <TableRow
                           key={ordem.id}
                           className={`border-border hover:bg-muted/40 cursor-pointer transition-colors group ${accentRed ? 'border-l-2 border-l-red-500' : ''}`}
-                          onClick={() => navigate(`/dashboard/orders/${ordem.id}`)}
+                          onClick={() => navigate(`/ordens/${ordem.id}`)}
                         >
                           <TableCell className="py-3 px-3">
                             <div>
@@ -458,7 +458,7 @@ const OrdemServicoListPage = () => {
                           <TableCell className="py-3 px-3">
                             <button
                               type="button"
-                              onClick={(e) => { e.stopPropagation(); navigate(`/dashboard/orders/${ordem.id}`); }}
+                              onClick={(e) => { e.stopPropagation(); navigate(`/ordens/${ordem.id}`); }}
                               className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-muted"
                               title="Ver OS completa"
                             >

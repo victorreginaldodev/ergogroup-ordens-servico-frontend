@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search } from 'lucide-react';
-import { useServiceOrders } from '@/services/orders';
+import { useOrdensLista } from '@/features/ordens/hooks';
 import {
   Command,
   CommandEmpty,
@@ -17,7 +17,7 @@ const OrderSearch = () => {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
-  const { data: orders = [] } = useServiceOrders();
+  const { data: orders = [] } = useOrdensLista();
 
   const filtered = useMemo(() => {
     if (!search.trim()) return [];
@@ -25,7 +25,7 @@ const OrderSearch = () => {
     return orders
       .filter(
         (o) =>
-          o.clientName.toLowerCase().includes(term) ||
+          o.cliente_nome.toLowerCase().includes(term) ||
           String(o.id).toLowerCase().includes(term),
       )
       .slice(0, 6);
@@ -34,7 +34,7 @@ const OrderSearch = () => {
   const goToSearch = (term: string) => {
     setOpen(false);
     setSearch('');
-    navigate(`/dashboard/orders?q=${encodeURIComponent(term)}`);
+    navigate(`/ordens?q=${encodeURIComponent(term)}`);
   };
 
   return (
@@ -74,12 +74,12 @@ const OrderSearch = () => {
                 {filtered.map((order) => (
                   <CommandItem
                     key={order.id}
-                    value={order.id}
-                    onSelect={() => goToSearch(order.clientName)}
+                    value={String(order.id)}
+                    onSelect={() => goToSearch(order.cliente_nome)}
                     className="flex flex-col items-start gap-0.5 cursor-pointer"
                   >
-                    <span className="font-medium">{order.clientName}</span>
-                    <span className="text-xs text-muted-foreground uppercase">{order.id}</span>
+                    <span className="font-medium">{order.cliente_nome}</span>
+                    <span className="text-xs text-muted-foreground uppercase">#{order.id}</span>
                   </CommandItem>
                 ))}
               </CommandGroup>

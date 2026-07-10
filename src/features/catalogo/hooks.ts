@@ -5,23 +5,17 @@ import {
   CatalogoOperacionalPayload,
   CatalogoPayload,
   RepositoryItem,
-  SubitemCatalogoItem,
-  SubitemCatalogoPayload,
   createCatalogo,
   createCatalogoOperacional,
-  createSubitemCatalogo,
   deleteCatalogo,
   deleteCatalogoOperacional,
-  deleteSubitemCatalogo,
   getCatalogo,
   getCatalogoOperacional,
   getCatalogos,
   getCatalogosOperacionais,
   getRepositories,
-  getSubitensCatalogo,
   updateCatalogo,
   updateCatalogoOperacional,
-  updateSubitemCatalogo,
 } from './services';
 
 // ── Catálogo ──────────────────────────────────────────────────────────────────
@@ -56,40 +50,6 @@ export const useDeleteCatalogo = () => {
   return useMutation({
     mutationFn: (id: number) => deleteCatalogo(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['catalogos'] }),
-  });
-};
-
-// ── Subitem de Catálogo ───────────────────────────────────────────────────────
-
-export const useSubitensCatalogo = (catalogo?: number) =>
-  useQuery<SubitemCatalogoItem[]>({
-    queryKey: ['subitens-catalogo', catalogo],
-    enabled: catalogo !== undefined,
-    queryFn: () => getSubitensCatalogo({ catalogo }),
-  });
-
-export const useUpsertSubitemCatalogo = () => {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, payload }: { id?: number; payload: Partial<SubitemCatalogoPayload> }) =>
-      id === undefined
-        ? createSubitemCatalogo(payload as SubitemCatalogoPayload)
-        : updateSubitemCatalogo(id, payload),
-    onSuccess: (_, { payload }) => {
-      qc.invalidateQueries({ queryKey: ['subitens-catalogo', payload.catalogo] });
-      if (payload.catalogo !== undefined) qc.invalidateQueries({ queryKey: ['catalogo', payload.catalogo] });
-    },
-  });
-};
-
-export const useDeleteSubitemCatalogo = () => {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id }: { id: number; catalogo: number }) => deleteSubitemCatalogo(id),
-    onSuccess: (_, { catalogo }) => {
-      qc.invalidateQueries({ queryKey: ['subitens-catalogo', catalogo] });
-      qc.invalidateQueries({ queryKey: ['catalogo', catalogo] });
-    },
   });
 };
 

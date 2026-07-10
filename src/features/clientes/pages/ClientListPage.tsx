@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Edit, MoreVertical, Plus, Trash2, Users } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { Edit, MoreVertical, Plus, Search, Trash2, Users } from 'lucide-react';
 
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -16,9 +15,45 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from '@/components/ui/pagination';
-import { Separator } from '@/components/ui/separator';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useClientsPage, useDeleteClient } from '../hooks';
+import type { TipoCliente, TipoInscricao } from '../services';
+
+const PAGE_SIZE = 10;
+
+const TIPO_CLIENTE_LABEL: Record<TipoCliente, string> = {
+  gestao: 'Gestão',
+  avulso: 'Avulso',
+  fornecedor: 'Fornecedor',
+};
+
+const TIPO_CLIENTE_DOT: Record<TipoCliente, string> = {
+  gestao: 'bg-sky-500',
+  avulso: 'bg-muted-foreground',
+  fornecedor: 'bg-purple-500',
+};
+
+const TIPO_INSCRICAO_LABEL: Record<TipoInscricao, string> = {
+  cnpj: 'CNPJ',
+  cpf: 'CPF',
+  cei: 'CEI',
+  cno: 'CNO',
+  caepf: 'CAEPF',
+};
+
+const formatDate = (dateStr: string | null | undefined): string | null => {
+  if (!dateStr) return null;
+  const [y, m, d] = dateStr.slice(0, 10).split('-');
+  return `${d}/${m}/${y}`;
+};
+
+const dotBadge = (dotColorClass: string, label: string) => (
+  <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-foreground">
+    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dotColorClass}`} />
+    {label}
+  </span>
+);
 
 const ClientListPage = () => {
   const del = useDeleteClient();
@@ -37,13 +72,14 @@ const ClientListPage = () => {
     return () => clearTimeout(id);
   }, [query, location.search, navigate]);
 
-  const { data } = useClientsPage({
+  const { data, isLoading } = useClientsPage({
     page,
-    pageSize: 10,
+    pageSize: PAGE_SIZE,
     q: query || undefined,
   });
   const clients = data?.items ?? [];
   const totalPages = data?.totalPages ?? 1;
+  const totalCount = data?.count ?? 0;
 
   useEffect(() => {
     setPage(1);
@@ -54,81 +90,142 @@ const ClientListPage = () => {
   }, [page, totalPages]);
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Clientes</h1>
-        <div className="flex items-center justify-between gap-4">
-          <p className="text-muted-foreground">Gerencie seus clientes</p>
-          <Button asChild variant="hero">
-            <Link to="/dashboard/clients/new" className="flex items-center gap-2">
-              <Plus className="w-4 h-4" />
-              Novo cliente
-            </Link>
-          </Button>
+    <div className="space-y-6 animate-fade-in">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-2xl font-bold">Clientes</h1>
+            <span className="text-xs font-semibold text-muted-foreground bg-muted px-2.5 py-1 rounded-full">
+              {isLoading ? 'carregando…' : `${totalCount} ${totalCount === 1 ? 'cliente' : 'clientes'}`}
+            </span>
+          </div>
+          <p className="text-muted-foreground mt-1">Gerencie seus clientes</p>
         </div>
+        <Button onClick={() => navigate('/clientes/new')} variant="hero">
+          <Plus className="w-4 h-4" />
+          Novo cliente
+        </Button>
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="relative max-w-md">
+        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
         <Input
-          placeholder="Buscar..."
+          placeholder="Buscar por nome ou inscrição..."
           value={query}
           onChange={(e) => setQuery(e.target.value)}
+          className="pl-10 bg-card border-border h-11 rounded-[11px] text-sm"
         />
       </div>
 
       <Card className="bg-card border-border">
         <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow className="border-border hover:bg-transparent">
-                <TableHead>Cliente</TableHead>
-                <TableHead className="uppercase text-center">Ativo</TableHead>
-                <TableHead className="uppercase text-center">Cobrança Revisão/Alteração</TableHead>
-                <TableHead className="w-12"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {clients.map((c) => (
-                <TableRow key={c.id} className="border-border">
-                  <TableCell>
-                    <p className="font-medium uppercase">{c.name}</p>
-                  </TableCell>
-                  <TableCell className="w-32 text-center">
-                    <Badge className="uppercase inline-flex justify-center" variant={c.active ? 'default' : 'destructive'}>
-                      {c.active ? 'Sim' : 'Não'}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="w-56 text-center">
-                    <Badge className="uppercase inline-flex justify-center" variant={c.chargeRevisionChange ? 'secondary' : 'outline'}>
-                      {c.chargeRevisionChange ? 'Sim' : 'Não'}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <MoreVertical className="w-4 h-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => navigate(`/dashboard/clients/${c.id}/edit`)}>
-                          <Edit className="w-4 h-4 mr-2" />
-                          Editar
-                        </DropdownMenuItem>
-                        <DropdownMenuItem className="text-destructive" onClick={() => del.mutate(c.id)}>
-                          <Trash2 className="w-4 h-4 mr-2" />
-                          Excluir
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader className="sticky top-0 z-10 bg-card">
+                <TableRow className="border-border hover:bg-transparent">
+                  <TableHead className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground py-2 px-3 min-w-[220px]">Cliente</TableHead>
+                  <TableHead className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground py-2 px-3 w-[110px]">Tipo</TableHead>
+                  <TableHead className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground py-2 px-3 min-w-[200px]">Representante</TableHead>
+                  <TableHead className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground py-2 px-3 w-[110px]">Cliente desde</TableHead>
+                  <TableHead className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground py-2 px-3 w-[90px]">Ativo</TableHead>
+                  <TableHead className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground py-2 px-3 w-[150px]">Cobrança revisão</TableHead>
+                  <TableHead className="py-2 px-3 w-[40px]" />
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          <div className="px-4">
-            <Separator />
+              </TableHeader>
+              <TableBody>
+                {isLoading
+                  ? Array.from({ length: PAGE_SIZE }).map((_, idx) => (
+                      <TableRow key={`skeleton-${idx}`} className="border-border">
+                        <TableCell className="py-3 px-3">
+                          <div className="space-y-2">
+                            <Skeleton className="h-4 w-40" />
+                            <Skeleton className="h-3 w-24" />
+                          </div>
+                        </TableCell>
+                        <TableCell className="py-3 px-3"><Skeleton className="h-3 w-16" /></TableCell>
+                        <TableCell className="py-3 px-3"><Skeleton className="h-4 w-32" /></TableCell>
+                        <TableCell className="py-3 px-3"><Skeleton className="h-3 w-16" /></TableCell>
+                        <TableCell className="py-3 px-3"><Skeleton className="h-3 w-12" /></TableCell>
+                        <TableCell className="py-3 px-3"><Skeleton className="h-3 w-12" /></TableCell>
+                        <TableCell className="py-3 px-3" />
+                      </TableRow>
+                    ))
+                  : clients.map((c) => (
+                      <TableRow
+                        key={c.id}
+                        className="border-border hover:bg-muted/40 cursor-pointer transition-colors group"
+                        onClick={() => navigate(`/clientes/${c.id}/edit`)}
+                      >
+                        <TableCell className="py-3 px-3">
+                          <div>
+                            <span className="text-sm font-semibold uppercase">{c.name}</span>
+                            <div className="flex items-center gap-1.5 mt-1 text-[11px] font-medium text-muted-foreground">
+                              {c.tipo_inscricao && <span>{TIPO_INSCRICAO_LABEL[c.tipo_inscricao]}</span>}
+                              {c.tipo_inscricao && c.document && <span className="opacity-50">·</span>}
+                              {c.document && <span className="font-mono">{c.document}</span>}
+                              {!c.tipo_inscricao && !c.document && <span>sem inscrição</span>}
+                            </div>
+                          </div>
+                        </TableCell>
+
+                        <TableCell className="py-3 px-3">
+                          {c.tipoCliente
+                            ? dotBadge(TIPO_CLIENTE_DOT[c.tipoCliente], TIPO_CLIENTE_LABEL[c.tipoCliente])
+                            : <span className="text-[11px] text-muted-foreground">—</span>
+                          }
+                        </TableCell>
+
+                        <TableCell className="py-3 px-3">
+                          {c.representativeName ? (
+                            <div>
+                              <p className="text-sm">{c.representativeName}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {[c.representativeSector, c.representativeEmail].filter(Boolean).join(' · ') || '—'}
+                              </p>
+                            </div>
+                          ) : (
+                            <span className="text-sm text-muted-foreground">Sem representante</span>
+                          )}
+                        </TableCell>
+
+                        <TableCell className="py-3 px-3">
+                          <span className="text-sm tabular-nums text-muted-foreground">{formatDate(c.createdAt) ?? '—'}</span>
+                        </TableCell>
+
+                        <TableCell className="py-3 px-3">
+                          {dotBadge(c.active ? 'bg-status-completed' : 'bg-muted-foreground', c.active ? 'Sim' : 'Não')}
+                        </TableCell>
+
+                        <TableCell className="py-3 px-3">
+                          {dotBadge(c.chargeRevisionChange ? 'bg-yellow-500' : 'bg-muted-foreground', c.chargeRevisionChange ? 'Sim' : 'Não')}
+                        </TableCell>
+
+                        <TableCell className="py-3 px-3" onClick={(e) => e.stopPropagation()}>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8">
+                                <MoreVertical className="w-4 h-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => navigate(`/clientes/${c.id}/edit`)}>
+                                <Edit className="w-4 h-4 mr-2" />
+                                Editar
+                              </DropdownMenuItem>
+                              <DropdownMenuItem className="text-destructive" onClick={() => del.mutate(c.id)}>
+                                <Trash2 className="w-4 h-4 mr-2" />
+                                Excluir
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                }
+              </TableBody>
+            </Table>
           </div>
+
           {totalPages > 1 && (
             <div className="p-4">
               <Pagination>
@@ -166,17 +263,24 @@ const ClientListPage = () => {
               </Pagination>
             </div>
           )}
-          {clients.length === 0 && (
+
+          {!isLoading && clients.length === 0 && (
             <div className="text-center py-12">
               <Users className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
               <h3 className="text-lg font-semibold mb-2">Nenhum cliente encontrado</h3>
-              <p className="text-muted-foreground mb-4">Adicione um novo cliente para começar</p>
-              <Button asChild variant="hero">
-                <Link to="/dashboard/clients/new" className="flex items-center gap-2">
-                  <Plus className="w-4 h-4" />
+              <p className="text-muted-foreground mb-4 max-w-sm mx-auto">
+                {query ? 'Ajuste a busca acima para encontrar um cliente.' : 'Adicione um novo cliente para começar.'}
+              </p>
+              {query ? (
+                <Button variant="outline" onClick={() => setQuery('')}>
+                  Limpar busca
+                </Button>
+              ) : (
+                <Button variant="hero" onClick={() => navigate('/clientes/new')}>
+                  <Plus className="w-4 h-4 mr-2" />
                   Novo cliente
-                </Link>
-              </Button>
+                </Button>
+              )}
             </div>
           )}
         </CardContent>

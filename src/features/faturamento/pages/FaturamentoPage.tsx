@@ -372,7 +372,7 @@ const FaturamentoPage = () => {
                                 <History className="mr-2 h-3.5 w-3.5" /> Histórico
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
-                              <DropdownMenuItem onClick={() => navigate(`/dashboard/orders/${order.id}`)}>
+                              <DropdownMenuItem onClick={() => navigate(`/ordens/${order.id}`)}>
                                 <ExternalLink className="mr-2 h-3.5 w-3.5" /> Ver OS
                               </DropdownMenuItem>
                             </DropdownMenuContent>

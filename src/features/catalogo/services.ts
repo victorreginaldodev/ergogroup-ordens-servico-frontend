@@ -8,88 +8,10 @@ export const COMPLEXIDADE_LABEL: Record<Complexidade, string> = {
   3: 'Alta',
 };
 
-// ── Subitem de Catálogo ───────────────────────────────────────────────────────
-
-export interface SubitemCatalogoItem {
-  id: number;
-  nome: string;
-  descricao: string | null;
-  ativo: boolean;
-  ordem: number;
-  catalogo: number;
-  criadoEm: string;
-  atualizadoEm: string;
-}
-
-export interface SubitemCatalogoPayload {
-  nome: string;
-  descricao?: string | null;
-  ativo?: boolean;
-  ordem?: number;
-  catalogo: number;
-}
-
-type SubitemCatalogoDTO = {
-  id: number;
-  nome: string;
-  descricao: string | null;
-  ativo: boolean;
-  ordem: number;
-  catalogo: number;
-  criado_em: string;
-  atualizado_em: string;
-};
-
-const SUBITEM_ENDPOINT = '/api/catalogo/subitens/';
-
-const subitemToFrontend = (dto: SubitemCatalogoDTO): SubitemCatalogoItem => ({
-  id: dto.id,
-  nome: dto.nome,
-  descricao: dto.descricao ?? null,
-  ativo: dto.ativo,
-  ordem: dto.ordem,
-  catalogo: dto.catalogo,
-  criadoEm: dto.criado_em,
-  atualizadoEm: dto.atualizado_em,
-});
-
-const subitemToBackend = (payload: Partial<SubitemCatalogoPayload>) => ({
-  ...(payload.nome !== undefined ? { nome: payload.nome } : {}),
-  ...(payload.descricao !== undefined ? { descricao: payload.descricao } : {}),
-  ...(payload.ativo !== undefined ? { ativo: payload.ativo } : {}),
-  ...(payload.ordem !== undefined ? { ordem: payload.ordem } : {}),
-  ...(payload.catalogo !== undefined ? { catalogo: payload.catalogo } : {}),
-});
-
-export const getSubitensCatalogo = async (params: {
-  catalogo?: number;
-  ativo?: boolean;
-  q?: string;
-}): Promise<SubitemCatalogoItem[]> => {
-  const queryParams: Record<string, string | number> = {};
-  if (params.catalogo !== undefined) queryParams.catalogo = params.catalogo;
-  if (params.ativo !== undefined) queryParams.ativo = String(params.ativo);
-  if (params.q) queryParams.q = params.q;
-
-  const { data } = await api.get<SubitemCatalogoDTO[]>(SUBITEM_ENDPOINT, { params: queryParams });
-  return (data || []).map(subitemToFrontend);
-};
-
-export const createSubitemCatalogo = async (payload: SubitemCatalogoPayload): Promise<SubitemCatalogoItem> => {
-  const { data } = await api.post<SubitemCatalogoDTO>(SUBITEM_ENDPOINT, subitemToBackend(payload));
-  return subitemToFrontend(data);
-};
-
-export const updateSubitemCatalogo = async (
-  id: number,
-  payload: Partial<SubitemCatalogoPayload>,
-): Promise<SubitemCatalogoItem> => {
-  const { data } = await api.patch<SubitemCatalogoDTO>(`${SUBITEM_ENDPOINT}${id}/`, subitemToBackend(payload));
-  return subitemToFrontend(data);
-};
-
-export const deleteSubitemCatalogo = async (id: number): Promise<void> => {
-  await api.delete(`${SUBITEM_ENDPOINT}${id}/`);
+export const COMPLEXIDADE_DOT: Record<Complexidade, string> = {
+  1: 'bg-muted-foreground',
+  2: 'bg-yellow-500',
+  3: 'bg-red-600',
 };
 
 // ── Catálogo (serviços de Ordem de Serviço) ───────────────────────────────────
@@ -100,7 +22,6 @@ export interface CatalogoItem {
   descricao: string | null;
   horasEstimadas: string | null;
   complexidade: Complexidade | null;
-  subitens: SubitemCatalogoItem[];
 }
 
 export interface CatalogoPayload {
@@ -116,7 +37,6 @@ type CatalogoDTO = {
   descricao: string | null;
   horas_estimadas: string | null;
   complexidade: Complexidade | null;
-  subitens: SubitemCatalogoDTO[];
 };
 
 const CATALOGO_ENDPOINT = '/api/catalogo/catalogos/';
@@ -127,7 +47,6 @@ const catalogoToFrontend = (dto: CatalogoDTO): CatalogoItem => ({
   descricao: dto.descricao ?? null,
   horasEstimadas: dto.horas_estimadas ?? null,
   complexidade: dto.complexidade ?? null,
-  subitens: (dto.subitens || []).map(subitemToFrontend),
 });
 
 const catalogoToBackend = (payload: Partial<CatalogoPayload>) => ({

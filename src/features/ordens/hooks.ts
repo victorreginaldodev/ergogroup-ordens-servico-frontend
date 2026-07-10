@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  createOrdem,
   createServico,
   createTarefa,
   deleteServico,
@@ -14,12 +15,14 @@ import {
   getTarefasDeServico,
   getTarefasResumo,
   registrarCobranca,
+  updateOrdem,
   updateServico,
   updateTarefa,
   type CreateServicoPayload,
   type CreateTarefaPayload,
   type OrdemServicoDetalhe,
   type OrdemServicoItem,
+  type OrdemServicoPayload,
   type RegistrarCobrancaPayload,
   type RegistroAuditoria,
   type ServicoDetalhe,
@@ -44,6 +47,18 @@ export const useOrdemDetalhe = (id?: number) =>
     enabled: !!id,
     staleTime: 1000 * 60 * 2,
   });
+
+export const useUpsertOrdem = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id?: number; payload: OrdemServicoPayload | Partial<OrdemServicoPayload> }) =>
+      id === undefined ? createOrdem(payload as OrdemServicoPayload) : updateOrdem(id, payload),
+    onSuccess: (_, { id }) => {
+      qc.invalidateQueries({ queryKey: ['ordens-lista'] });
+      if (id !== undefined) qc.invalidateQueries({ queryKey: ['ordens-detalhe', id] });
+    },
+  });
+};
 
 export const useServicosDeOrdem = (ordemId?: number) =>
   useQuery<ServicoDetalhe[]>({

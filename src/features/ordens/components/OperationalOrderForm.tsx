@@ -30,6 +30,8 @@ interface FormState {
   quantidade: number;
   descricao: string;
   dataRecebimento: string;
+  dataInicio: string;
+  dataTermino: string;
   prazo: string;
   prioridade: OperationalOrderPrioridade;
   status: OperationalOrderStatus;
@@ -45,6 +47,8 @@ const defaultForm: FormState = {
   quantidade: 1,
   descricao: '',
   dataRecebimento: '',
+  dataInicio: '',
+  dataTermino: '',
   prazo: '',
   prioridade: 'baixa',
   status: 'nao_iniciado',
@@ -83,6 +87,8 @@ export function OperationalOrderForm({ open, onOpenChange, editId }: Operational
         quantidade: detail.quantidade,
         descricao: detail.descricao ?? '',
         dataRecebimento: detail.dataRecebimento ?? '',
+        dataInicio: detail.dataInicio ?? '',
+        dataTermino: detail.dataTermino ?? '',
         prazo: detail.prazo ?? '',
         prioridade: detail.prioridade,
         status: detail.status,
@@ -105,6 +111,8 @@ export function OperationalOrderForm({ open, onOpenChange, editId }: Operational
       quantidade: form.quantidade,
       descricao: form.descricao || null,
       dataRecebimento: form.dataRecebimento,
+      dataInicio: form.dataInicio || null,
+      dataTermino: form.dataTermino || null,
       prazo: form.prazo || null,
       prioridade: form.prioridade,
       status: form.status,
@@ -224,6 +232,27 @@ export function OperationalOrderForm({ open, onOpenChange, editId }: Operational
                     <SelectItem value="finalizada">Finalizada</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+            </div>
+
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Data de início</p>
+                <Input
+                  type="date"
+                  value={form.dataInicio}
+                  onChange={(e) => setForm({ ...form, dataInicio: e.target.value })}
+                  className="bg-background border-border max-w-[200px]"
+                />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Data de término</p>
+                <Input
+                  type="date"
+                  value={form.dataTermino}
+                  onChange={(e) => setForm({ ...form, dataTermino: e.target.value })}
+                  className="bg-background border-border max-w-[200px]"
+                />
               </div>
             </div>
 

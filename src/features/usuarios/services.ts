@@ -28,18 +28,17 @@ export const TIPO_USUARIO_OPTIONS: Array<{ value: TipoUsuarioKey; label: string 
 
 const endpoint = '/api/contas/usuarios/';
 
+// Shape retornado pelo endpoint de LISTAGEM (`UsuarioList` no schema) — não inclui
+// username/is_staff/is_superuser/last_login, que só vêm no detalhe (`UsuarioDetail`,
+// ver `ProfileResponse` abaixo). Buscar o detalhe antes de editar um usuário.
 export interface UsuarioApi {
   id: number;
   email: string;
-  username: string;
   nome_completo: string;
   tipo_usuario: TipoUsuarioKey;
   tipo_usuario_display: string;
   ativo: boolean;
-  is_staff: boolean;
-  is_superuser: boolean;
-  data_criacao?: string;
-  last_login?: string | null;
+  data_criacao: string;
 }
 
 export interface CreateUserPayload {

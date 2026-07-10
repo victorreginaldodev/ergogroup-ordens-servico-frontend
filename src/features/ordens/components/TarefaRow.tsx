@@ -124,7 +124,7 @@ export function TarefaRow({
             <SelectContent>
               {usuarios.map((u) => (
                 <SelectItem key={u.id} value={String(u.id)}>
-                  {u.nome_completo || u.username}
+                  {u.nome_completo}
                 </SelectItem>
               ))}
             </SelectContent>

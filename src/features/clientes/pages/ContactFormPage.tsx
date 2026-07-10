@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useClients, useContact, useUpsertContact } from '../hooks';
+import type { ContactApiInput } from '../services';
 
 const schema = z.object({
   id: z.string().optional(),
@@ -18,7 +19,6 @@ const schema = z.object({
   email: z.string().email('E-mail inválido'),
   telefone: z.string().min(10, 'Telefone inválido'),
   setor: z.string().optional(),
-  funcao: z.string().optional(),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -40,7 +40,6 @@ const ContactFormPage = () => {
       email: '',
       telefone: '',
       setor: '',
-      funcao: '',
     },
   });
 
@@ -53,16 +52,22 @@ const ContactFormPage = () => {
         email: existing.email,
         telefone: existing.telefone,
         setor: existing.setor || '',
-        funcao: existing.funcao || '',
       });
     }
   }, [existing]);
 
   const onSubmit = (values: FormValues) => {
-    const payload = { ...values, cliente: Number(values.cliente) } as any;
+    const payload: ContactApiInput & { id?: string } = {
+      id: values.id,
+      cliente: Number(values.cliente),
+      nome: values.nome,
+      email: values.email,
+      telefone: values.telefone,
+      setor: values.setor,
+    };
     upsert.mutate(payload, {
       onSuccess: () => {
-        navigate('/dashboard/contacts');
+        navigate('/clientes/contacts');
       },
     });
   };
@@ -71,7 +76,7 @@ const ContactFormPage = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">{id ? 'Editar Contato' : 'Adicionar Contato'}</h1>
-        <BackButton to="/dashboard/contacts" />
+        <BackButton to="/clientes/contacts" />
       </div>
       <Card className="bg-card border-border">
         <CardContent className="p-6">
@@ -149,21 +154,8 @@ const ContactFormPage = () => {
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="funcao"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Função</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Gerente, Analista, etc." {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
               <div className="sm:col-span-2 flex justify-end gap-3 pt-2">
-                <Button type="button" variant="outline" onClick={() => navigate('/dashboard/contacts')}>
+                <Button type="button" variant="outline" onClick={() => navigate('/clientes/contacts')}>
                   Cancelar
                 </Button>
                 <Button type="submit" className="min-w-32">{id ? 'Salvar' : 'Adicionar'}</Button>

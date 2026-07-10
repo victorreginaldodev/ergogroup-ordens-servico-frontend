@@ -3,6 +3,11 @@ import { isPaginatedResponse, PageResult, toPageResult } from '@/services/pagina
 
 const endpoint = '/api/clientes/clientes/';
 
+// `TipoInscricaoEnum` no schema: cnpj, cpf, cei, cno, caepf — não existe "outro" no backend.
+export type TipoInscricao = 'cnpj' | 'cpf' | 'cei' | 'cno' | 'caepf';
+// `TipoClienteEnum` no schema: gestao, avulso, fornecedor.
+export type TipoCliente = 'gestao' | 'avulso' | 'fornecedor';
+
 export interface Client {
   id: string;
   name: string;
@@ -11,10 +16,10 @@ export interface Client {
   document?: string;
   address?: string;
   notes?: string;
-  tipo_inscricao?: 'cnpj' | 'cpf' | 'cei' | 'cno' | 'caepf' | 'outro';
+  tipo_inscricao?: TipoInscricao;
   active?: boolean;
   chargeRevisionChange?: boolean;
-  tipoCliente?: string;
+  tipoCliente?: TipoCliente;
   representativeName?: string;
   representativeSector?: string;
   representativeEmail?: string;
@@ -29,23 +34,33 @@ export interface Contact {
   email: string;
   telefone: string;
   setor?: string;
-  funcao?: string;
 }
 
 type ClienteApi = {
   id: string | number;
   nome: string;
-  tipo_inscricao: 'cnpj' | 'cpf' | 'cei' | 'cno' | 'caepf' | 'outro';
+  tipo_inscricao: TipoInscricao;
   numero_inscricao: string;
   ativo?: boolean;
   cobranca_revisao_alteracao?: boolean;
-  tipo_cliente?: string;
+  tipo_cliente?: TipoCliente;
   observacao?: string | null;
   data_criacao?: string;
   nome_representante?: string;
   setor_representante?: string;
   email_representante?: string;
   contato_representante?: string;
+};
+
+// Shape retornado pelo endpoint de LISTAGEM (`ClienteList` no schema) — bem mais
+// enxuto que o detalhe: sem tipo_inscricao, observação, cobrança de revisão,
+// data de criação e campos de representante.
+type ClienteListApi = {
+  id: string | number;
+  nome: string;
+  tipo_cliente?: TipoCliente;
+  numero_inscricao: string;
+  ativo?: boolean;
 };
 
 export type ClienteApiInput = Omit<ClienteApi, 'id'>;
@@ -55,12 +70,12 @@ export type ClienteUpsertPayload = {
   nome: string;
   tipo_inscricao: ClienteApi['tipo_inscricao'];
   numero_inscricao: string;
-  tipo_cliente?: string;
+  tipo_cliente?: TipoCliente;
   observacao?: string | null;
-  nome_representante?: string;
-  setor_representante?: string;
-  email_representante?: string;
-  contato_representante?: string;
+  nome_representante?: string | null;
+  setor_representante?: string | null;
+  email_representante?: string | null;
+  contato_representante?: string | null;
   ativo?: boolean;
   cobranca_revisao_alteracao?: boolean;
 };
@@ -84,9 +99,9 @@ const toClient = (c: ClienteApi): Client => ({
 });
 
 export const getClients = async (): Promise<Client[]> => {
-  const { data } = await api.get<ClienteApi[]>(endpoint);
+  const { data } = await api.get<ClienteListApi[]>(endpoint);
   return (data || [])
-    .map(toClient)
+    .map((c) => toClient(c as ClienteApi))
     .sort((a, b) => a.name.localeCompare(b.name));
 };
 
@@ -101,27 +116,31 @@ export const getClientsPage = async (
 ): Promise<PageResult<Client>> => {
   const page = params.page ?? 1;
   const pageSize = params.pageSize ?? 10;
-  const queryParams: Record<string, string | number> = {
-    page,
-    page_size: pageSize,
-  };
+  const queryParams: Record<string, string> = {};
   if (params.q) queryParams.q = params.q;
 
   const { data } = await api.get(endpoint, { params: queryParams });
-  if (isPaginatedResponse<ClienteApi>(data)) {
-    return {
-      ...toPageResult(data, page, pageSize),
-      items: data.results.map(toClient),
-    };
+
+  // O endpoint de listagem usa o serializer reduzido (`ClienteList`) e, pelo
+  // schema, devolve um array simples — sem paginação nem parâmetros page/page_size
+  // documentados. Paginamos no cliente e buscamos o detalhe de cada item da
+  // página atual para exibir corretamente campos como cobrança de revisão.
+  if (isPaginatedResponse<ClienteListApi>(data)) {
+    const pageItems = await Promise.all(data.results.map((raw) => getClient(String(raw.id))));
+    return { ...toPageResult(data, page, pageSize), items: pageItems };
   }
 
-  const items = (Array.isArray(data) ? data : []).map(toClient);
+  const all: ClienteListApi[] = Array.isArray(data) ? data : [];
+  const start = (page - 1) * pageSize;
+  const pageStubs = all.slice(start, start + pageSize);
+  const items = await Promise.all(pageStubs.map((raw) => getClient(String(raw.id))));
+
   return {
     items,
-    count: items.length,
+    count: all.length,
     page,
     pageSize,
-    totalPages: Math.max(1, Math.ceil(items.length / pageSize)),
+    totalPages: Math.max(1, Math.ceil(all.length / pageSize)),
     next: null,
     previous: null,
   };
@@ -148,16 +167,9 @@ export const deleteClient = async (id: string): Promise<string> => {
 };
 
 // ── Contatos são representantes do cliente — campo embarcado no modelo Cliente ──
-// Endpoint de lista usa ClienteListSerializer (sem campos de representante);
-// o endpoint de detalhe usa ClienteSerializer (campos completos).
-
-type ClienteDetalhe = {
-  id: string | number;
-  nome_representante?: string | null;
-  setor_representante?: string | null;
-  email_representante?: string | null;
-  contato_representante?: string | null;
-};
+// Não existe um endpoint separado de contatos nem uma lista com múltiplos contatos
+// por cliente: cada cliente tem no máximo UM representante (nome/setor/e-mail/
+// contato). "Editar um contato" == editar os campos de representante daquele cliente.
 
 export type ContactApiInput = {
   cliente: number;
@@ -165,29 +177,29 @@ export type ContactApiInput = {
   email: string;
   telefone: string;
   setor?: string;
-  funcao?: string;
 };
 
-const toContact = (c: ClienteDetalhe): Contact => ({
-  id: String(c.id),
-  cliente: String(c.id),
-  nome: c.nome_representante ?? '',
-  email: c.email_representante ?? '',
-  telefone: c.contato_representante ?? '',
-  setor: c.setor_representante ?? undefined,
-  funcao: undefined,
+const clientToContact = (c: Client): Contact => ({
+  id: c.id,
+  cliente: c.id,
+  nome: c.representativeName ?? '',
+  email: c.representativeEmail ?? '',
+  telefone: c.representativeContact ?? '',
+  setor: c.representativeSector,
 });
 
 export const getContacts = async (): Promise<Contact[]> => {
-  const { data } = await api.get<ClienteDetalhe[]>(endpoint, { params: { page_size: 500 } });
-  return (Array.isArray(data) ? data : [])
-    .filter(c => c.nome_representante)
-    .map(toContact);
+  // O endpoint de listagem não traz os campos de representante (serializer
+  // reduzido) — buscamos o detalhe de cada cliente para saber quem tem contato.
+  const { data } = await api.get<ClienteListApi[]>(endpoint, { params: { page_size: 500 } });
+  const stubs = Array.isArray(data) ? data : [];
+  const clients = await Promise.all(stubs.map((s) => getClient(String(s.id))));
+  return clients.filter((c) => c.representativeName).map(clientToContact);
 };
 
 export const getContact = async (id: string): Promise<Contact> => {
-  const { data } = await api.get<ClienteDetalhe>(`${endpoint}${id}/`);
-  return toContact(data);
+  const client = await getClient(id);
+  return clientToContact(client);
 };
 
 export const upsertContact = async (payload: ContactApiInput & { id?: string }): Promise<Contact> => {
@@ -198,8 +210,8 @@ export const upsertContact = async (payload: ContactApiInput & { id?: string }):
     contato_representante: payload.telefone,
     setor_representante: payload.setor ?? '',
   };
-  const { data } = await api.patch<ClienteDetalhe>(`${endpoint}${clientId}/`, body);
-  return toContact(data);
+  const { data } = await api.patch<ClienteApi>(`${endpoint}${clientId}/`, body);
+  return clientToContact(toClient(data));
 };
 
 export const deleteContact = async (id: string): Promise<string> => {

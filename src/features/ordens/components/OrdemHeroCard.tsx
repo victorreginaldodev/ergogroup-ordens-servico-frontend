@@ -107,7 +107,7 @@ export function OrdemHeroCard({ ordem, showValor, pdfButton }: OrdemHeroCardProp
       <div className="flex shrink-0 items-center gap-2">
         {pdfButton}
         <Button asChild variant="ghost" size="icon" className="h-9 w-9 rounded-lg text-muted-foreground hover:text-foreground">
-          <Link to={`/dashboard/orders/${ordem.id}/edit`} title="Editar OS">
+          <Link to={`/ordens/${ordem.id}/edit`} title="Editar OS">
             <Pencil className="h-4 w-4" />
           </Link>
         </Button>
