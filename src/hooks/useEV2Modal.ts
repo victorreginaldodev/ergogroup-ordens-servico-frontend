@@ -1,8 +1,8 @@
 import { useState } from 'react';
 
-const STORAGE_KEY = 'ergogroup-ev1-acknowledged';
+const STORAGE_KEY = 'ergogroup-ev2-acknowledged';
 
-export function useEV1Modal() {
+export function useEV2Modal() {
   const [open, setOpen] = useState(() => {
     try {
       return !localStorage.getItem(STORAGE_KEY);

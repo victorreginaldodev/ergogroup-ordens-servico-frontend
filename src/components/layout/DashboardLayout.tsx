@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
-import { EV1UpdatesModal } from '@/components/common/EV1UpdatesModal';
-import { useEV1Modal } from '@/hooks/useEV1Modal';
+import { EV2UpdatesModal } from '@/components/common/EV2UpdatesModal';
+import { useEV2Modal } from '@/hooks/useEV2Modal';
 import { Link, useLocation } from 'react-router-dom';
 import {
   FileText,
@@ -120,7 +120,7 @@ interface DashboardLayoutProps {
 
 const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   const location = useLocation();
-  const { open: ev1Open, dismiss: dismissEV1 } = useEV1Modal();
+  const { open: ev2Open, dismiss: dismissEV2 } = useEV2Modal();
   const [collapsed, setCollapsed] = useState<boolean>(() => {
     try { return localStorage.getItem(SIDEBAR_KEY) === 'true'; }
     catch { return false; }
@@ -450,7 +450,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
         </div>
       </div>
 
-      <EV1UpdatesModal open={ev1Open} onDismiss={dismissEV1} />
+      <EV2UpdatesModal open={ev2Open} onDismiss={dismissEV2} />
     </TooltipProvider>
   );
 };

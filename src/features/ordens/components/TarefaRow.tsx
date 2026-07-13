@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Ban, Loader2, MoreVertical, Pencil, Save, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import {
   Select,
@@ -26,10 +28,20 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { avatarColor, formatDate, initials, isPrazoVencido } from '../utils';
+import { avatarColor, formatDate, initials, isPrazoProximo, isPrazoVencido, PRIORITY_DOT } from '../utils';
 import { nextStatus, previousStatus, TarefaStatusControl } from './TarefaStatusControl';
 import type { UsuarioApi } from '@/features/usuarios/services';
 import type { TarefaDetalhe, UpdateTarefaPayload } from '../services';
+
+type Prioridade = 'baixa' | 'media' | 'alta';
+
+const PRIORIDADE_LABEL: Record<string, string> = { baixa: 'Baixa', media: 'Média', alta: 'Alta' };
+
+const PRIORIDADE_OPTIONS: { value: Prioridade; label: string }[] = [
+  { value: 'baixa', label: 'Baixa' },
+  { value: 'media', label: 'Média' },
+  { value: 'alta', label: 'Alta' },
+];
 
 // ── Props ────────────────────────────────────────────────────────────────────
 
@@ -42,6 +54,8 @@ interface TarefaRowProps {
   isPending?: boolean;
   /** Líder/Sub-Líder Técnico: controle total (status, editar, cancelar, excluir) em qualquer tarefa. */
   canManage?: boolean;
+  /** Líder/Sub-Líder/Diretor: podem definir prioridade, prazo e horas estimadas — mesmo quem não tem `canManage`. */
+  canEditAdvancedFields?: boolean;
   /** Técnico: só pode avançar/reverter o status das próprias tarefas — nunca editar/cancelar/excluir. */
   allowSelfStatusUpdate?: boolean;
   currentUserId?: number;
@@ -57,34 +71,52 @@ export function TarefaRow({
   onDelete,
   isPending,
   canManage,
+  canEditAdvancedFields,
   allowSelfStatusUpdate,
   currentUserId,
 }: TarefaRowProps) {
   const [editing, setEditing]           = useState(false);
   const [editDescricao, setEditDescricao]       = useState(tarefa.descricao ?? '');
   const [editResponsavel, setEditResponsavel]   = useState(String(tarefa.responsavel));
+  const [editPrioridade, setEditPrioridade]     = useState<Prioridade>((tarefa.prioridade as Prioridade) ?? 'media');
+  const [editPrazo, setEditPrazo]               = useState(tarefa.prazo ?? '');
+  const [editHorasEstimadas, setEditHorasEstimadas] = useState(tarefa.horas_estimadas ?? '');
   const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
 
   const isCurrentUser = currentUserId !== undefined && tarefa.responsavel === currentUserId;
   const canControlStatus = !!canManage || (!!allowSelfStatusUpdate && isCurrentUser);
+  const canOpenMenu = !!canManage || !!canEditAdvancedFields;
 
   const handleSave = () => {
-    onEdit(tarefa.id, {
-      descricao:   editDescricao.trim(),
-      responsavel: editResponsavel ? Number(editResponsavel) : undefined,
-    });
+    const payload: UpdateTarefaPayload = {};
+    if (canManage) {
+      payload.descricao = editDescricao.trim();
+      payload.responsavel = editResponsavel ? Number(editResponsavel) : undefined;
+    }
+    if (canManage || canEditAdvancedFields) {
+      payload.prioridade = editPrioridade;
+      payload.prazo = editPrazo || null;
+      payload.horas_estimadas = editHorasEstimadas || null;
+    }
+    onEdit(tarefa.id, payload);
     setEditing(false);
   };
 
-  const handleCancelEdit = () => {
+  const resetEditState = () => {
     setEditDescricao(tarefa.descricao ?? '');
     setEditResponsavel(String(tarefa.responsavel));
+    setEditPrioridade((tarefa.prioridade as Prioridade) ?? 'media');
+    setEditPrazo(tarefa.prazo ?? '');
+    setEditHorasEstimadas(tarefa.horas_estimadas ?? '');
+  };
+
+  const handleCancelEdit = () => {
+    resetEditState();
     setEditing(false);
   };
 
   const handleStartEdit = () => {
-    setEditDescricao(tarefa.descricao ?? '');
-    setEditResponsavel(String(tarefa.responsavel));
+    resetEditState();
     setEditing(true);
   };
 
@@ -108,36 +140,80 @@ export function TarefaRow({
   const monogram = nome !== '—' ? initials(nome) : '?';
   const descricao = tarefa.descricao?.trim();
   const prazo = formatDate(tarefa.prazo);
-  const overdue = isPrazoVencido(tarefa.prazo) && tarefa.status !== 'concluida' && tarefa.status !== 'cancelada';
+  const ativa = tarefa.status !== 'concluida' && tarefa.status !== 'cancelada';
+  const overdue = isPrazoVencido(tarefa.prazo) && ativa;
+  const proximoDoVencimento = !overdue && isPrazoProximo(tarefa.prazo) && ativa;
   const canCancelar = tarefa.status !== 'cancelada' && tarefa.status !== 'concluida';
 
   /* ── Modo edição ── */
   if (editing) {
     return (
       <div className="space-y-3 bg-muted/30 px-[18px] py-4">
-        <div className="space-y-1.5">
-          <p className="text-xs font-medium text-muted-foreground">Responsável</p>
-          <Select value={editResponsavel} onValueChange={setEditResponsavel}>
-            <SelectTrigger className="h-8 border-border bg-background text-sm">
-              <SelectValue placeholder="Selecionar" />
-            </SelectTrigger>
-            <SelectContent>
-              {usuarios.map((u) => (
-                <SelectItem key={u.id} value={String(u.id)}>
-                  {u.nome_completo}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1.5">
-          <p className="text-xs font-medium text-muted-foreground">Descrição</p>
-          <Textarea
-            value={editDescricao}
-            onChange={(e) => setEditDescricao(e.target.value)}
-            className="min-h-20 resize-none border-border bg-background text-sm"
-          />
-        </div>
+        {canManage && (
+          <>
+            <div className="space-y-1.5">
+              <p className="text-xs font-medium text-muted-foreground">Responsável</p>
+              <Select value={editResponsavel} onValueChange={setEditResponsavel}>
+                <SelectTrigger className="h-8 border-border bg-background text-sm">
+                  <SelectValue placeholder="Selecionar" />
+                </SelectTrigger>
+                <SelectContent>
+                  {usuarios.map((u) => (
+                    <SelectItem key={u.id} value={String(u.id)}>
+                      {u.nome_completo}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <p className="text-xs font-medium text-muted-foreground">Descrição</p>
+              <Textarea
+                value={editDescricao}
+                onChange={(e) => setEditDescricao(e.target.value)}
+                className="min-h-20 resize-none border-border bg-background text-sm"
+              />
+            </div>
+          </>
+        )}
+        {(canManage || canEditAdvancedFields) && (
+          <div className="grid grid-cols-3 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-muted-foreground">Prioridade</Label>
+              <Select value={editPrioridade} onValueChange={(v) => setEditPrioridade(v as Prioridade)}>
+                <SelectTrigger className="h-8 border-border bg-background text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PRIORIDADE_OPTIONS.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-muted-foreground">Prazo</Label>
+              <Input
+                type="date"
+                value={editPrazo}
+                onChange={(e) => setEditPrazo(e.target.value)}
+                className="h-8 border-border bg-background text-sm"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-muted-foreground">Horas estimadas</Label>
+              <Input
+                type="number"
+                step="0.5"
+                min="0"
+                value={editHorasEstimadas}
+                onChange={(e) => setEditHorasEstimadas(e.target.value)}
+                placeholder="Ex.: 4"
+                className="h-8 border-border bg-background text-sm"
+              />
+            </div>
+          </div>
+        )}
         <div className="flex justify-end gap-2">
           <Button variant="ghost" size="sm" onClick={handleCancelEdit} disabled={isPending}>
             <X className="mr-1 h-3.5 w-3.5" /> Cancelar
@@ -158,7 +234,11 @@ export function TarefaRow({
     <div
       className={cn(
         'flex items-center gap-3.5 border-t border-border px-[18px] py-3 transition-colors hover:bg-muted/20',
-        isCurrentUser ? 'border-l-[3px] border-l-primary/70 pl-[15px]' : overdue && 'border-l-[3px] border-l-red-500/70 pl-[15px]',
+        isCurrentUser
+          ? 'border-l-[3px] border-l-primary/70 pl-[15px]'
+          : overdue
+            ? 'border-l-[3px] border-l-red-500/70 pl-[15px]'
+            : proximoDoVencimento && 'border-l-[3px] border-l-amber-500/70 pl-[15px]',
       )}
     >
       {/* Controle de status — largura fixa */}
@@ -189,14 +269,28 @@ export function TarefaRow({
               Sua tarefa
             </span>
           )}
+          <span className="inline-flex items-center gap-1.5">
+            <span className={cn('h-1.5 w-1.5 rounded-full', PRIORITY_DOT[tarefa.prioridade] ?? PRIORITY_DOT.baixa)} />
+            <span className={tarefa.prioridade === 'alta' ? 'font-bold text-red-500' : undefined}>
+              {PRIORIDADE_LABEL[tarefa.prioridade] ?? tarefa.prioridade_display}
+            </span>
+          </span>
           <span>
             Prazo{' '}
-            <span className={cn('font-semibold', overdue ? 'text-red-500' : 'text-foreground/80')}>
+            <span
+              className={cn(
+                'font-semibold',
+                overdue ? 'text-red-500' : proximoDoVencimento ? 'text-amber-500' : 'text-foreground/80',
+              )}
+            >
               {prazo ?? '—'}
             </span>
           </span>
           {overdue && (
             <span className="text-[10px] font-bold uppercase tracking-wide text-red-500">Atrasada</span>
+          )}
+          {proximoDoVencimento && (
+            <span className="text-[10px] font-bold uppercase tracking-wide text-amber-500">Vence em breve</span>
           )}
         </div>
       </div>
@@ -213,7 +307,7 @@ export function TarefaRow({
         </div>
         <span className="whitespace-nowrap text-xs font-medium text-foreground">{nome}</span>
 
-        {canManage && (
+        {canOpenMenu && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -231,7 +325,7 @@ export function TarefaRow({
               <DropdownMenuItem onClick={handleStartEdit}>
                 <Pencil className="mr-2 h-3.5 w-3.5" /> Editar
               </DropdownMenuItem>
-              {canCancelar && (
+              {canManage && canCancelar && (
                 <DropdownMenuItem
                   onClick={() => setConfirmCancelOpen(true)}
                   className="text-amber-600 focus:text-amber-600"
@@ -239,12 +333,14 @@ export function TarefaRow({
                   <Ban className="mr-2 h-3.5 w-3.5" /> Cancelar tarefa
                 </DropdownMenuItem>
               )}
-              <DropdownMenuItem
-                onClick={() => onDelete(tarefa.id)}
-                className="text-destructive focus:text-destructive"
-              >
-                <X className="mr-2 h-3.5 w-3.5" /> Excluir
-              </DropdownMenuItem>
+              {canManage && (
+                <DropdownMenuItem
+                  onClick={() => onDelete(tarefa.id)}
+                  className="text-destructive focus:text-destructive"
+                >
+                  <X className="mr-2 h-3.5 w-3.5" /> Excluir
+                </DropdownMenuItem>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         )}

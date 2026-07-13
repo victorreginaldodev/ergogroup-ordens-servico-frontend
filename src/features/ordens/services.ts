@@ -294,6 +294,8 @@ export interface TarefaDetalhe {
   prioridade: 'baixa' | 'media' | 'alta';
   prioridade_display: string;
   prazo: string | null;
+  horas_estimadas: string | null;
+  horas_estimadas_efetivas: string | null;
   data_inicio: string | null;
   data_termino: string | null;
   criada_em: string;
@@ -330,12 +332,18 @@ export interface CreateTarefaPayload {
   responsavel: number;
   servico: number;
   descricao: string;
+  prioridade?: 'baixa' | 'media' | 'alta';
+  prazo?: string | null;
+  horas_estimadas?: string | null;
 }
 
 export interface UpdateTarefaPayload {
   responsavel?: number;
   descricao?: string;
   status?: string;
+  prioridade?: 'baixa' | 'media' | 'alta';
+  prazo?: string | null;
+  horas_estimadas?: string | null;
 }
 
 export const createTarefa = async (payload: CreateTarefaPayload): Promise<TarefaDetalhe> => {

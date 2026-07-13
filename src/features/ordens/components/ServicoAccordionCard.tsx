@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { CheckCircle2, Loader2, MoreVertical, Pencil, Plus, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -75,6 +77,14 @@ const SERVICO_STATUS_DOT: Record<string, string> = {
 const PRIORIDADE_LABEL: Record<string, string> = { baixa: 'Baixa', media: 'Média', alta: 'Alta' };
 const COMPLEXIDADE_LABEL: Record<number, string> = { 1: 'Baixa', 2: 'Média', 3: 'Alta' };
 
+type Prioridade = 'baixa' | 'media' | 'alta';
+
+const PRIORIDADE_OPTIONS: { value: Prioridade; label: string }[] = [
+  { value: 'baixa', label: 'Baixa' },
+  { value: 'media', label: 'Média' },
+  { value: 'alta', label: 'Alta' },
+];
+
 // ── Props ─────────────────────────────────────────────────────────────────────
 
 interface ServicoAccordionCardProps {
@@ -109,8 +119,15 @@ export function ServicoAccordionCard({
   const [dialogOpen, setDialogOpen] = useState(false);
   const [novaDescricao, setNovaDescricao] = useState('');
   const [novaResponsavel, setNovaResponsavel] = useState('');
+  const [novaPrioridade, setNovaPrioridade] = useState<Prioridade>('media');
+  const [novaPrazo, setNovaPrazo] = useState('');
+  const [novaHorasEstimadas, setNovaHorasEstimadas] = useState('');
   const [editServicoOpen, setEditServicoOpen] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+
+  // Líder/Sub-Líder/Diretor: além de gerenciar/criar tarefas, também definem
+  // prioridade, prazo e horas estimadas na criação e edição das tarefas.
+  const canEditAdvancedFields = canManageTasks || !!canCreateTasks;
 
   const nome = servico.catalogo_detail?.nome ?? servico.catalogo_nome ?? `Serviço #${servico.id}`;
 
@@ -134,19 +151,36 @@ export function ServicoAccordionCard({
   const handleOpenDialog = () => {
     setNovaDescricao('');
     setNovaResponsavel('');
+    setNovaPrioridade('media');
+    setNovaPrazo('');
+    setNovaHorasEstimadas('');
     setDialogOpen(true);
   };
 
   const handleCloseDialog = () => {
     setNovaDescricao('');
     setNovaResponsavel('');
+    setNovaPrioridade('media');
+    setNovaPrazo('');
+    setNovaHorasEstimadas('');
     setDialogOpen(false);
   };
 
   const handleCriarTarefa = () => {
     if (!novaDescricao.trim() || !novaResponsavel) return;
     createMutation.mutate(
-      { servico: servico.id, descricao: novaDescricao.trim(), responsavel: Number(novaResponsavel) },
+      {
+        servico: servico.id,
+        descricao: novaDescricao.trim(),
+        responsavel: Number(novaResponsavel),
+        ...(canEditAdvancedFields
+          ? {
+              prioridade: novaPrioridade,
+              prazo: novaPrazo || null,
+              horas_estimadas: novaHorasEstimadas || null,
+            }
+          : {}),
+      },
       { onSuccess: handleCloseDialog },
     );
   };
@@ -293,6 +327,7 @@ export function ServicoAccordionCard({
               onDelete={(id) => deleteMutation.mutate(id)}
               isPending={isMutating}
               canManage={canManageTasks}
+              canEditAdvancedFields={canEditAdvancedFields}
               allowSelfStatusUpdate={allowSelfStatusUpdate}
               currentUserId={currentUserId}
             />
@@ -349,6 +384,45 @@ export function ServicoAccordionCard({
                 className="min-h-24 resize-none border-border bg-background text-sm"
               />
             </div>
+
+            {canEditAdvancedFields && (
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-1.5">
+                  <Label>Prioridade</Label>
+                  <Select value={novaPrioridade} onValueChange={(v) => setNovaPrioridade(v as Prioridade)}>
+                    <SelectTrigger className="h-9 border-border bg-background text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PRIORIDADE_OPTIONS.map((o) => (
+                        <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Prazo</Label>
+                  <Input
+                    type="date"
+                    value={novaPrazo}
+                    onChange={(e) => setNovaPrazo(e.target.value)}
+                    className="h-9 border-border bg-background text-sm"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Horas estimadas</Label>
+                  <Input
+                    type="number"
+                    step="0.5"
+                    min="0"
+                    value={novaHorasEstimadas}
+                    onChange={(e) => setNovaHorasEstimadas(e.target.value)}
+                    placeholder="Ex.: 4"
+                    className="h-9 border-border bg-background text-sm"
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           <DialogFooter>

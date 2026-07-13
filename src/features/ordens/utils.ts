@@ -72,6 +72,19 @@ export const isPrazoVencido = (prazo: string | null | undefined): boolean => {
   return prazoDate < hoje;
 };
 
+// Prazo "vencendo em breve" — hoje ou dentro dos próximos `dias` dias, mas
+// ainda não vencido. Usado para destacar tarefas antes que fiquem atrasadas.
+export const isPrazoProximo = (prazo: string | null | undefined, dias = 3): boolean => {
+  if (!prazo) return false;
+  const [y, m, d] = prazo.slice(0, 10).split('-').map(Number);
+  const prazoDate = new Date(y, (m ?? 1) - 1, d ?? 1);
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+  const limite = new Date(hoje);
+  limite.setDate(limite.getDate() + dias);
+  return prazoDate >= hoje && prazoDate <= limite;
+};
+
 export interface TarefaBuckets {
   novas: number;
   andamento: number;

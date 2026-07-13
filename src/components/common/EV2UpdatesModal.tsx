@@ -10,22 +10,22 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
-import { ev1Features } from '@/data/ev1Updates';
+import { ev2Features } from '@/data/ev2Updates';
 
-interface EV1UpdatesModalProps {
+interface EV2UpdatesModalProps {
   open: boolean;
   onDismiss: () => void;
 }
 
-export function EV1UpdatesModal({ open, onDismiss }: EV1UpdatesModalProps) {
+export function EV2UpdatesModal({ open, onDismiss }: EV2UpdatesModalProps) {
   const [activeIndex, setActiveIndex] = useState(0);
 
-  const feature = ev1Features[activeIndex];
+  const feature = ev2Features[activeIndex];
   const Icon = feature.icon;
   const isFirst = activeIndex === 0;
-  const isLast = activeIndex === ev1Features.length - 1;
+  const isLast = activeIndex === ev2Features.length - 1;
 
-  const goNext = () => setActiveIndex((i) => Math.min(i + 1, ev1Features.length - 1));
+  const goNext = () => setActiveIndex((i) => Math.min(i + 1, ev2Features.length - 1));
   const goPrev = () => setActiveIndex((i) => Math.max(i - 1, 0));
 
   return (
@@ -35,9 +35,9 @@ export function EV1UpdatesModal({ open, onDismiss }: EV1UpdatesModalProps) {
         onInteractOutside={(e) => e.preventDefault()}
         onEscapeKeyDown={(e) => e.preventDefault()}
       >
-        <DialogTitle className="sr-only">Novidades do Sistema — EV1</DialogTitle>
+        <DialogTitle className="sr-only">Novidades do Sistema — EV2</DialogTitle>
         <DialogDescription className="sr-only">
-          Resumo das melhorias operacionais implementadas na evolução EV1 do sistema.
+          Resumo das melhorias operacionais implementadas na evolução EV2 do sistema.
         </DialogDescription>
 
         {/* ── Header ─────────────────────────────────────────────────────── */}
@@ -53,11 +53,11 @@ export function EV1UpdatesModal({ open, onDismiss }: EV1UpdatesModalProps) {
                   variant="outline"
                   className="text-[10px] font-bold px-1.5 py-0 h-4 bg-primary/10 text-primary border-primary/25"
                 >
-                  EV1
+                  EV2
                 </Badge>
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                {ev1Features.length} melhorias operacionais implementadas
+                {ev2Features.length} melhorias operacionais implementadas
               </p>
             </div>
           </div>
@@ -70,7 +70,7 @@ export function EV1UpdatesModal({ open, onDismiss }: EV1UpdatesModalProps) {
           <aside className="w-56 flex-shrink-0 border-r bg-muted/20">
             <ScrollArea className="h-full">
               <div className="p-2 space-y-0.5">
-                {ev1Features.map((f, i) => {
+                {ev2Features.map((f, i) => {
                   const FIcon = f.icon;
                   const isActive = i === activeIndex;
                   return (
@@ -184,7 +184,7 @@ export function EV1UpdatesModal({ open, onDismiss }: EV1UpdatesModalProps) {
 
               {/* Step counter */}
               <p className="text-xs text-muted-foreground/60 text-right mt-6">
-                {activeIndex + 1} / {ev1Features.length}
+                {activeIndex + 1} / {ev2Features.length}
               </p>
             </div>
           </ScrollArea>
@@ -194,11 +194,11 @@ export function EV1UpdatesModal({ open, onDismiss }: EV1UpdatesModalProps) {
         <div className="flex-shrink-0 border-t bg-muted/10 px-6 py-3 flex items-center justify-between gap-4">
           {/* Progress dots */}
           <div className="flex items-center gap-1.5">
-            {ev1Features.map((_, i) => (
+            {ev2Features.map((_, i) => (
               <button
                 key={i}
                 onClick={() => setActiveIndex(i)}
-                aria-label={`Ir para ${ev1Features[i].title}`}
+                aria-label={`Ir para ${ev2Features[i].title}`}
                 className={cn(
                   'rounded-full transition-all duration-200',
                   i === activeIndex
