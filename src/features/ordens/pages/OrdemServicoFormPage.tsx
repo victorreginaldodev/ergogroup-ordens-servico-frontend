@@ -210,10 +210,18 @@ const OrdemServicoFormPage = () => {
     setOrderServices(orderServices.filter(s => s.id !== id));
   };
 
+  // Evita que Enter num input solto dispare o submit do form antes do usuário
+  // terminar de preencher Contrato/Serviços, criando uma OS incompleta.
+  const bloquearEnter = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') e.preventDefault();
+  };
+
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting || isSavingServicos) return;
+
     const missing: string[] = [];
     if (!formData.clientId) missing.push("Cliente");
     if (!formData.dataVenda) missing.push("Data de criação");
@@ -396,6 +404,7 @@ const OrdemServicoFormPage = () => {
                   type="date"
                   value={formData.dataVenda}
                   onChange={(e) => setFormData({ ...formData, dataVenda: e.target.value })}
+                  onKeyDown={bloquearEnter}
                   className="bg-secondary border-border max-w-[200px]"
                 />
               </div>
@@ -417,6 +426,7 @@ const OrdemServicoFormPage = () => {
                     e.target.value = s;
                     setFormData({ ...formData, amount: Number(s) });
                   }}
+                  onKeyDown={bloquearEnter}
                   className="bg-secondary border-border"
                   placeholder="0,00"
                 />
@@ -487,6 +497,7 @@ const OrdemServicoFormPage = () => {
                   id="invoiceContactName"
                   value={formData.invoiceContactName}
                   onChange={(e) => setFormData({ ...formData, invoiceContactName: e.target.value })}
+                  onKeyDown={bloquearEnter}
                   className="bg-secondary border-border"
                   placeholder="Nome do responsável"
                   maxLength={50}
@@ -499,6 +510,7 @@ const OrdemServicoFormPage = () => {
                   type="email"
                   value={formData.invoiceContactEmail}
                   onChange={(e) => setFormData({ ...formData, invoiceContactEmail: e.target.value })}
+                  onKeyDown={bloquearEnter}
                   className="bg-secondary border-border"
                   placeholder="email@empresa.com"
                   maxLength={254}
@@ -552,6 +564,7 @@ const OrdemServicoFormPage = () => {
                       type="date"
                       value={formData.contratoDataInicio}
                       onChange={(e) => setFormData({ ...formData, contratoDataInicio: e.target.value })}
+                      onKeyDown={bloquearEnter}
                       className="bg-secondary border-border max-w-[200px]"
                     />
                   </div>
@@ -562,6 +575,7 @@ const OrdemServicoFormPage = () => {
                       type="date"
                       value={formData.contratoDataFim}
                       onChange={(e) => setFormData({ ...formData, contratoDataFim: e.target.value })}
+                      onKeyDown={bloquearEnter}
                       className="bg-secondary border-border max-w-[200px]"
                     />
                   </div>
@@ -573,6 +587,7 @@ const OrdemServicoFormPage = () => {
                       id="gestorNome"
                       value={formData.gestorNome}
                       onChange={(e) => setFormData({ ...formData, gestorNome: e.target.value })}
+                      onKeyDown={bloquearEnter}
                       className="bg-secondary border-border"
                       placeholder="Nome (opcional)"
                       maxLength={255}
@@ -585,6 +600,7 @@ const OrdemServicoFormPage = () => {
                       type="email"
                       value={formData.gestorEmail}
                       onChange={(e) => setFormData({ ...formData, gestorEmail: e.target.value })}
+                      onKeyDown={bloquearEnter}
                       className="bg-secondary border-border"
                       placeholder="email@empresa.com (opcional)"
                       maxLength={254}
@@ -596,6 +612,7 @@ const OrdemServicoFormPage = () => {
                       id="gestorTelefone"
                       value={formData.gestorTelefone}
                       onChange={(e) => setFormData({ ...formData, gestorTelefone: e.target.value })}
+                      onKeyDown={bloquearEnter}
                       className="bg-secondary border-border"
                       placeholder="(00) 00000-0000 (opcional)"
                       maxLength={30}

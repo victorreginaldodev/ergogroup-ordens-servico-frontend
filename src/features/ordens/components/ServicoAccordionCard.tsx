@@ -37,6 +37,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { formatDate, isPrazoVencido, PRIORITY_DOT, STATUS_DOT } from '../utils';
+import { useToast } from '@/hooks/use-toast';
 import {
   useCreateTarefa,
   useDeleteServico,
@@ -124,6 +125,7 @@ export function ServicoAccordionCard({
   const [novaHorasEstimadas, setNovaHorasEstimadas] = useState('');
   const [editServicoOpen, setEditServicoOpen] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const { toast } = useToast();
 
   // Líder/Sub-Líder/Diretor: além de gerenciar/criar tarefas, também definem
   // prioridade, prazo e horas estimadas na criação e edição das tarefas.
@@ -181,7 +183,22 @@ export function ServicoAccordionCard({
             }
           : {}),
       },
-      { onSuccess: handleCloseDialog },
+      {
+        onSuccess: () => {
+          toast({
+            title: 'Tarefa criada',
+            description: 'A tarefa foi adicionada ao serviço.',
+          });
+          handleCloseDialog();
+        },
+        onError: () => {
+          toast({
+            title: 'Erro ao criar tarefa',
+            description: 'Não foi possível criar a tarefa. Verifique os dados e tente novamente.',
+            variant: 'destructive',
+          });
+        },
+      },
     );
   };
 
@@ -353,7 +370,7 @@ export function ServicoAccordionCard({
 
       {/* ── Modal — Nova tarefa ── */}
       <Dialog open={dialogOpen} onOpenChange={handleCloseDialog}>
-        <DialogContent className="sm:max-w-[480px]">
+        <DialogContent className="sm:max-w-[640px]">
           <DialogHeader>
             <DialogTitle>Nova tarefa — {nome}</DialogTitle>
           </DialogHeader>
