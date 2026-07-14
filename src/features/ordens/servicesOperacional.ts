@@ -49,7 +49,7 @@ export interface OperationalOrderDetail extends OperationalOrderItem {
 export interface CreateOperationalOrderPayload {
   cliente: number;
   catalogoOperacional: number;
-  responsavel: number;
+  responsavel?: number;
   quantidade: number;
   descricao?: string | null;
   dataRecebimento: string;

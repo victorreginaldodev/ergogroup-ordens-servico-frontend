@@ -12,6 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { useToast } from '@/hooks/use-toast';
 import { useClients } from '@/features/clientes/hooks';
 import { useUsers } from '@/features/usuarios/hooks';
 import { useCatalogosOperacionais } from '@/features/catalogo/hooks';
@@ -73,6 +74,7 @@ export function OperationalOrderForm({ open, onOpenChange, editId }: Operational
   const { data: detail, isLoading: loadingDetail } = useOperationalOrderDetail(editId ?? undefined);
   const createOrder = useCreateOperationalOrder();
   const updateOrder = useUpdateOperationalOrder();
+  const { toast } = useToast();
 
   useEffect(() => {
     if (!open) {
@@ -122,9 +124,28 @@ export function OperationalOrderForm({ open, onOpenChange, editId }: Operational
     };
 
     if (isEdit && editId) {
-      updateOrder.mutate({ id: editId, payload }, { onSuccess: () => onOpenChange(false) });
+      updateOrder.mutate(
+        { id: editId, payload },
+        {
+          onSuccess: () => {
+            toast({ title: 'OS Operacional atualizada', description: 'As alterações foram salvas com sucesso.' });
+            onOpenChange(false);
+          },
+          onError: () => {
+            toast({ title: 'Erro ao salvar', description: 'Não foi possível atualizar a OS Operacional. Verifique os dados e tente novamente.', variant: 'destructive' });
+          },
+        },
+      );
     } else {
-      createOrder.mutate(payload, { onSuccess: () => onOpenChange(false) });
+      createOrder.mutate(payload, {
+        onSuccess: () => {
+          toast({ title: 'OS Operacional criada', description: 'A ordem foi criada com sucesso.' });
+          onOpenChange(false);
+        },
+        onError: () => {
+          toast({ title: 'Erro ao criar', description: 'Não foi possível criar a OS Operacional. Verifique os dados e tente novamente.', variant: 'destructive' });
+        },
+      });
     }
   };
 
