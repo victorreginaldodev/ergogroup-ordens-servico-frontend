@@ -1,4 +1,3 @@
-import { useMemo } from 'react';
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   createOrdem,
@@ -84,33 +83,29 @@ export const useTarefasDeServico = (servicoId?: number) =>
     staleTime: 1000 * 60 * 2,
   });
 
-export const useTarefasDeServicos = (servicos?: ServicoDetalhe[]) => {
-  const tarefasQueries = useQueries({
+export const useTarefasDeServicos = (servicos?: ServicoDetalhe[]) =>
+  useQueries({
     queries: (servicos ?? []).map((servico) => ({
       queryKey: ['ordens-tarefas-servico', servico.id],
       queryFn: () => getTarefasDeServico(servico.id),
       enabled: !!servico.id,
       staleTime: 1000 * 60 * 2,
     })),
+    combine: (results) => {
+      const tarefasPorServico: Record<number, TarefaDetalhe[]> = {};
+
+      (servicos ?? []).forEach((servico, index) => {
+        const tarefas = results[index]?.data;
+        if (tarefas) tarefasPorServico[servico.id] = tarefas as TarefaDetalhe[];
+      });
+
+      return {
+        tarefasPorServico,
+        isLoading: results.some((query) => query.isLoading),
+        isFetching: results.some((query) => query.isFetching),
+      };
+    },
   });
-
-  const tarefasPorServico = useMemo(() => {
-    const acc: Record<number, TarefaDetalhe[]> = {};
-
-    (servicos ?? []).forEach((servico, index) => {
-      const tarefas = tarefasQueries[index]?.data;
-      if (tarefas) acc[servico.id] = tarefas as TarefaDetalhe[];
-    });
-
-    return acc;
-  }, [servicos, tarefasQueries]);
-
-  return {
-    tarefasPorServico,
-    isLoading: tarefasQueries.some((query) => query.isLoading),
-    isFetching: tarefasQueries.some((query) => query.isFetching),
-  };
-};
 
 export const useServicosResumo = () =>
   useQuery<ServicoResumoItem[]>({

@@ -334,6 +334,16 @@ function billingLabel(ordem: OrdemServicoDetalhe) {
   return 'Não liberada';
 }
 
+// Protege o layout do PDF (Yoga, síncrono na thread principal) contra campos
+// de texto livre anormalmente grandes.
+const MAX_PDF_TEXT_LENGTH = 4000;
+
+function truncateForPdf(value?: string | null): string | undefined {
+  if (!value) return value ?? undefined;
+  if (value.length <= MAX_PDF_TEXT_LENGTH) return value;
+  return `${value.slice(0, MAX_PDF_TEXT_LENGTH)}… (texto truncado — consulte o sistema para o conteúdo completo)`;
+}
+
 // ── Field helpers ─────────────────────────────────────────────────────────────
 
 function FieldCell({ label, value, wide }: { label: string; value?: string | null; wide?: boolean }) {
@@ -410,7 +420,7 @@ function ContratoSection({ ordem }: { ordem: OrdemServicoDetalhe }) {
         <FieldCell label="Gestor"            value={ordem.gestor_contrato_nome} />
         <FieldCell label="E-mail do gestor"  value={ordem.gestor_contrato_email} />
         <FieldCell label="Telefone do gestor" value={ordem.gestor_contrato_telefone} />
-        <FieldCell label="Objeto"            value={ordem.objeto_contrato} wide />
+        <FieldCell label="Objeto"            value={truncateForPdf(ordem.objeto_contrato)} wide />
       </View>
     </View>
   );
@@ -464,7 +474,7 @@ function CobrancaSection({ ordem }: { ordem: OrdemServicoDetalhe }) {
       {ordem.observacao && (
         <View style={s.obs}>
           <Text style={s.obsLabel}>Observação de cobrança</Text>
-          <Text style={s.obsText}>{ordem.observacao}</Text>
+          <Text style={s.obsText}>{truncateForPdf(ordem.observacao)}</Text>
         </View>
       )}
     </View>
@@ -486,7 +496,7 @@ function TarefasList({ tarefas }: { tarefas: TarefaDetalhe[] }) {
       </View>
       {tarefas.map((t) => (
         <View key={t.id} style={s.tarefaRow}>
-          <Text style={s.tarefaDescricao}>{t.descricao || '—'}</Text>
+          <Text style={s.tarefaDescricao}>{truncateForPdf(t.descricao) || '—'}</Text>
           <Text style={s.tarefaResponsavel}>{t.responsavel_nome || '—'}</Text>
           <Text style={[s.tarefaStatus, { color: tarefaStatusColor(t.status) }]}>
             {t.status_display}
@@ -531,7 +541,7 @@ function ServicoSection({
       {servico.descricao && (
         <View style={s.servicoDescricao}>
           <Text style={s.servicoDescricaoLabel}>Descrição</Text>
-          <Text style={s.servicoDescricaoText}>{servico.descricao}</Text>
+          <Text style={s.servicoDescricaoText}>{truncateForPdf(servico.descricao)}</Text>
         </View>
       )}
 

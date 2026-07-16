@@ -101,7 +101,14 @@ export function OperationalOrderForm({ open, onOpenChange, editId }: Operational
     }
   }, [open, isEdit, detail]);
 
-  const isValid = form.cliente > 0 && form.catalogoOperacional > 0 && form.quantidade > 0 && !!form.dataRecebimento;
+  const horasEstimadasValida = !form.horasEstimadas || /^\d+$/.test(form.horasEstimadas.trim());
+
+  const isValid =
+    form.cliente > 0 &&
+    form.catalogoOperacional > 0 &&
+    form.quantidade > 0 &&
+    !!form.dataRecebimento &&
+    horasEstimadasValida;
   const isPending = createOrder.isPending || updateOrder.isPending;
 
   const handleSubmit = () => {
@@ -306,11 +313,18 @@ export function OperationalOrderForm({ open, onOpenChange, editId }: Operational
               <div>
                 <p className="text-xs text-muted-foreground mb-1">Horas estimadas</p>
                 <Input
-                  placeholder="Ex.: 2.5"
+                  inputMode="numeric"
+                  placeholder="Ex.: 6, 9, 10"
                   value={form.horasEstimadas}
                   onChange={(e) => setForm({ ...form, horasEstimadas: e.target.value })}
                   className="bg-background border-border"
+                  aria-invalid={!horasEstimadasValida}
                 />
+                {!horasEstimadasValida && (
+                  <p className="text-xs text-destructive mt-1">
+                    Informe um número inteiro de horas (ex.: 6, 9, 10) — não use "06:00".
+                  </p>
+                )}
               </div>
               <div>
                 <p className="text-xs text-muted-foreground mb-1">Complexidade</p>
