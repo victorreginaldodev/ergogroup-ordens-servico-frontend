@@ -128,4 +128,12 @@ export const authService = {
       localStorage.setItem('auth_data', JSON.stringify({ user: profile }));
     }
   },
+
+  requestPasswordReset: async (email: string) => {
+    await api.post('/api/contas/auth/password/reset/', { email });
+  },
+
+  resetPassword: async (token: string, new_password: string) => {
+    await api.post('/api/contas/auth/password/reset/confirm/', { token, new_password });
+  },
 };

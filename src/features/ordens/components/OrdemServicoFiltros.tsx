@@ -16,7 +16,7 @@ export interface FiltersState {
   priority: OrdemPrioridade[];
   billing: 'all' | 'paid' | 'released' | 'unpaid';
   contractOnly: boolean;
-  dateRange: { from?: Date; to?: Date };
+  dateRange: { from?: string; to?: string };
   technicianIds: string[];
 }
 
@@ -54,13 +54,6 @@ const BILLING_OPTIONS: { value: FiltersState['billing']; label: string }[] = [
 // bg-card (não bg-secondary), altura 44px, cantos mais arredondados (11px).
 const FILTER_TRIGGER_CLASSES =
   'gap-1.5 h-11 px-3.5 rounded-[11px] bg-card border-border text-sm font-medium hover:bg-muted';
-
-const toInputDate = (d: Date) => {
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-};
 
 const MultiSelect = ({
   label,
@@ -244,9 +237,9 @@ export function OrdemServicoFiltros({
                 <Label className="text-xs text-muted-foreground">De</Label>
                 <Input
                   type="date"
-                  value={filters.dateRange.from ? toInputDate(filters.dateRange.from) : ''}
+                  value={filters.dateRange.from ?? ''}
                   onChange={(e) =>
-                    set({ dateRange: { ...filters.dateRange, from: e.target.value ? new Date(e.target.value + 'T00:00:00') : undefined } })
+                    set({ dateRange: { ...filters.dateRange, from: e.target.value || undefined } })
                   }
                   className="bg-secondary border-border h-8 text-sm"
                 />
@@ -255,9 +248,9 @@ export function OrdemServicoFiltros({
                 <Label className="text-xs text-muted-foreground">Até</Label>
                 <Input
                   type="date"
-                  value={filters.dateRange.to ? toInputDate(filters.dateRange.to) : ''}
+                  value={filters.dateRange.to ?? ''}
                   onChange={(e) =>
-                    set({ dateRange: { ...filters.dateRange, to: e.target.value ? new Date(e.target.value + 'T23:59:59') : undefined } })
+                    set({ dateRange: { ...filters.dateRange, to: e.target.value || undefined } })
                   }
                   className="bg-secondary border-border h-8 text-sm"
                 />

@@ -66,7 +66,7 @@ const OperationalOrderListPage = () => {
     () =>
       usuarios
         .filter((u) => u.tipo_usuario === 'tecnico')
-        .map((u) => ({ value: String(u.id), label: u.nome_completo || u.username })),
+        .map((u) => ({ value: String(u.id), label: u.nome_completo || u.email })),
     [usuarios],
   );
 

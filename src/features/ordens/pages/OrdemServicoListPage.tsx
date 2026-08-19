@@ -155,7 +155,7 @@ const OrdemServicoListPage = () => {
     () =>
       usuarios
         .filter((u) => u.tipo_usuario === 'tecnico' || u.tipo_usuario === 'sub_gestor_tecnico')
-        .map((u) => ({ value: String(u.id), label: u.nome_completo || u.username })),
+        .map((u) => ({ value: String(u.id), label: u.nome_completo || u.email })),
     [usuarios],
   );
 
@@ -220,14 +220,20 @@ const OrdemServicoListPage = () => {
   }, [ordens, isTechnician, ordensComTarefaDoTecnico]);
 
   const filteredOrdens = baseOrdens.filter((ordem) => {
-    const q = filters.search.toLowerCase();
+    const q = filters.search.trim().toLowerCase();
+    const qCleanId = q.replace(/^#/, '');
     const matchesText =
       !q ||
-      ordem.cliente_nome.toLowerCase().includes(q) ||
-      String(ordem.id).includes(q) ||
-      (servicosPorOrdem[ordem.id] ?? []).some((s) => (s.catalogo_nome ?? '').toLowerCase().includes(q));
+      (ordem.cliente_nome ?? '').toLowerCase().includes(q) ||
+      String(ordem.id).includes(qCleanId) ||
+      (servicosPorOrdem[ordem.id] ?? []).some(
+        (s) =>
+          (s.catalogo_nome ?? '').toLowerCase().includes(q) ||
+          (s.descricao ?? '').toLowerCase().includes(q),
+      );
 
-    const matchesStatus   = filters.status.length === 0 || filters.status.includes(ordem.status);
+    const normStatus = ordem.status === ('aberto' as any) ? 'aberta' : ordem.status;
+    const matchesStatus   = filters.status.length === 0 || filters.status.includes(normStatus);
     const matchesPriority = filters.priority.length === 0 || (!!ordem.prioridade && filters.priority.includes(ordem.prioridade));
     const matchesBilling  =
       !showFin || filters.billing === 'all' ||
@@ -236,17 +242,15 @@ const OrdemServicoListPage = () => {
       (filters.billing === 'unpaid'   && !ordem.cobranca_realizada && !ordem.liberada_para_cobranca);
     const matchesContract = !showContrato || !filters.contractOnly || ordem.contrato;
     const matchesTechnician =
-      !isTecnicoGestor || filters.technicianIds.length === 0 ||
+      filters.technicianIds.length === 0 ||
       filters.technicianIds.some((tid) => responsaveisPorOrdem[ordem.id]?.has(Number(tid)));
 
-    const created = ordem.data_venda ? new Date(ordem.data_venda) : null;
-    const start = filters.dateRange.from
-      ? new Date(filters.dateRange.from.getFullYear(), filters.dateRange.from.getMonth(), filters.dateRange.from.getDate())
-      : undefined;
-    const end = filters.dateRange.to
-      ? new Date(filters.dateRange.to.getFullYear(), filters.dateRange.to.getMonth(), filters.dateRange.to.getDate(), 23, 59, 59, 999)
-      : undefined;
-    const matchesDate = (!start && !end) || (!!created && (!start || created >= start) && (!end || created <= end));
+    const createdStr = ordem.data_venda ? ordem.data_venda.slice(0, 10) : null;
+    const startStr = filters.dateRange.from;
+    const endStr = filters.dateRange.to;
+    const matchesDate =
+      (!startStr && !endStr) ||
+      (!!createdStr && (!startStr || createdStr >= startStr) && (!endStr || createdStr <= endStr));
 
     return matchesText && matchesStatus && matchesPriority && matchesBilling && matchesContract && matchesDate && matchesTechnician;
   });
@@ -296,7 +300,7 @@ const OrdemServicoListPage = () => {
         <OrdemServicoFiltros
           filters={filters}
           onChange={setFilters}
-          technicianOptions={isTecnicoGestor ? technicianOptions : []}
+          technicianOptions={isTechnician ? [] : technicianOptions}
           showBilling={showFin}
           showContract={showContrato}
           searchPlaceholder={searchPlaceholder}

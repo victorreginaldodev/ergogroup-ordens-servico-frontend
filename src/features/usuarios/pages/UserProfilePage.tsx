@@ -14,7 +14,7 @@ import { authService } from '@/services/auth';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { TIPO_USUARIO_OPTIONS, TipoUsuarioKey, profileResponseToUserProfile } from '../services';
+import { TIPO_USUARIO_OPTIONS, TipoUsuarioKey, profileResponseToUserProfile, AlterarSenhaPayload } from '../services';
 import {
   useMyProfile,
   useUpdateProfile,
@@ -119,7 +119,7 @@ const UserProfilePage = () => {
   const onSubmitSenha = async (values: SenhaFormValues) => {
     if (!profile) return;
     try {
-      await alterarSenha.mutateAsync({ id: profile.id, payload: values });
+      await alterarSenha.mutateAsync({ id: profile.id, payload: values as AlterarSenhaPayload });
       toast({ title: 'Senha alterada', description: 'Sua senha foi atualizada com sucesso.' });
       senhaForm.reset();
     } catch {

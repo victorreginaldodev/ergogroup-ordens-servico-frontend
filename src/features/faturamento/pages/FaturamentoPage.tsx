@@ -257,7 +257,7 @@ const FaturamentoPage = () => {
                     <SelectItem value="andamento">Em andamento</SelectItem>
                   </SelectContent>
                 </Select>
-                <PillFilter options={BILLING_OPTIONS} value={billingFilter} onChange={setBillingFilter} />
+                <PillFilter options={BILLING_OPTIONS} value={billingFilter} onChange={(v) => setBillingFilter(v as any)} />
               </div>
 
               {/* Table */}
@@ -402,7 +402,7 @@ const FaturamentoPage = () => {
                     className="pl-9 h-9 bg-secondary border-border text-sm"
                   />
                 </div>
-                <PillFilter options={BILLING_OPTIONS} value={osoBillingFilter} onChange={setOsoBillingFilter} />
+                <PillFilter options={BILLING_OPTIONS} value={osoBillingFilter} onChange={(v) => setOsoBillingFilter(v as any)} />
               </div>
 
               {/* Table */}

@@ -36,7 +36,7 @@ export const useUserRole = () => {
     return r;
   };
 
-  role = normalizeRole(role);
+  const role = normalizeRole(rawRole);
 
   // Gestor Comercial tem o mesmo nível de acesso que diretor
   const isDirector = role === 'diretor';

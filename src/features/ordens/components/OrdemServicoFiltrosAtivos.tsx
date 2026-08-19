@@ -1,5 +1,5 @@
 import { X } from 'lucide-react';
-import { formatDateObj } from '../utils';
+import { formatDate } from '../utils';
 import { defaultFilters, type FiltersState } from './OrdemServicoFiltros';
 
 const STATUS_LABELS: Record<string, string> = {
@@ -54,13 +54,15 @@ export function OrdemServicoFiltrosAtivos({ filters, onChange, technicianOptions
   }
 
   if (filters.dateRange.from || filters.dateRange.to) {
+    const fromFmt = formatDate(filters.dateRange.from);
+    const toFmt = formatDate(filters.dateRange.to);
     const label =
-      filters.dateRange.from && filters.dateRange.to
-        ? `${formatDateObj(filters.dateRange.from)} – ${formatDateObj(filters.dateRange.to)}`
-        : filters.dateRange.from
-        ? `A partir de ${formatDateObj(filters.dateRange.from)}`
-        : `Até ${formatDateObj(filters.dateRange.to!)}`;
-    chips.push({ key: 'date', label, onRemove: () => set({ dateRange: {} }) });
+      fromFmt && toFmt
+        ? `${fromFmt} – ${toFmt}`
+        : fromFmt
+        ? `A partir de ${fromFmt}`
+        : `Até ${toFmt}`;
+    chips.push({ key: 'date', label: label ?? '', onRemove: () => set({ dateRange: {} }) });
   }
 
   if (chips.length === 0) return null;
