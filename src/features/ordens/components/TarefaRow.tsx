@@ -56,7 +56,7 @@ interface TarefaRowProps {
   canManage?: boolean;
   /** Líder/Sub-Líder/Diretor: podem definir prioridade, prazo e horas estimadas — mesmo quem não tem `canManage`. */
   canEditAdvancedFields?: boolean;
-  /** Técnico: só pode avançar/reverter o status das próprias tarefas — nunca editar/cancelar/excluir. */
+  /** Qualquer usuário: pode avançar/reverter o status das suas próprias tarefas — sem editar/cancelar/excluir se não tiver permissão de gestão. */
   allowSelfStatusUpdate?: boolean;
   /** Gestor Comercial (e quem gerencia tarefas): pode avançar/reverter/finalizar o status das tarefas. */
   canFinishTasks?: boolean;

@@ -37,11 +37,11 @@ function useTabConfig() {
   let tabs: TabKey[];
   let defaultTab: TabKey;
   const canEditExec = isLeadTechnician || isSubLeadTechnician;
-  // Diretor não gerencia a execução (editar/excluir serviço, status de qualquer
-  // tarefa), mas pode criar novas tarefas em qualquer serviço. Gestor Comercial
-  // pode também finalizar tarefas.
+  // Diretor, Gestor Comercial e Líderes podem criar e finalizar tarefas em qualquer serviço.
   const canCreateTasks = canEditExec || isDirector;
-  const canFinishTasks = canEditExec || isGestorComercial;
+  const canFinishTasks = canEditExec || isGestorComercial || isDirector;
+  // Qualquer usuário responsável por uma tarefa pode atualizar o status da sua própria tarefa.
+  const allowSelfStatusUpdate = true;
 
   if (isTechnician) {
     tabs = ['exec', 'auditoria'];
@@ -67,6 +67,7 @@ function useTabConfig() {
     canEditExec,
     canCreateTasks,
     canFinishTasks,
+    allowSelfStatusUpdate,
     showValor: canViewOrderValues,
   };
 }
@@ -77,7 +78,7 @@ const OrdemDetalhePage = () => {
   const { id } = useParams<{ id: string }>();
   const ordemId = id ? Number(id) : undefined;
 
-  const { tabs, defaultTab, isTechnician, canEditExec, canCreateTasks, canFinishTasks, showValor } = useTabConfig();
+  const { tabs, defaultTab, isTechnician, canEditExec, canCreateTasks, canFinishTasks, allowSelfStatusUpdate, showValor } = useTabConfig();
   const [tab, setTab] = useState<TabKey>(defaultTab);
   const activeTab = tabs.includes(tab) ? tab : defaultTab;
 
@@ -200,7 +201,7 @@ const OrdemDetalhePage = () => {
                     canManageTasks={canEditExec}
                     canCreateTasks={canCreateTasks}
                     canFinishTasks={canFinishTasks}
-                    allowSelfStatusUpdate={isTechnician}
+                    allowSelfStatusUpdate={allowSelfStatusUpdate}
                     index={i}
                     currentUserId={currentUserId}
                     initialTarefas={tarefasPorServico[s.id]}

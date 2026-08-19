@@ -98,7 +98,7 @@ interface ServicoAccordionCardProps {
   canCreateTasks?: boolean;
   /** Gestor Comercial (e quem já gerencia tarefas): pode finalizar/avançar status de qualquer tarefa. */
   canFinishTasks?: boolean;
-  /** Técnico: pode avançar/reverter o status só das próprias tarefas. */
+  /** Qualquer usuário: pode avançar/reverter o status das suas próprias tarefas. */
   allowSelfStatusUpdate?: boolean;
   index: number;
   currentUserId?: number;
