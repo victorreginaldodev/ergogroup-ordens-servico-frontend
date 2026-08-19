@@ -10,9 +10,17 @@ const TECHNICAL_SECTOR_ROLES = new Set(['tecnico', 'sub_gestor_tecnico', 'gestor
 
 const FINANCE_ROLES = new Set(['financeiro', 'gestor_financeiro']);
 
+// Catálogo comum: diretor, comercial (gestor e não-gestor) e líder/sub-líder técnico podem gerenciar
+const CATALOGO_COMUM_MANAGER_ROLES = new Set(['gestor_comercial', 'comercial', 'gestor_tecnico', 'sub_gestor_tecnico']);
+
 export const useUserRole = () => {
   const user = authService.getCurrentUser();
-  let role = user?.tipo_usuario ?? '';
+  const rawRole = user?.tipo_usuario ?? '';
+
+  const isGestorComercial =
+    rawRole === 'gestor_comercial' ||
+    rawRole === 'gestor comercial' ||
+    rawRole.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[-_]/g, ' ').trim() === 'gestor comercial';
 
   // Normalizar role para garantir que Gestor Comercial seja tratado como diretor
   const normalizeRole = (r: string): string => {
@@ -20,7 +28,7 @@ export const useUserRole = () => {
       .normalize('NFD')
       .replace(/[̀-ͯ]/g, '')
       .toLowerCase()
-      .replace(/-/g, ' ')
+      .replace(/[-_]/g, ' ')
       .trim();
     if (normalized === 'gestor comercial') {
       return 'diretor';
@@ -51,10 +59,12 @@ export const useUserRole = () => {
   const canManageServices = !(isRestricted || isAdministrative);
   const canManageTasks = !isAdministrative;
   const canManageQuickTasks = !isAdministrative;
+  const canManageCatalogoComum = isDirector || CATALOGO_COMUM_MANAGER_ROLES.has(role);
 
   return {
     role,
     isDirector,
+    isGestorComercial,
     isTechnician,
     isSubLeadTechnician,
     isLeadTechnician,
@@ -69,6 +79,7 @@ export const useUserRole = () => {
     canManageServices,
     canManageTasks,
     canManageQuickTasks,
+    canManageCatalogoComum,
     canManageFinancials: canAccessFinancials,
   };
 };

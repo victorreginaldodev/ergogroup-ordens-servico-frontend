@@ -96,6 +96,8 @@ interface ServicoAccordionCardProps {
   canManageTasks: boolean;
   /** Diretor (e quem já tem canManageTasks): pode criar novas tarefas, mesmo sem gerenciar o serviço. */
   canCreateTasks?: boolean;
+  /** Gestor Comercial (e quem já gerencia tarefas): pode finalizar/avançar status de qualquer tarefa. */
+  canFinishTasks?: boolean;
   /** Técnico: pode avançar/reverter o status só das próprias tarefas. */
   allowSelfStatusUpdate?: boolean;
   index: number;
@@ -112,6 +114,7 @@ export function ServicoAccordionCard({
   usuarios,
   canManageTasks,
   canCreateTasks,
+  canFinishTasks,
   allowSelfStatusUpdate,
   currentUserId,
   filterUserId,
@@ -346,6 +349,7 @@ export function ServicoAccordionCard({
               canManage={canManageTasks}
               canEditAdvancedFields={canEditAdvancedFields}
               allowSelfStatusUpdate={allowSelfStatusUpdate}
+              canFinishTasks={canFinishTasks}
               currentUserId={currentUserId}
             />
           ))

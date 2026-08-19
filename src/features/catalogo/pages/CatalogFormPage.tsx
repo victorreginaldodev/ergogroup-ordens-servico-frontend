@@ -34,11 +34,11 @@ const CatalogFormPage = () => {
   const { data: catalogo } = useCatalogo(id);
   const upsert = useUpsertCatalogo();
   const { toast } = useToast();
-  const { role } = useUserRole();
-  const isTechnician = role === 'tecnico';
+  const { canManageCatalogoComum } = useUserRole();
+  const isBlocked = !canManageCatalogoComum;
 
   useEffect(() => {
-    if (isTechnician) {
+    if (isBlocked) {
       toast({
         title: 'Acesso negado',
         description: 'Você não tem permissão para gerenciar o catálogo de serviços.',
@@ -46,7 +46,7 @@ const CatalogFormPage = () => {
       });
       navigate('/catalogo');
     }
-  }, [isTechnician, navigate, toast]);
+  }, [isBlocked, navigate, toast]);
 
   const form = useForm<FormValues>({
     defaultValues: { nome: '', descricao: '', horasEstimadas: '', complexidade: '' },
@@ -86,7 +86,7 @@ const CatalogFormPage = () => {
 
   const title = id ? 'Editar serviço' : 'Novo serviço';
 
-  if (isTechnician) {
+  if (isBlocked) {
     return null;
   }
 

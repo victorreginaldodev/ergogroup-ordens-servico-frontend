@@ -58,6 +58,8 @@ interface TarefaRowProps {
   canEditAdvancedFields?: boolean;
   /** Técnico: só pode avançar/reverter o status das próprias tarefas — nunca editar/cancelar/excluir. */
   allowSelfStatusUpdate?: boolean;
+  /** Gestor Comercial (e quem gerencia tarefas): pode avançar/reverter/finalizar o status das tarefas. */
+  canFinishTasks?: boolean;
   currentUserId?: number;
 }
 
@@ -73,6 +75,7 @@ export function TarefaRow({
   canManage,
   canEditAdvancedFields,
   allowSelfStatusUpdate,
+  canFinishTasks,
   currentUserId,
 }: TarefaRowProps) {
   const [editing, setEditing]           = useState(false);
@@ -84,7 +87,7 @@ export function TarefaRow({
   const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
 
   const isCurrentUser = currentUserId !== undefined && tarefa.responsavel === currentUserId;
-  const canControlStatus = !!canManage || (!!allowSelfStatusUpdate && isCurrentUser);
+  const canControlStatus = !!canManage || (!!allowSelfStatusUpdate && isCurrentUser) || !!canFinishTasks;
   const canOpenMenu = !!canManage || !!canEditAdvancedFields;
 
   const handleSave = () => {

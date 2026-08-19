@@ -33,8 +33,8 @@ const dotBadge = (dotColorClass: string, label: string) => (
 const CatalogListPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { role } = useUserRole();
-  const isTechnician = role === 'tecnico';
+  const { canManageCatalogoComum } = useUserRole();
+  const isBlocked = !canManageCatalogoComum;
   const [page, setPage] = useState(1);
   const [query, setQuery] = useState<string>(new URLSearchParams(location.search).get('q') || '');
   const [debouncedQuery, setDebouncedQuery] = useState(query);
@@ -80,7 +80,7 @@ const CatalogListPage = () => {
           </div>
           <p className="text-muted-foreground mt-1">Gerencie os serviços utilizados nas Ordens de Serviço</p>
         </div>
-        <Button onClick={() => navigate('/catalogo/new')} variant="hero" disabled={isTechnician}>
+        <Button onClick={() => navigate('/catalogo/new')} variant="hero" disabled={isBlocked}>
           <Plus className="w-4 h-4" />
           Novo serviço
         </Button>
@@ -124,8 +124,8 @@ const CatalogListPage = () => {
                   : items.map((c) => (
                       <TableRow
                         key={c.id}
-                        className={`border-border hover:bg-muted/40 transition-colors group ${isTechnician ? '' : 'cursor-pointer'}`}
-                        onClick={isTechnician ? undefined : () => navigate(`/catalogo/${c.id}/edit`)}
+                        className={`border-border hover:bg-muted/40 transition-colors group ${isBlocked ? '' : 'cursor-pointer'}`}
+                        onClick={isBlocked ? undefined : () => navigate(`/catalogo/${c.id}/edit`)}
                       >
                         <TableCell className="py-3 px-3">
                           <span className="text-sm font-semibold uppercase">{c.nome}</span>
@@ -147,7 +147,7 @@ const CatalogListPage = () => {
                         </TableCell>
 
                         <TableCell className="py-3 px-3" onClick={(e) => e.stopPropagation()}>
-                          {isTechnician ? (
+                          {isBlocked ? (
                             <Button variant="ghost" size="icon" className="h-8 w-8" disabled>
                               <MoreVertical className="w-4 h-4 text-muted-foreground" />
                             </Button>

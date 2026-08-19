@@ -32,14 +32,16 @@ const TAB_LABEL: Record<TabKey, string> = {
 
 function useTabConfig() {
   const role = useUserRole();
-  const { isTechnician, isLeadTechnician, isSubLeadTechnician, isAdministrativeSector, isFinance, isDirector, canViewOrderValues } = role;
+  const { isTechnician, isLeadTechnician, isSubLeadTechnician, isAdministrativeSector, isFinance, isDirector, isGestorComercial, canViewOrderValues } = role;
 
   let tabs: TabKey[];
   let defaultTab: TabKey;
   const canEditExec = isLeadTechnician || isSubLeadTechnician;
   // Diretor não gerencia a execução (editar/excluir serviço, status de qualquer
-  // tarefa), mas pode criar novas tarefas em qualquer serviço.
+  // tarefa), mas pode criar novas tarefas em qualquer serviço. Gestor Comercial
+  // pode também finalizar tarefas.
   const canCreateTasks = canEditExec || isDirector;
+  const canFinishTasks = canEditExec || isGestorComercial;
 
   if (isTechnician) {
     tabs = ['exec', 'auditoria'];
@@ -64,6 +66,7 @@ function useTabConfig() {
     isTechnician,
     canEditExec,
     canCreateTasks,
+    canFinishTasks,
     showValor: canViewOrderValues,
   };
 }
@@ -74,7 +77,7 @@ const OrdemDetalhePage = () => {
   const { id } = useParams<{ id: string }>();
   const ordemId = id ? Number(id) : undefined;
 
-  const { tabs, defaultTab, isTechnician, canEditExec, canCreateTasks, showValor } = useTabConfig();
+  const { tabs, defaultTab, isTechnician, canEditExec, canCreateTasks, canFinishTasks, showValor } = useTabConfig();
   const [tab, setTab] = useState<TabKey>(defaultTab);
   const activeTab = tabs.includes(tab) ? tab : defaultTab;
 
@@ -196,6 +199,7 @@ const OrdemDetalhePage = () => {
                     usuarios={usuarios}
                     canManageTasks={canEditExec}
                     canCreateTasks={canCreateTasks}
+                    canFinishTasks={canFinishTasks}
                     allowSelfStatusUpdate={isTechnician}
                     index={i}
                     currentUserId={currentUserId}
