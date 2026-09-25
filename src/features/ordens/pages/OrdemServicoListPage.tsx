@@ -80,6 +80,9 @@ const TAREFA_BADGE: Record<keyof TarefaBuckets, { label: string; dot: string; ac
   atrasadas: { label: 'Atrasadas',    dot: 'bg-red-500',   activeClasses: 'bg-red-500/10 text-red-600 dark:text-red-400' },
 };
 
+// Serviços relacionados: quantos badges aparecem antes de agrupar o restante em "+N"
+const MAX_SERVICO_BADGES = 2;
+
 const STATUS_SORT: Record<string, number> = { aberta: 0, em_andamento: 1, concluida: 2, cancelada: 3 };
 const PRIORITY_SORT: Record<string, number> = { alta: 0, media: 1, baixa: 2 };
 
@@ -90,7 +93,9 @@ const useListaConfig = () => {
   const isTecnicoGestor = isLeadTechnician || isSubLeadTechnician;
   const showFin = canViewOrderValues;
   const showContrato = !(isTechnician || isTecnicoGestor);
-  const showTarefas = isTechnician || isTecnicoGestor;
+  // Técnico acompanha as próprias tarefas; Líder/Sub-Líder vê os serviços da OS
+  const showTarefas = isTechnician;
+  const showServicos = isTecnicoGestor;
 
   let title = 'Ordens de Serviço';
   let subtitle = 'Visão comercial de todas as OS';
@@ -116,7 +121,7 @@ const useListaConfig = () => {
     showFin,
     showContrato,
     showTarefas,
-    tarefasColumnLabel: isTechnician ? 'Minhas tarefas' : 'Tarefas do setor',
+    showServicos,
     title,
     subtitle,
     searchPlaceholder,
@@ -134,7 +139,7 @@ const OrdemServicoListPage = () => {
     showFin,
     showContrato,
     showTarefas,
-    tarefasColumnLabel,
+    showServicos,
     canManageOrders,
     title,
     subtitle,
@@ -184,8 +189,7 @@ const OrdemServicoListPage = () => {
     return acc;
   }, [tarefasResumo, servicoIdParaOrdem]);
 
-  // Balde de tarefas por OS: para o Técnico, escopado às próprias tarefas;
-  // para Líder/Sub-Líder Técnico, agregado do time inteiro naquela OS.
+  // Balde de tarefas por OS, escopado às tarefas do próprio Técnico.
   const tarefaBucketsPorOrdem = useMemo(() => {
     const acc: Record<number, TarefaBuckets> = {};
     tarefasResumo.forEach((t) => {
@@ -319,7 +323,10 @@ const OrdemServicoListPage = () => {
                   <TableHead className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground py-2 px-3 w-[100px]">Prioridade</TableHead>
                   <TableHead className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground py-2 px-3 w-[130px]">Em aberto</TableHead>
                   {showTarefas && (
-                    <TableHead className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground py-2 px-3 w-[200px]">{tarefasColumnLabel}</TableHead>
+                    <TableHead className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground py-2 px-3 w-[200px]">Minhas tarefas</TableHead>
+                  )}
+                  {showServicos && (
+                    <TableHead className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground py-2 px-3 w-[260px]">Serviços relacionados</TableHead>
                   )}
                   {showContrato && (
                     <TableHead className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground py-2 px-3 w-[90px]">Contrato</TableHead>
@@ -348,6 +355,7 @@ const OrdemServicoListPage = () => {
                         <TableCell className="py-3 px-3"><Skeleton className="h-3 w-16" /></TableCell>
                         <TableCell className="py-3 px-3"><Skeleton className="h-6 w-20 rounded-full" /></TableCell>
                         {showTarefas && <TableCell className="py-3 px-3"><Skeleton className="h-5 w-32 rounded-md" /></TableCell>}
+                        {showServicos && <TableCell className="py-3 px-3"><Skeleton className="h-5 w-40 rounded-md" /></TableCell>}
                         {showContrato && <TableCell className="py-3 px-3"><Skeleton className="h-4 w-14" /></TableCell>}
                         {showFin && <TableCell className="py-3 px-3"><Skeleton className="h-3 w-24" /></TableCell>}
                         {showFin && <TableCell className="py-3 px-3"><Skeleton className="h-4 w-20 ml-auto" /></TableCell>}
@@ -358,6 +366,10 @@ const OrdemServicoListPage = () => {
                       const duration = getDurationMeta(ordem);
                       const urgencyLevel = getUrgencyLevel(ordem.status, ordem.dias_em_aberto);
                       const buckets = tarefaBucketsPorOrdem[ordem.id];
+                      const servicoNomes = (servicosPorOrdem[ordem.id] ?? [])
+                        .map((s) => s.catalogo_nome || s.descricao)
+                        .filter(Boolean);
+                      const servicosOcultos = servicoNomes.length - MAX_SERVICO_BADGES;
                       const accentRed = ordem.prioridade === 'alta' && urgencyLevel !== 'muted';
 
                       const cobranca = ordem.cobranca_realizada
@@ -429,6 +441,32 @@ const OrdemServicoListPage = () => {
                                       </span>
                                     );
                                   })}
+                                </div>
+                              )}
+                            </TableCell>
+                          )}
+
+                          {showServicos && (
+                            <TableCell className="py-3 px-3 max-w-[260px]">
+                              {loadingServicosResumo ? (
+                                <Skeleton className="h-5 w-40 rounded-md" />
+                              ) : servicoNomes.length === 0 ? (
+                                <span className="text-[11px] text-muted-foreground">—</span>
+                              ) : (
+                                <div className="flex items-center gap-1 flex-nowrap overflow-hidden" title={servicoNomes.join('\n')}>
+                                  {servicoNomes.slice(0, MAX_SERVICO_BADGES).map((nome, idx) => (
+                                    <span
+                                      key={`${nome}-${idx}`}
+                                      className="min-w-0 max-w-[110px] truncate whitespace-nowrap px-1.5 py-0.5 rounded-md bg-muted text-muted-foreground text-[11px] font-medium"
+                                    >
+                                      {nome}
+                                    </span>
+                                  ))}
+                                  {servicosOcultos > 0 && (
+                                    <span className="shrink-0 whitespace-nowrap px-1.5 py-0.5 rounded-md bg-muted text-muted-foreground text-[11px] font-semibold">
+                                      +{servicosOcultos}
+                                    </span>
+                                  )}
                                 </div>
                               )}
                             </TableCell>
