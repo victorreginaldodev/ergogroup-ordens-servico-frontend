@@ -3,6 +3,9 @@ import { isPaginatedResponse, PageResult, toPageResult } from '@/services/pagina
 
 const ENDPOINT = '/api/ordens-servico/operacionais/';
 
+// Perfis que podem ser responsáveis por uma OS Operacional (setor técnico)
+export const OPERATIONAL_RESPONSIBLE_ROLES = new Set(['tecnico', 'sub_gestor_tecnico', 'gestor_tecnico']);
+
 // ── Types ────────────────────────────────────────────────────────────────────
 
 export type OperationalOrderStatus = 'nao_iniciado' | 'em_andamento' | 'finalizada';

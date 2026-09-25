@@ -24,7 +24,7 @@ import {
 import { useUserRole } from '@/hooks/useUserRole';
 import { useUsers } from '@/features/usuarios/hooks';
 import { useOperationalOrderPage } from '../hooksOperacional';
-import { OperationalOrderItem } from '../servicesOperacional';
+import { OperationalOrderItem, OPERATIONAL_RESPONSIBLE_ROLES } from '../servicesOperacional';
 import { STATUS_ORDER } from '../utilsOperacional';
 import {
   OperationalOrderFilters,
@@ -65,7 +65,7 @@ const OperationalOrderListPage = () => {
   const technicianOptions = useMemo(
     () =>
       usuarios
-        .filter((u) => u.tipo_usuario === 'tecnico')
+        .filter((u) => OPERATIONAL_RESPONSIBLE_ROLES.has(u.tipo_usuario))
         .map((u) => ({ value: String(u.id), label: u.nome_completo || u.email })),
     [usuarios],
   );

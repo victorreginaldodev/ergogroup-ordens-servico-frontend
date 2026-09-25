@@ -22,7 +22,21 @@ import {
   useCreateOperationalOrder,
   useUpdateOperationalOrder,
 } from '../hooksOperacional';
-import { OperationalOrderPrioridade, OperationalOrderStatus } from '../servicesOperacional';
+import {
+  OperationalOrderPrioridade,
+  OperationalOrderStatus,
+  OPERATIONAL_RESPONSIBLE_ROLES,
+} from '../servicesOperacional';
+
+// Extrai a primeira mensagem de validação retornada pela API (DRF)
+const getApiErrorMessage = (error: unknown, fallback: string): string => {
+  const data = (error as { response?: { data?: unknown } })?.response?.data as Record<string, unknown> | undefined;
+  if (!data || typeof data !== 'object') return fallback;
+  if (typeof data.detail === 'string') return data.detail;
+  const [field, messages] = Object.entries(data)[0] ?? [];
+  const message = Array.isArray(messages) ? messages[0] : messages;
+  return typeof message === 'string' ? `${field}: ${message}` : fallback;
+};
 
 interface FormState {
   cliente: number;
@@ -106,6 +120,7 @@ export function OperationalOrderForm({ open, onOpenChange, editId }: Operational
   const isValid =
     form.cliente > 0 &&
     form.catalogoOperacional > 0 &&
+    form.responsavel > 0 &&
     form.quantidade > 0 &&
     !!form.dataRecebimento &&
     horasEstimadasValida;
@@ -116,7 +131,7 @@ export function OperationalOrderForm({ open, onOpenChange, editId }: Operational
     const payload = {
       cliente: form.cliente,
       catalogoOperacional: form.catalogoOperacional,
-      responsavel: form.responsavel || undefined,
+      responsavel: form.responsavel,
       quantidade: form.quantidade,
       descricao: form.descricao || null,
       dataRecebimento: form.dataRecebimento,
@@ -138,8 +153,8 @@ export function OperationalOrderForm({ open, onOpenChange, editId }: Operational
             toast({ title: 'OS Operacional atualizada', description: 'As alterações foram salvas com sucesso.' });
             onOpenChange(false);
           },
-          onError: () => {
-            toast({ title: 'Erro ao salvar', description: 'Não foi possível atualizar a OS Operacional. Verifique os dados e tente novamente.', variant: 'destructive' });
+          onError: (error) => {
+            toast({ title: 'Erro ao salvar', description: getApiErrorMessage(error, 'Não foi possível atualizar a OS Operacional. Verifique os dados e tente novamente.'), variant: 'destructive' });
           },
         },
       );
@@ -149,14 +164,14 @@ export function OperationalOrderForm({ open, onOpenChange, editId }: Operational
           toast({ title: 'OS Operacional criada', description: 'A ordem foi criada com sucesso.' });
           onOpenChange(false);
         },
-        onError: () => {
-          toast({ title: 'Erro ao criar', description: 'Não foi possível criar a OS Operacional. Verifique os dados e tente novamente.', variant: 'destructive' });
+        onError: (error) => {
+          toast({ title: 'Erro ao criar', description: getApiErrorMessage(error, 'Não foi possível criar a OS Operacional. Verifique os dados e tente novamente.'), variant: 'destructive' });
         },
       });
     }
   };
 
-  const technicians = profiles.filter((p: any) => p.tipo_usuario === 'tecnico');
+  const technicians = profiles.filter((p: any) => OPERATIONAL_RESPONSIBLE_ROLES.has(p.tipo_usuario));
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -211,7 +226,7 @@ export function OperationalOrderForm({ open, onOpenChange, editId }: Operational
                 </Select>
               </div>
               <div>
-                <p className="text-xs text-muted-foreground mb-1">Técnico</p>
+                <p className="text-xs text-muted-foreground mb-1">Responsável</p>
                 <Select
                   value={form.responsavel ? String(form.responsavel) : ''}
                   onValueChange={(v) => setForm({ ...form, responsavel: Number(v) })}
