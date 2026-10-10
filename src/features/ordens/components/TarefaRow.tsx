@@ -30,7 +30,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { avatarColor, formatDate, initials, isPrazoProximo, isPrazoVencido, PRIORITY_DOT } from '../utils';
 import { nextStatus, previousStatus, TarefaStatusControl } from './TarefaStatusControl';
-import type { UsuarioApi } from '@/features/usuarios/services';
+import type { UsuarioApi } from '@/features/time/services';
 import type { TarefaDetalhe, UpdateTarefaPayload } from '../services';
 
 type Prioridade = 'baixa' | 'media' | 'alta';

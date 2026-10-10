@@ -78,18 +78,19 @@ export function ServicoFormDialog({ open, onOpenChange, ordemId, servico }: Serv
     setComplexidade(servico?.complexidade ? String(servico.complexidade) : '');
   }, [open, servico]);
 
+  // Catálogo inativo não entra em serviço novo (o backend recusa); o atual continua visível na edição.
   const sortedCatalogos = useMemo(
-    () => [...catalogos].sort((a, b) => a.nome.localeCompare(b.nome)),
-    [catalogos],
+    () =>
+      catalogos
+        .filter((c) => c.ativo || c.id === servico?.catalogo)
+        .sort((a, b) => a.nome.localeCompare(b.nome)),
+    [catalogos, servico?.catalogo],
   );
   const selectedCatalogo = sortedCatalogos.find((c) => String(c.id) === catalogoId);
 
   const handleSelectCatalogo = (id: string) => {
     setCatalogoId(id);
     setCatalogoOpen(false);
-    const catalogo = sortedCatalogos.find((c) => String(c.id) === id);
-    if (catalogo && !horasEstimadas && catalogo.horasEstimadas) setHorasEstimadas(catalogo.horasEstimadas);
-    if (catalogo && !complexidade && catalogo.complexidade) setComplexidade(String(catalogo.complexidade));
   };
 
   const handleSubmit = () => {

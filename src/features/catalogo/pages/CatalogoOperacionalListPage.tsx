@@ -91,7 +91,7 @@ const CatalogoOperacionalListPage = () => {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2.5">
-            <h1 className="text-2xl font-bold">Catálogo de OS Operacionais</h1>
+            <h1 className="text-xl font-bold tracking-tight">Catálogo de OS Operacionais</h1>
             <span className="text-xs font-semibold text-muted-foreground bg-muted px-2.5 py-1 rounded-full">
               {isLoading ? 'carregando…' : `${allItems.length} ${allItems.length === 1 ? 'serviço' : 'serviços'}`}
             </span>

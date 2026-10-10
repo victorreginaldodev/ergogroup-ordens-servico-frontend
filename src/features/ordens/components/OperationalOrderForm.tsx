@@ -14,7 +14,8 @@ import {
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { useClients } from '@/features/clientes/hooks';
-import { useUsers } from '@/features/usuarios/hooks';
+import { useUsers } from '@/features/time/hooks';
+import { opcoesDePessoas } from '@/features/time/utils';
 import { useCatalogosOperacionais } from '@/features/catalogo/hooks';
 import { COMPLEXIDADE_LABEL } from '@/features/catalogo/services';
 import {
@@ -156,7 +157,10 @@ export function OperationalOrderForm({ open, onOpenChange, editId }: Operational
     }
   };
 
-  const technicians = profiles.filter((p: any) => p.tipo_usuario === 'tecnico');
+  // Pessoas ativas do time, mais o responsável atual se ele tiver sido desativado.
+  const responsaveis = opcoesDePessoas(
+    profiles.filter((p) => p.ativo || p.id === form.responsavel),
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -211,17 +215,17 @@ export function OperationalOrderForm({ open, onOpenChange, editId }: Operational
                 </Select>
               </div>
               <div>
-                <p className="text-xs text-muted-foreground mb-1">Técnico</p>
+                <p className="text-xs text-muted-foreground mb-1">Responsável</p>
                 <Select
                   value={form.responsavel ? String(form.responsavel) : ''}
                   onValueChange={(v) => setForm({ ...form, responsavel: Number(v) })}
                 >
                   <SelectTrigger className="bg-background border-border">
-                    <SelectValue placeholder="Selecione o técnico" />
+                    <SelectValue placeholder="Selecione o responsável" />
                   </SelectTrigger>
                   <SelectContent>
-                    {technicians.map((p: any) => (
-                      <SelectItem key={p.id} value={String(p.id)}>{p.nome_completo}</SelectItem>
+                    {responsaveis.map((p) => (
+                      <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

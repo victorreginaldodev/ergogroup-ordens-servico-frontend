@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useUserRole } from '@/hooks/useUserRole';
 import { authService } from '@/services/auth';
-import { useUsers } from '@/features/usuarios/hooks';
+import { useUsers } from '@/features/time/hooks';
 import { bucketTarefa } from '../utils';
 import {
   useOrdemDetalhe,
@@ -31,22 +31,21 @@ const TAB_LABEL: Record<TabKey, string> = {
 };
 
 function useTabConfig() {
-  const role = useUserRole();
-  const { isTechnician, isLeadTechnician, isSubLeadTechnician, isAdministrativeSector, isFinance, isDirector, isGestorComercial, canViewOrderValues } = role;
+  const { isTechnician, isLeadTechnician, isSubLeadTechnician, isAdministrativeSector, isFinance, canViewOrderValues } =
+    useUserRole();
 
   let tabs: TabKey[];
   let defaultTab: TabKey;
-  const canEditExec = isLeadTechnician || isSubLeadTechnician;
-  // Diretor, Gestor Comercial e Líderes podem criar e finalizar tarefas em qualquer serviço.
-  const canCreateTasks = canEditExec || isDirector;
-  const canFinishTasks = canEditExec || isGestorComercial || isDirector;
+  // Quem distribui o trabalho de um setor abre a OS na execução. O que cada um pode fazer
+  // em cada serviço é decidido no próprio card, pelo setor do serviço.
+  const isGestorDeSetor = isLeadTechnician || isSubLeadTechnician;
   // Qualquer usuário responsável por uma tarefa pode atualizar o status da sua própria tarefa.
   const allowSelfStatusUpdate = true;
 
   if (isTechnician) {
     tabs = ['exec', 'auditoria'];
     defaultTab = 'exec';
-  } else if (canEditExec) {
+  } else if (isGestorDeSetor) {
     tabs = ['exec', 'comercial', 'cobranca', 'auditoria'];
     defaultTab = 'exec';
   } else if (isAdministrativeSector) {
@@ -64,9 +63,6 @@ function useTabConfig() {
     tabs,
     defaultTab,
     isTechnician,
-    canEditExec,
-    canCreateTasks,
-    canFinishTasks,
     allowSelfStatusUpdate,
     showValor: canViewOrderValues,
   };
@@ -78,7 +74,7 @@ const OrdemDetalhePage = () => {
   const { id } = useParams<{ id: string }>();
   const ordemId = id ? Number(id) : undefined;
 
-  const { tabs, defaultTab, isTechnician, canEditExec, canCreateTasks, canFinishTasks, allowSelfStatusUpdate, showValor } = useTabConfig();
+  const { tabs, defaultTab, isTechnician, allowSelfStatusUpdate, showValor } = useTabConfig();
   const [tab, setTab] = useState<TabKey>(defaultTab);
   const activeTab = tabs.includes(tab) ? tab : defaultTab;
 
@@ -134,7 +130,7 @@ const OrdemDetalhePage = () => {
       />
 
       {/* ── Abas ── */}
-      <div className="sticky top-16 z-[5] mt-5 bg-background">
+      <div className="sticky top-0 z-[5] mt-5 bg-background">
         <div className="flex gap-1 border-b border-border">
           {tabs.map((t) => {
             const active = t === activeTab;
@@ -198,9 +194,6 @@ const OrdemDetalhePage = () => {
                     servico={s}
                     ordemId={ordem.id}
                     usuarios={usuarios}
-                    canManageTasks={canEditExec}
-                    canCreateTasks={canCreateTasks}
-                    canFinishTasks={canFinishTasks}
                     allowSelfStatusUpdate={allowSelfStatusUpdate}
                     index={i}
                     currentUserId={currentUserId}

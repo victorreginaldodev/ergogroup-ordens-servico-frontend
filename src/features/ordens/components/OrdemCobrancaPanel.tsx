@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { useUserRole } from '@/hooks/useUserRole';
+import { usePermissoes } from '@/hooks/usePermissoes';
 import { MoneyValue } from '@/components/common/MoneyValue';
 import { formatCurrency, formatDateTime, formatDate } from '../utils';
 import { InfoField, FieldGrid } from './InfoField';
@@ -60,8 +60,9 @@ function Stepper({ estado }: { estado: CobrancaEstado }) {
 }
 
 export function OrdemCobrancaPanel({ ordem }: OrdemCobrancaPanelProps) {
-  const { isFinance, isDirector, canViewOrderValues } = useUserRole();
-  const canRegistrar = isFinance || isDirector;
+  const { pode } = usePermissoes();
+  const canViewOrderValues = pode('financeiro.ver_valores');
+  const canRegistrar = pode('financeiro.registrar_cobranca');
   const { toast } = useToast();
   const registrarMutation = useRegistrarCobranca(ordem.id);
 

@@ -4,7 +4,8 @@ import { cn } from '@/lib/utils';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useUserRole } from '@/hooks/useUserRole';
-import { useUsers } from '@/features/usuarios/hooks';
+import { useUsers } from '@/features/time/hooks';
+import { descreverVinculos } from '@/lib/permissoes';
 import { MONTHS } from '../constants';
 import { useAnaliseOperacional } from '../hooks';
 import type {
@@ -384,7 +385,6 @@ function TecnicoCard({ tecnico, cargo, isOwn, highlight }: { tecnico: TecnicoPro
 // ── Página ───────────────────────────────────────────────────────────────────
 
 const DIST_COLORS = ['hsl(173 60% 42%)', 'hsl(160 55% 44%)', 'hsl(42 90% 50%)', 'hsl(24 85% 55%)', 'hsl(0 78% 58%)'];
-const TECH_TIPOS = new Set(['tecnico', 'sub_gestor_tecnico', 'gestor_tecnico']);
 const PAGE_SIZE = 10;
 
 const OperacionalPage = () => {
@@ -395,18 +395,14 @@ const OperacionalPage = () => {
   const [principaisCount, setPrincipaisCount] = useState(PAGE_SIZE);
   const [catalogoCount, setCatalogoCount] = useState(PAGE_SIZE);
 
-  // Somente setor técnico (líder, sub-líder, técnico) aparece na produtividade;
-  // se a lista de usuários não carregar, mostra todo o retorno do backend.
+  // O backend já devolve só quem a pessoa pode acompanhar: a própria linha, os membros
+  // dos seus setores ou toda a empresa. O cargo exibido são as funções de cada um.
   const tecnicos = useMemo(() => {
-    const lista = data?.por_tecnico ?? [];
-    if (!usuarios.length) return lista.map((t) => ({ tecnico: t, cargo: 'Técnico' }));
     const porId = new Map(usuarios.map((u) => [u.id, u]));
-    return lista
-      .filter((t) => {
-        const u = porId.get(t.tecnico_id);
-        return !u || TECH_TIPOS.has(u.tipo_usuario);
-      })
-      .map((t) => ({ tecnico: t, cargo: porId.get(t.tecnico_id)?.tipo_usuario_display ?? 'Técnico' }));
+    return (data?.por_tecnico ?? []).map((t) => ({
+      tecnico: t,
+      cargo: descreverVinculos(porId.get(t.tecnico_id)?.vinculos) || '—',
+    }));
   }, [data, usuarios]);
 
   const os = data?.ordens_servico;
@@ -501,7 +497,7 @@ const OperacionalPage = () => {
       {/* ── Título + legenda de natureza ── */}
       <div className="flex flex-wrap items-start justify-between gap-5">
         <div>
-          <h1 className="text-2xl font-extrabold tracking-tight text-foreground">Análise Operacional</h1>
+          <h1 className="text-xl font-bold tracking-tight">Análise Operacional</h1>
           <p className="mt-1 max-w-[60ch] text-sm text-muted-foreground">
             Retrospectiva de volume, tempo, qualidade de execução e produtividade ao longo do tempo.
           </p>

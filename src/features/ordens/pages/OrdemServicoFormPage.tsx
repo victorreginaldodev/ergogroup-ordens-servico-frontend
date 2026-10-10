@@ -330,7 +330,7 @@ const OrdemServicoFormPage = () => {
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">{ordemId ? 'Editar Ordem de Serviço' : 'Nova Ordem de Serviço'}</h1>
+          <h1 className="text-xl font-bold tracking-tight">{ordemId ? 'Editar Ordem de Serviço' : 'Nova Ordem de Serviço'}</h1>
           <p className="text-muted-foreground">{ordemId ? 'Atualize os dados da ordem' : 'Preencha os dados para criar uma nova ordem'}</p>
         </div>
         <BackButton />

@@ -99,7 +99,7 @@ const CatalogoOperacionalFormPage = () => {
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">{id ? 'Editar serviço' : 'Novo serviço'}</h1>
+          <h1 className="text-xl font-bold tracking-tight">{id ? 'Editar serviço' : 'Novo serviço'}</h1>
           <p className="text-muted-foreground">
             Defina as informações do serviço utilizado nas OS Operacionais.
           </p>

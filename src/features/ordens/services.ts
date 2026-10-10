@@ -197,6 +197,9 @@ export interface ServicoDetalhe {
   catalogo: number | null;
   catalogo_detail: CatalogoServicoDetalhe | null;
   catalogo_nome: string | null;
+  /** Setor que executa o serviço (copiado do catálogo). Nulo enquanto o catálogo não tem setor. */
+  setor: number | null;
+  setor_nome: string | null;
   descricao: string;
   status: 'aberto' | 'em_andamento' | 'concluida' | 'cancelado';
   status_display: string;

@@ -22,7 +22,9 @@ import {
   PaginationPrevious,
 } from '@/components/ui/pagination';
 import { useUserRole } from '@/hooks/useUserRole';
-import { useUsers } from '@/features/usuarios/hooks';
+import { usePermissoes } from '@/hooks/usePermissoes';
+import { useUsers } from '@/features/time/hooks';
+import { opcoesDePessoas } from '@/features/time/utils';
 import { useOperationalOrderPage } from '../hooksOperacional';
 import { OperationalOrderItem } from '../servicesOperacional';
 import { STATUS_ORDER } from '../utilsOperacional';
@@ -53,6 +55,7 @@ function buildPageEntries(current: number, total: number): (number | 'ellipsis')
 
 const OperationalOrderListPage = () => {
   const { canManageQuickTasks: canManage } = useUserRole();
+  const canRegistrarCobranca = usePermissoes().pode('financeiro.registrar_cobranca');
 
   const [filters, setFilters] = useState<OperationalOrderFiltersState>(defaultFilters);
   const [debouncedSearch, setDebouncedSearch] = useState(filters.search);
@@ -62,13 +65,7 @@ const OperationalOrderListPage = () => {
   const [cobrancaItem, setCobrancaItem] = useState<OperationalOrderItem | null>(null);
 
   const { data: usuarios = [] } = useUsers();
-  const technicianOptions = useMemo(
-    () =>
-      usuarios
-        .filter((u) => u.tipo_usuario === 'tecnico')
-        .map((u) => ({ value: String(u.id), label: u.nome_completo || u.email })),
-    [usuarios],
-  );
+  const technicianOptions = useMemo(() => opcoesDePessoas(usuarios), [usuarios]);
 
   useEffect(() => {
     const timeout = setTimeout(() => setDebouncedSearch(filters.search), SEARCH_DEBOUNCE_MS);
@@ -124,7 +121,7 @@ const OperationalOrderListPage = () => {
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">OS Operacionais</h1>
+          <h1 className="text-xl font-bold tracking-tight">OS Operacionais</h1>
           <p className="text-muted-foreground">Gerencie as ordens de serviço operacionais</p>
         </div>
         {canManage && (
@@ -179,7 +176,7 @@ const OperationalOrderListPage = () => {
                         item={item}
                         canManage={canManage}
                         onEdit={openEdit}
-                        onRegistrarCobranca={setCobrancaItem}
+                        onRegistrarCobranca={canRegistrarCobranca ? setCobrancaItem : undefined}
                       />
                     ))}
               </TableBody>

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { CheckCircle2, Loader2, MoreVertical, Pencil, Plus, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { usePermissoes } from '@/hooks/usePermissoes';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -48,7 +49,7 @@ import {
 import { TarefaRow } from './TarefaRow';
 import { ServicoFormDialog } from './ServicoFormDialog';
 import type { ServicoDetalhe, TarefaDetalhe, UpdateTarefaPayload } from '../services';
-import type { UsuarioApi } from '@/features/usuarios/services';
+import type { UsuarioApi } from '@/features/time/services';
 
 // ── Rótulos ──────────────────────────────────────────────────────────────────
 
@@ -92,12 +93,6 @@ interface ServicoAccordionCardProps {
   servico: ServicoDetalhe;
   ordemId: number;
   usuarios: UsuarioApi[];
-  /** Líder/Sub-Líder Técnico: CRUD completo de serviço e tarefa. */
-  canManageTasks: boolean;
-  /** Diretor (e quem já tem canManageTasks): pode criar novas tarefas, mesmo sem gerenciar o serviço. */
-  canCreateTasks?: boolean;
-  /** Gestor Comercial (e quem já gerencia tarefas): pode finalizar/avançar status de qualquer tarefa. */
-  canFinishTasks?: boolean;
   /** Qualquer usuário: pode avançar/reverter o status das suas próprias tarefas. */
   allowSelfStatusUpdate?: boolean;
   index: number;
@@ -112,9 +107,6 @@ export function ServicoAccordionCard({
   servico,
   ordemId,
   usuarios,
-  canManageTasks,
-  canCreateTasks,
-  canFinishTasks,
   allowSelfStatusUpdate,
   currentUserId,
   filterUserId,
@@ -130,9 +122,16 @@ export function ServicoAccordionCard({
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const { toast } = useToast();
 
-  // Líder/Sub-Líder/Diretor: além de gerenciar/criar tarefas, também definem
-  // prioridade, prazo e horas estimadas na criação e edição das tarefas.
-  const canEditAdvancedFields = canManageTasks || !!canCreateTasks;
+  // As regras de execução valem no setor do serviço: quem distribui tarefas em Ergonomia
+  // não mexe nas tarefas de um serviço de Segurança do Trabalho.
+  const { pode } = usePermissoes();
+  // Criar, reatribuir, cancelar e excluir tarefas, com prioridade, prazo e horas estimadas.
+  const canManageTasks = pode('tarefas.distribuir', servico.setor);
+  // Mudar o status de qualquer tarefa do serviço, não só das próprias.
+  const canFinishTasks = pode('tarefas.editar_setor', servico.setor);
+  const canEditAdvancedFields = canManageTasks;
+  const canEditServico = pode('os.gerenciar') || pode('servicos.gerenciar', servico.setor);
+  const canDeleteServico = pode('os.excluir');
 
   const nome = servico.catalogo_detail?.nome ?? servico.catalogo_nome ?? `Serviço #${servico.id}`;
 
@@ -288,7 +287,7 @@ export function ServicoAccordionCard({
             {taskCount}
           </span>
 
-          {canManageTasks && (
+          {(canEditServico || canDeleteServico) && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground">
@@ -296,15 +295,19 @@ export function ServicoAccordionCard({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => setEditServicoOpen(true)}>
-                  <Pencil className="mr-2 h-3.5 w-3.5" /> Editar
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => setConfirmDeleteOpen(true)}
-                  className="text-destructive focus:text-destructive"
-                >
-                  <Trash2 className="mr-2 h-3.5 w-3.5" /> Excluir serviço
-                </DropdownMenuItem>
+                {canEditServico && (
+                  <DropdownMenuItem onClick={() => setEditServicoOpen(true)}>
+                    <Pencil className="mr-2 h-3.5 w-3.5" /> Editar
+                  </DropdownMenuItem>
+                )}
+                {canDeleteServico && (
+                  <DropdownMenuItem
+                    onClick={() => setConfirmDeleteOpen(true)}
+                    className="text-destructive focus:text-destructive"
+                  >
+                    <Trash2 className="mr-2 h-3.5 w-3.5" /> Excluir serviço
+                  </DropdownMenuItem>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           )}
@@ -360,7 +363,7 @@ export function ServicoAccordionCard({
           </div>
         )}
 
-        {(canManageTasks || canCreateTasks) && (
+        {canManageTasks && (
           <button
             type="button"
             onClick={handleOpenDialog}

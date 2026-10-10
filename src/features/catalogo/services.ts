@@ -20,23 +20,27 @@ export interface CatalogoItem {
   id: number;
   nome: string;
   descricao: string | null;
-  horasEstimadas: string | null;
-  complexidade: Complexidade | null;
+  /** Setor responsável por executar os serviços deste catálogo: é a fila em que eles caem. */
+  setor: number | null;
+  setorNome: string | null;
+  /** Inativo: continua nos serviços já vendidos, mas não pode ser usado em serviços novos. */
+  ativo: boolean;
 }
 
 export interface CatalogoPayload {
   nome: string;
   descricao?: string | null;
-  horasEstimadas?: string | null;
-  complexidade?: Complexidade | null;
+  setor: number;
+  ativo?: boolean;
 }
 
 type CatalogoDTO = {
   id: number;
   nome: string;
   descricao: string | null;
-  horas_estimadas: string | null;
-  complexidade: Complexidade | null;
+  setor: number | null;
+  setor_nome?: string | null;
+  ativo?: boolean;
 };
 
 const CATALOGO_ENDPOINT = '/api/catalogo/catalogos/';
@@ -45,22 +49,24 @@ const catalogoToFrontend = (dto: CatalogoDTO): CatalogoItem => ({
   id: dto.id,
   nome: dto.nome,
   descricao: dto.descricao ?? null,
-  horasEstimadas: dto.horas_estimadas ?? null,
-  complexidade: dto.complexidade ?? null,
+  setor: dto.setor ?? null,
+  setorNome: dto.setor_nome ?? null,
+  ativo: dto.ativo ?? true,
 });
 
 const catalogoToBackend = (payload: Partial<CatalogoPayload>) => ({
   ...(payload.nome !== undefined ? { nome: payload.nome } : {}),
   ...(payload.descricao !== undefined ? { descricao: payload.descricao } : {}),
-  ...(payload.horasEstimadas !== undefined ? { horas_estimadas: payload.horasEstimadas } : {}),
-  ...(payload.complexidade !== undefined ? { complexidade: payload.complexidade } : {}),
+  ...(payload.setor !== undefined ? { setor: payload.setor } : {}),
+  ...(payload.ativo !== undefined ? { ativo: payload.ativo } : {}),
 });
 
 export const getCatalogos = async (params: { q?: string } = {}): Promise<CatalogoItem[]> => {
   const queryParams: Record<string, string> = {};
   if (params.q) queryParams.q = params.q;
-  const { data } = await api.get<CatalogoDTO[]>(CATALOGO_ENDPOINT, { params: queryParams });
-  return (data || []).map(catalogoToFrontend);
+  const { data } = await api.get<CatalogoDTO[] | { results: CatalogoDTO[] }>(CATALOGO_ENDPOINT, { params: queryParams });
+  const lista = Array.isArray(data) ? data : data?.results ?? [];
+  return lista.map(catalogoToFrontend);
 };
 
 export const getCatalogo = async (id: number): Promise<CatalogoItem> => {

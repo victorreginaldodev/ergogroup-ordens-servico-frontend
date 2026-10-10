@@ -23,7 +23,8 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { useUserRole } from '@/hooks/useUserRole';
 import { authService } from '@/services/auth';
-import { useUsers } from '@/features/usuarios/hooks';
+import { useUsers } from '@/features/time/hooks';
+import { opcoesDePessoas } from '@/features/time/utils';
 import { useOrdensLista, useServicosResumo, useTarefasResumo } from '../hooks';
 import {
   formatShortDate,
@@ -151,13 +152,7 @@ const OrdemServicoListPage = () => {
   const { data: tarefasResumo = [], isLoading: loadingTarefasResumo } = useTarefasResumo();
   const loadingTarefaBuckets = loadingServicosResumo || loadingTarefasResumo;
 
-  const technicianOptions = useMemo(
-    () =>
-      usuarios
-        .filter((u) => u.tipo_usuario === 'tecnico' || u.tipo_usuario === 'sub_gestor_tecnico')
-        .map((u) => ({ value: String(u.id), label: u.nome_completo || u.email })),
-    [usuarios],
-  );
+  const technicianOptions = useMemo(() => opcoesDePessoas(usuarios), [usuarios]);
 
   const servicosPorOrdem = useMemo(() => {
     const acc: Record<number, typeof servicosResumo> = {};
@@ -281,7 +276,7 @@ const OrdemServicoListPage = () => {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2.5">
-            <h1 className="text-2xl font-bold">{title}</h1>
+            <h1 className="text-xl font-bold tracking-tight">{title}</h1>
             <span className="text-xs font-semibold text-muted-foreground bg-muted px-2.5 py-1 rounded-full">
               {isLoading ? 'carregando…' : `${filteredOrdens.length} ${filteredOrdens.length === 1 ? 'ordem' : 'ordens'}`}
             </span>

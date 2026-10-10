@@ -94,7 +94,7 @@ const ClientListPage = () => {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2.5">
-            <h1 className="text-2xl font-bold">Clientes</h1>
+            <h1 className="text-xl font-bold tracking-tight">Clientes</h1>
             <span className="text-xs font-semibold text-muted-foreground bg-muted px-2.5 py-1 rounded-full">
               {isLoading ? 'carregando…' : `${totalCount} ${totalCount === 1 ? 'cliente' : 'clientes'}`}
             </span>

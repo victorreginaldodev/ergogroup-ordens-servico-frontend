@@ -41,6 +41,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { MoneyValue } from '@/components/common/MoneyValue';
 import { useUserRole } from '@/hooks/useUserRole';
+import { usePermissoes } from '@/hooks/usePermissoes';
 import { formatCurrency, formatDate } from '@/features/ordens/utils';
 import { useOperationalOrderPage } from '@/features/ordens/hooksOperacional';
 import type { OperationalOrderItem } from '@/features/ordens/servicesOperacional';
@@ -115,6 +116,7 @@ const FaturamentoPage = () => {
   const osoItems = osoBillableItems.slice((osoPage - 1) * PAGE_SIZE, osoPage * PAGE_SIZE);
 
   const { canAccessFinancials } = useUserRole();
+  const canRegistrarCobranca = usePermissoes().pode('financeiro.registrar_cobranca');
 
   // Reset pages on filter change
   useEffect(() => { setOrdersPage(1); }, [searchTerm, statusFilter, billingFilter]);
@@ -165,7 +167,7 @@ const FaturamentoPage = () => {
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
-        <h1 className="text-2xl font-bold">Financeiro</h1>
+        <h1 className="text-xl font-bold tracking-tight">Financeiro</h1>
         <p className="text-muted-foreground">Ordens de serviço disponíveis para cobrança</p>
       </div>
 
@@ -498,7 +500,7 @@ const FaturamentoPage = () => {
                             </span>
                           </TableCell>
                           <TableCell className="py-3 px-3">
-                            {cobrancaPendente && (
+                            {cobrancaPendente && canRegistrarCobranca && (
                               <button
                                 type="button"
                                 onClick={() => setCobrancaItem(item)}

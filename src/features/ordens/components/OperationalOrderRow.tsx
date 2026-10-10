@@ -17,6 +17,7 @@ interface OperationalOrderRowProps {
   item: OperationalOrderItem;
   canManage: boolean;
   onEdit: (item: OperationalOrderItem) => void;
+  /** Ausente para quem não pode registrar cobrança (`financeiro.registrar_cobranca`). */
   onRegistrarCobranca?: (item: OperationalOrderItem) => void;
 }
 
@@ -75,7 +76,7 @@ export function OperationalOrderRow({ item, canManage, onEdit, onRegistrarCobran
 
       <TableCell className="py-3 px-3">
         <div className="flex justify-end items-center gap-1">
-          {canManage && cobrancaPendente && onRegistrarCobranca && (
+          {cobrancaPendente && onRegistrarCobranca && (
             <button
               type="button"
               className="p-1 rounded hover:bg-muted"
