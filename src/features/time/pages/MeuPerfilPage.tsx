@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -12,31 +12,19 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { authService } from '@/services/auth';
 import { Badge } from '@/components/ui/badge';
-import { Switch } from '@/components/ui/switch';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { TIPO_USUARIO_OPTIONS, TipoUsuarioKey, profileResponseToUserProfile, AlterarSenhaPayload } from '../services';
+import { profileResponseToUserProfile, AlterarSenhaPayload } from '../services';
+import { nomeDaPessoa } from '../utils';
+import { getIniciais } from '@/lib/format';
 import {
   useMyProfile,
   useUpdateProfile,
   useAlterarSenha,
 } from '../hooks';
 
-const TIPO_USUARIO_VALUES = TIPO_USUARIO_OPTIONS.map(o => o.value) as [TipoUsuarioKey, ...TipoUsuarioKey[]];
-
-const TIPOS_NAO_GESTORES: TipoUsuarioKey[] = [
-  'tecnico',
-  'sub_gestor_tecnico',
-  'comercial',
-  'financeiro',
-  'administrativo',
-];
-
 const profileSchema = z.object({
   username: z.string().min(2, 'Username muito curto'),
   nome_completo: z.string().min(1, 'Nome completo é obrigatório'),
   email: z.string().email('E-mail inválido'),
-  tipo_usuario: z.enum(TIPO_USUARIO_VALUES),
-  ativo: z.boolean(),
 });
 
 const senhaSchema = z
@@ -53,17 +41,12 @@ const senhaSchema = z
 type ProfileFormValues = z.infer<typeof profileSchema>;
 type SenhaFormValues = z.infer<typeof senhaSchema>;
 
-const UserProfilePage = () => {
+const MeuPerfilPage = () => {
   const { toast } = useToast();
 
   const { data: profile, isLoading, isError } = useMyProfile();
   const updateProfile = useUpdateProfile();
   const alterarSenha = useAlterarSenha();
-
-  const currentUser = authService.getCurrentUser();
-  const isNaoGestor = currentUser
-    ? TIPOS_NAO_GESTORES.includes(currentUser.tipo_usuario as TipoUsuarioKey)
-    : false;
 
   const profileForm = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
@@ -71,8 +54,6 @@ const UserProfilePage = () => {
       username: '',
       nome_completo: '',
       email: '',
-      tipo_usuario: 'tecnico',
-      ativo: true,
     },
   });
 
@@ -87,8 +68,6 @@ const UserProfilePage = () => {
         username: profile.username ?? '',
         nome_completo: profile.nome_completo ?? '',
         email: profile.email ?? '',
-        tipo_usuario: profile.tipo_usuario ?? 'tecnico',
-        ativo: profile.ativo ?? true,
       });
     }
   }, [profile]);
@@ -100,8 +79,6 @@ const UserProfilePage = () => {
         username: values.username,
         nome_completo: values.nome_completo,
         email: values.email,
-        tipo_usuario: isNaoGestor ? profile.tipo_usuario : values.tipo_usuario,
-        ativo: isNaoGestor ? profile.ativo : values.ativo,
       };
       const updated = await updateProfile.mutateAsync({ id: profile.id, payload });
       toast({ title: 'Dados atualizados', description: 'Seu perfil foi atualizado com sucesso.' });
@@ -131,32 +108,22 @@ const UserProfilePage = () => {
     }
   };
 
-  const tipoUsuarioLabel = profileForm.watch('tipo_usuario');
-  const tipoLabel =
-    TIPO_USUARIO_OPTIONS.find(o => o.value === tipoUsuarioLabel)?.label ||
-    profile?.tipo_usuario_display ||
-    '';
-  const isAtivo = profileForm.watch('ativo');
-  const usernamePreview = profileForm.watch('username') || profile?.username || 'Usuário';
+  const vinculos = profile?.vinculos ?? [];
+  const usernamePreview = profileForm.watch('username') || profile?.username || '';
   const emailPreview = profileForm.watch('email') || profile?.email || '';
-
-  const initials = useMemo(
-    () =>
-      usernamePreview
-        .split(' ')
-        .filter(Boolean)
-        .map(part => part[0])
-        .slice(0, 2)
-        .join('')
-        .toUpperCase() || 'U',
-    [usernamePreview],
-  );
+  // Nome completo por padrão; sem ele, o nome de usuário.
+  const nomePreview = nomeDaPessoa({
+    nome_completo: profileForm.watch('nome_completo') || profile?.nome_completo,
+    username: usernamePreview,
+    email: emailPreview,
+  });
+  const initials = getIniciais(nomePreview) || 'U';
 
   if (isError) {
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-bold">Meu Perfil</h1>
+          <h1 className="text-xl font-bold tracking-tight">Meu Perfil</h1>
           <p className="text-muted-foreground">
             Não foi possível carregar suas informações. Tente novamente mais tarde.
           </p>
@@ -168,7 +135,7 @@ const UserProfilePage = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Meu Perfil</h1>
+        <h1 className="text-xl font-bold tracking-tight">Meu Perfil</h1>
         <p className="text-muted-foreground">Atualize seus dados pessoais</p>
       </div>
 
@@ -197,17 +164,23 @@ const UserProfilePage = () => {
                   <AvatarFallback>{initials}</AvatarFallback>
                 </Avatar>
                 <div className="w-full">
-                  <h2 className="text-lg font-semibold">{usernamePreview}</h2>
+                  <h2 className="text-lg font-semibold">{nomePreview}</h2>
                   <p className="text-sm text-muted-foreground">
-                    {emailPreview ? `${emailPreview} • @${usernamePreview}` : `@${usernamePreview}`}
+                    {[emailPreview, usernamePreview && `@${usernamePreview}`].filter(Boolean).join(' • ')}
                   </p>
                   <div className="mt-2 flex flex-wrap items-center gap-2">
-                    {tipoLabel && <Badge variant="secondary">{tipoLabel}</Badge>}
-                    <Badge
-                      className={`${isAtivo ? 'bg-green-600 text-primary-foreground' : 'bg-muted text-muted-foreground'} border-0`}
-                    >
-                      {isAtivo ? 'Ativo' : 'Inativo'}
-                    </Badge>
+                    {vinculos.map((v) => (
+                      <Badge key={v.id} variant="secondary" className="font-medium">
+                        {v.funcao_nome}
+                        <span className="ml-1 font-normal text-muted-foreground">· {v.setor_nome}</span>
+                      </Badge>
+                    ))}
+                    {profile?.permissoes?.todos_os_setores && <Badge variant="outline">Atua em todos os setores</Badge>}
+                    {!vinculos.length && !profile?.is_superuser && (
+                      <span className="text-xs text-muted-foreground">
+                        Sem setor: você vê só as próprias tarefas e OS. Fale com quem gerencia o time.
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -262,64 +235,7 @@ const UserProfilePage = () => {
                           </FormItem>
                         )}
                       />
-                      <FormField
-                        control={profileForm.control}
-                        name="tipo_usuario"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Função</FormLabel>
-                            <Select
-                              value={field.value}
-                              onValueChange={field.onChange}
-                              disabled={updateProfile.isPending || isNaoGestor}
-                            >
-                              <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Selecione a função" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                {TIPO_USUARIO_OPTIONS.map(opt => (
-                                  <SelectItem key={opt.value} value={opt.value}>
-                                    {opt.label}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            {isNaoGestor && (
-                              <p className="text-sm text-muted-foreground">
-                                Apenas gestores podem alterar o tipo de usuário.
-                              </p>
-                            )}
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
                     </div>
-
-                    <FormField
-                      control={profileForm.control}
-                      name="ativo"
-                      render={({ field }) => (
-                        <FormItem className="flex items-center justify-between rounded-lg border border-border px-4 py-3">
-                          <div className="space-y-0.5">
-                            <FormLabel>Status do usuário</FormLabel>
-                            <p className="text-sm text-muted-foreground">
-                              {isNaoGestor
-                                ? 'Apenas gestores podem alterar o status.'
-                                : 'Defina se o usuário está ativo na plataforma.'}
-                            </p>
-                          </div>
-                          <FormControl>
-                            <Switch
-                              checked={field.value}
-                              onCheckedChange={field.onChange}
-                              disabled={updateProfile.isPending || isNaoGestor}
-                            />
-                          </FormControl>
-                        </FormItem>
-                      )}
-                    />
                   </div>
 
                   <div className="flex justify-end">
@@ -420,4 +336,4 @@ const UserProfilePage = () => {
   );
 };
 
-export default UserProfilePage;
+export default MeuPerfilPage;

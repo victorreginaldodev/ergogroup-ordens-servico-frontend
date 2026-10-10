@@ -1,4 +1,5 @@
 import api from './api';
+import type { ResumoPermissoes, Vinculo } from '@/lib/permissoes';
 
 export interface UserDetail {
   id: number;
@@ -12,7 +13,10 @@ export interface UserDetail {
 export interface UserProfile {
   id: number;
   user: UserDetail;
-  tipo_usuario: string;
+  /** Setores e funções da pessoa. Ausente em sessões gravadas antes da troca para permissões. */
+  vinculos?: Vinculo[];
+  permissoes?: ResumoPermissoes;
+  is_superuser?: boolean;
   nivel_usuario: string;
   foto_perfil: string | null;
   ativo: boolean;
@@ -27,11 +31,11 @@ export interface UsuarioPayload {
   email: string;
   username: string;
   nome_completo: string;
-  tipo_usuario: string;
-  tipo_usuario_display: string;
   ativo: boolean;
   is_staff: boolean;
   is_superuser: boolean;
+  vinculos: Vinculo[];
+  permissoes: ResumoPermissoes;
 }
 
 export interface TokenLoginResponse {
@@ -45,7 +49,7 @@ export interface LoginCredentials {
   password: string;
 }
 
-const usuarioToUserProfile = (usuario: UsuarioPayload): UserProfile => ({
+export const usuarioToUserProfile = (usuario: UsuarioPayload): UserProfile => ({
   id: usuario.id,
   user: {
     id: usuario.id,
@@ -55,7 +59,9 @@ const usuarioToUserProfile = (usuario: UsuarioPayload): UserProfile => ({
     first_name: '',
     last_name: '',
   },
-  tipo_usuario: usuario.tipo_usuario,
+  vinculos: usuario.vinculos,
+  permissoes: usuario.permissoes,
+  is_superuser: usuario.is_superuser,
   nivel_usuario: 'normal',
   foto_perfil: null,
   ativo: usuario.ativo,
@@ -112,6 +118,19 @@ export const authService = {
       }
     }
     return null;
+  },
+
+  /**
+   * Recarrega a pessoa logada do `/auth/me/` (setores, funções e permissões podem ter mudado
+   * desde o login) e avisa a tela pelo evento `servix:auth-updated`.
+   */
+  refreshCurrentUser: async (): Promise<UserProfile | null> => {
+    if (!localStorage.getItem('access_token')) return null;
+    const { data } = await api.get<UsuarioPayload>('/api/contas/auth/me/');
+    const profile = usuarioToUserProfile(data);
+    authService.setCurrentUser(profile);
+    window.dispatchEvent(new Event('servix:auth-updated'));
+    return profile;
   },
 
   setCurrentUser: (profile: UserProfile) => {

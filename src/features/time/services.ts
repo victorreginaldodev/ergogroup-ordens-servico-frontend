@@ -1,30 +1,6 @@
 import api from '@/services/api';
 import type { UserProfile } from '@/services/auth';
-
-export type TipoUsuarioKey =
-  | 'diretor'
-  | 'gestor_comercial'
-  | 'comercial'
-  | 'gestor_tecnico'
-  | 'sub_gestor_tecnico'
-  | 'tecnico'
-  | 'gestor_financeiro'
-  | 'financeiro'
-  | 'gestor_administrativo'
-  | 'administrativo';
-
-export const TIPO_USUARIO_OPTIONS: Array<{ value: TipoUsuarioKey; label: string }> = [
-  { value: 'diretor',               label: 'Diretor' },
-  { value: 'gestor_comercial',      label: 'Gestor Comercial' },
-  { value: 'comercial',             label: 'Comercial' },
-  { value: 'gestor_tecnico',        label: 'Líder Técnico' },
-  { value: 'sub_gestor_tecnico',    label: 'Sub-Líder Técnico' },
-  { value: 'tecnico',               label: 'Técnico' },
-  { value: 'gestor_financeiro',     label: 'Gestor Financeiro' },
-  { value: 'financeiro',            label: 'Financeiro' },
-  { value: 'gestor_administrativo', label: 'Gestor Administrativo' },
-  { value: 'administrativo',        label: 'Administrativo' },
-];
+import type { ResumoPermissoes, Vinculo } from '@/lib/permissoes';
 
 const endpoint = '/api/contas/usuarios/';
 
@@ -35,18 +11,24 @@ export interface UsuarioApi {
   id: number;
   email: string;
   nome_completo: string;
-  tipo_usuario: TipoUsuarioKey;
-  tipo_usuario_display: string;
   ativo: boolean;
+  /** Setores e funções da pessoa. */
+  vinculos: Vinculo[];
   data_criacao: string;
+}
+
+/** Setor e função na escrita de uma pessoa. Enviar a lista substitui todos os vínculos. */
+export interface VinculoPayload {
+  setor: number;
+  funcao: number;
 }
 
 export interface CreateUserPayload {
   email: string;
   username: string;
   nome_completo: string;
-  tipo_usuario: TipoUsuarioKey;
   ativo: boolean;
+  vinculos?: VinculoPayload[];
   password: string;
   password_confirmacao: string;
 }
@@ -55,8 +37,8 @@ export interface UpdateUserPayload {
   email?: string;
   username?: string;
   nome_completo?: string;
-  tipo_usuario?: TipoUsuarioKey;
   ativo?: boolean;
+  vinculos?: VinculoPayload[];
 }
 
 export const getUsers = async (): Promise<UsuarioApi[]> => {
@@ -78,6 +60,11 @@ export const deleteUser = async (id: number): Promise<void> => {
   await api.delete(`${endpoint}${id}/`);
 };
 
+/** Desativada, a pessoa não entra mais no sistema; tarefas e histórico continuam. */
+export const setUserAtivo = async (id: number, ativo: boolean): Promise<void> => {
+  await api.patch(`${endpoint}${id}/${ativo ? 'ativar' : 'desativar'}/`);
+};
+
 // ── Perfil do usuário autenticado ────────────────────────────────────────────
 
 export type ProfileResponse = {
@@ -85,21 +72,20 @@ export type ProfileResponse = {
   email: string;
   username: string;
   nome_completo: string;
-  tipo_usuario: TipoUsuarioKey;
-  tipo_usuario_display: string;
   ativo: boolean;
   is_staff: boolean;
   is_superuser: boolean;
+  vinculos: Vinculo[];
+  permissoes: ResumoPermissoes;
   data_criacao: string;
   last_login: string | null;
 };
 
+/** O próprio perfil: só dados cadastrais. Status, setores e funções ficam com quem gerencia o time. */
 export type UpdateProfilePayload = {
   email?: string;
   username?: string;
   nome_completo?: string;
-  tipo_usuario?: TipoUsuarioKey;
-  ativo?: boolean;
 };
 
 export type AlterarSenhaPayload = {
@@ -118,7 +104,9 @@ export const profileResponseToUserProfile = (profile: ProfileResponse): UserProf
     first_name: '',
     last_name: '',
   },
-  tipo_usuario: profile.tipo_usuario,
+  vinculos: profile.vinculos,
+  permissoes: profile.permissoes,
+  is_superuser: profile.is_superuser,
   nivel_usuario: 'normal',
   foto_perfil: null,
   ativo: profile.ativo,

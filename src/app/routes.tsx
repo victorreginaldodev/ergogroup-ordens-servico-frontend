@@ -1,4 +1,4 @@
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 
 // Auth
@@ -6,6 +6,7 @@ import LoginPage from '@/pages/LoginPage';
 import ForgotPasswordPage from '@/pages/ForgotPasswordPage';
 import ResetPasswordPage from '@/pages/ResetPasswordPage';
 import NotFound from '@/pages/NotFound';
+import UiKitPage from '@/pages/UiKitPage';
 
 // Analytics
 import OperacionalPage from '@/features/analytics/pages/OperacionalPage';
@@ -16,12 +17,13 @@ import OrdemServicoListPage from '@/features/ordens/pages/OrdemServicoListPage';
 import OrdemServicoFormPage from '@/features/ordens/pages/OrdemServicoFormPage';
 import OrdemDetalhePage from '@/features/ordens/pages/OrdemDetalhePage';
 
-// Empresa
+// Organização
 import CompanySettingsPage from '@/features/empresa/pages/CompanySettingsPage';
+import SetoresPage from '@/features/organizacao/pages/SetoresPage';
+import FuncoesPage from '@/features/organizacao/pages/FuncoesPage';
 
 // Catálogo
 import CatalogListPage from '@/features/catalogo/pages/CatalogListPage';
-import CatalogFormPage from '@/features/catalogo/pages/CatalogFormPage';
 import CatalogoOperacionalListPage from '@/features/catalogo/pages/CatalogoOperacionalListPage';
 import CatalogoOperacionalFormPage from '@/features/catalogo/pages/CatalogoOperacionalFormPage';
 
@@ -31,9 +33,9 @@ import ClientFormPage from '@/features/clientes/pages/ClientFormPage';
 import ContactListPage from '@/features/clientes/pages/ContactListPage';
 import ContactFormPage from '@/features/clientes/pages/ContactFormPage';
 
-// Usuários
-import UserProfilePage from '@/features/usuarios/pages/UserProfilePage';
-import UsersManagementPage from '@/features/usuarios/pages/UsersManagementPage';
+// Time
+import MeuPerfilPage from '@/features/time/pages/MeuPerfilPage';
+import TimePage from '@/features/time/pages/TimePage';
 
 // Faturamento
 import FaturamentoPage from '@/features/faturamento/pages/FaturamentoPage';
@@ -64,8 +66,9 @@ const AppRoutes = () => (
 
     {/* Catálogo */}
     <Route path="/catalogo" element={w(<CatalogListPage />)} />
-    <Route path="/catalogo/new" element={w(<CatalogFormPage />)} />
-    <Route path="/catalogo/:id/edit" element={w(<CatalogFormPage />)} />
+    {/* O formulário do catálogo é um modal sobre a listagem; os endereços abrem o modal. */}
+    <Route path="/catalogo/new" element={w(<CatalogListPage />)} />
+    <Route path="/catalogo/:id/edit" element={w(<CatalogListPage />)} />
     <Route path="/catalogo/operacional" element={w(<CatalogoOperacionalListPage />)} />
     <Route path="/catalogo/operacional/new" element={w(<CatalogoOperacionalFormPage />)} />
     <Route path="/catalogo/operacional/:id/edit" element={w(<CatalogoOperacionalFormPage />)} />
@@ -81,10 +84,20 @@ const AppRoutes = () => (
     {/* Cobranças */}
     <Route path="/cobrancas" element={w(<FaturamentoPage />)} />
 
-    {/* Usuários e empresa */}
-    <Route path="/usuarios/profile" element={w(<UserProfilePage />)} />
-    <Route path="/usuarios" element={w(<UsersManagementPage />)} />
-    <Route path="/empresa" element={w(<CompanySettingsPage />)} />
+    {/* Organização e time */}
+    <Route path="/time" element={w(<TimePage />)} />
+    <Route path="/time/eu" element={w(<MeuPerfilPage />)} />
+    <Route path="/organizacao/setores" element={w(<SetoresPage />)} />
+    <Route path="/organizacao/funcoes" element={w(<FuncoesPage />)} />
+    <Route path="/organizacao/dados" element={w(<CompanySettingsPage />)} />
+
+    {/* Endereços antigos */}
+    <Route path="/usuarios" element={<Navigate to="/time" replace />} />
+    <Route path="/usuarios/profile" element={<Navigate to="/time/eu" replace />} />
+    <Route path="/empresa" element={<Navigate to="/organizacao/dados" replace />} />
+
+    {/* Vitrine do UI kit (docs/ui/plano-ui-kit.md) — só em desenvolvimento */}
+    {import.meta.env.DEV && <Route path="/ui" element={w(<UiKitPage />)} />}
 
     <Route path="*" element={<NotFound />} />
   </Routes>

@@ -10,6 +10,7 @@ import {
   createUser,
   updateUser,
   deleteUser,
+  setUserAtivo,
   getMyProfile,
   getProfileDetail,
   updateProfile,
@@ -20,7 +21,7 @@ import {
 
 export const useUsers = () =>
   useQuery<UsuarioApi[]>({
-    queryKey: ['usuarios-lista'],
+    queryKey: ['time', 'lista'],
     queryFn: getUsers,
   });
 
@@ -37,7 +38,7 @@ export const useUpsertUser = () => {
       return createUser(payload as CreateUserPayload);
     },
     onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: ['usuarios-lista'] });
+      await qc.invalidateQueries({ queryKey: ['time', 'lista'] });
     },
   });
 };
@@ -50,7 +51,17 @@ export const useDeleteUser = () => {
       return id;
     },
     onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: ['usuarios-lista'] });
+      await qc.invalidateQueries({ queryKey: ['time', 'lista'] });
+    },
+  });
+};
+
+export const useSetUserAtivo = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ativo }: { id: number; ativo: boolean }) => setUserAtivo(id, ativo),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ['time'] });
     },
   });
 };
@@ -59,13 +70,13 @@ export const useDeleteUser = () => {
 
 export const useMyProfile = () =>
   useQuery<ProfileResponse>({
-    queryKey: ['usuarios-perfil-me'],
+    queryKey: ['time', 'eu'],
     queryFn: getMyProfile,
   });
 
 export const useProfileDetail = (id?: number | null) =>
   useQuery<ProfileResponse>({
-    queryKey: ['usuarios-perfil-detalhe', id],
+    queryKey: ['time', 'pessoa', id],
     enabled: typeof id === 'number',
     queryFn: () => {
       if (typeof id !== 'number') throw new Error('missing id');
@@ -78,9 +89,9 @@ export const useUpdateProfile = () => {
   return useMutation({
     mutationFn: ({ id, payload }: { id: number; payload: UpdateProfilePayload }) => updateProfile(id, payload),
     onSuccess: async (_data, { id }) => {
-      await qc.invalidateQueries({ queryKey: ['usuarios-perfil-detalhe', id] });
-      await qc.invalidateQueries({ queryKey: ['usuarios-perfil-me'] });
-      await qc.invalidateQueries({ queryKey: ['usuarios-lista'] });
+      await qc.invalidateQueries({ queryKey: ['time', 'pessoa', id] });
+      await qc.invalidateQueries({ queryKey: ['time', 'eu'] });
+      await qc.invalidateQueries({ queryKey: ['time', 'lista'] });
     },
   });
 };
