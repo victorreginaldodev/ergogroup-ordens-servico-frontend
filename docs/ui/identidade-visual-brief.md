@@ -4,6 +4,8 @@
 > Não descreve uma tela específica — descreve o sistema (marca, cor, tipografia, componentes, personas) que **todo** brief de página individual (ex: [`listagem-ordens-brief.md`](./listagem-ordens-brief.md), [`gestor-operacional-brief.md`](./gestor-operacional-brief.md), [`ordem-detalhe-brief.md`](./ordem-detalhe-brief.md)) deve herdar.
 >
 > Ao gerar qualquer tela nova, use este documento como fundação e o brief da página específica (se existir) para a estrutura de informação daquela tela.
+>
+> **Valores de cor, tipografia, espaçamento, raio e elevação:** a fonte da verdade é [`design-system.md`](./design-system.md). As seções 3 a 6 abaixo descrevem o estado anterior e serão revisadas conforme as propostas daquele documento forem aprovadas.
 
 ---
 
