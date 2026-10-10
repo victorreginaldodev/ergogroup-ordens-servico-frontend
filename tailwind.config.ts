@@ -16,12 +16,17 @@ export default {
       fontFamily: {
         sans: ['Plus Jakarta Sans', 'system-ui', 'sans-serif'],
       },
+      fontSize: {
+        // Único tamanho fora da escala nativa (docs/ui/design-system.md §3.2). Mínimo do produto.
+        '2xs': ['0.6875rem', { lineHeight: '1rem' }],
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
+        canvas: "hsl(var(--canvas))",
         primary: {
           DEFAULT: "hsl(var(--primary))",
           foreground: "hsl(var(--primary-foreground))",
@@ -65,6 +70,30 @@ export default {
           progress: "hsl(var(--status-progress))",
           completed: "hsl(var(--status-completed))",
           cancelled: "hsl(var(--status-cancelled))",
+        },
+        success: {
+          DEFAULT: "hsl(var(--success))",
+          foreground: "hsl(var(--success-foreground))",
+          subtle: "hsl(var(--success-subtle))",
+          strong: "hsl(var(--success-strong))",
+        },
+        warning: {
+          DEFAULT: "hsl(var(--warning))",
+          foreground: "hsl(var(--warning-foreground))",
+          subtle: "hsl(var(--warning-subtle))",
+          strong: "hsl(var(--warning-strong))",
+        },
+        danger: {
+          DEFAULT: "hsl(var(--danger))",
+          foreground: "hsl(var(--danger-foreground))",
+          subtle: "hsl(var(--danger-subtle))",
+          strong: "hsl(var(--danger-strong))",
+        },
+        info: {
+          DEFAULT: "hsl(var(--info))",
+          foreground: "hsl(var(--info-foreground))",
+          subtle: "hsl(var(--info-subtle))",
+          strong: "hsl(var(--info-strong))",
         },
         chart: {
           "1": "hsl(var(--chart-1))",

@@ -18,5 +18,8 @@ export function useEV2Modal() {
     setOpen(false);
   };
 
-  return { open, dismiss };
+  // Reabre pelo item "Novidades" da sidebar, mesmo depois de dispensado.
+  const show = () => setOpen(true);
+
+  return { open, dismiss, show };
 }

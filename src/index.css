@@ -35,6 +35,9 @@
 
     --radius: 0.75rem;
 
+    /* Fundo atrás do painel de conteúdo (layout "painel inset", docs/ui/wireframes/navegacao.html) */
+    --canvas: 220 20% 96.5%;
+
     --sidebar-background: 0 0% 100%;
     --sidebar-foreground: 222 47% 11%;
     --sidebar-primary: 173 80% 40%;
@@ -56,6 +59,29 @@
     --status-progress: 173 80% 40%;
     --status-completed: 142 76% 36%;
     --status-cancelled: 0 84% 60%;
+
+    /* Feedback semântico (docs/ui/design-system.md §2.3):
+       DEFAULT = preenchimento sólido, foreground = texto sobre o sólido,
+       subtle = fundo tingido, strong = texto colorido legível (≥ 4,5:1) */
+    --success: 142 71% 36%;
+    --success-foreground: 222 47% 11%;
+    --success-subtle: 138 76% 96%;
+    --success-strong: 142 72% 26%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 222 47% 11%;
+    --warning-subtle: 48 96% 94%;
+    --warning-strong: 26 90% 33%;
+
+    --danger: 0 72% 51%;
+    --danger-foreground: 0 0% 100%;
+    --danger-subtle: 0 86% 96%;
+    --danger-strong: 0 70% 40%;
+
+    --info: 217 91% 52%;
+    --info-foreground: 0 0% 100%;
+    --info-subtle: 214 95% 96%;
+    --info-strong: 224 70% 42%;
 
     /* Chart colors */
     --chart-1: 173 50% 38%;
@@ -94,6 +120,8 @@
     --input: 222 30% 14%;
     --ring: 173 50% 38%;
 
+    --canvas: 222 47% 4.5%;
+
     --sidebar-background: 222 47% 7%;
     --sidebar-foreground: 210 40% 98%;
     --sidebar-primary: 173 80% 40%;
@@ -107,6 +135,26 @@
     --gradient-card: linear-gradient(145deg, hsl(222 47% 10%), hsl(222 47% 8%));
     --shadow-glow: 0 0 60px hsl(173 50% 38% / 0.08);
     --shadow-card: 0 4px 20px hsl(0 0% 0% / 0.3);
+
+    --success: 142 69% 45%;
+    --success-foreground: 222 47% 6%;
+    --success-subtle: 172 50% 11%;
+    --success-strong: 142 69% 62%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 222 47% 6%;
+    --warning-subtle: 35 26% 14%;
+    --warning-strong: 43 96% 62%;
+
+    --danger: 0 72% 51%;
+    --danger-foreground: 0 0% 100%;
+    --danger-subtle: 329 35% 12%;
+    --danger-strong: 0 91% 72%;
+
+    --info: 217 91% 60%;
+    --info-foreground: 222 47% 6%;
+    --info-subtle: 219 55% 16%;
+    --info-strong: 213 94% 72%;
   }
 }
 
@@ -116,7 +164,8 @@
   }
 
   body {
-    @apply bg-background text-foreground font-sans antialiased;
+    /* Corpo padrão do produto: 14px (docs/ui/design-system.md §3.4). Ferramenta densa, não site. */
+    @apply bg-background text-foreground font-sans text-sm antialiased;
     font-family: 'Plus Jakarta Sans', sans-serif;
   }
 
